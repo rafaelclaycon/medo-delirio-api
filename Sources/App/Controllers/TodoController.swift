@@ -2,6 +2,7 @@ import Fluent
 import Vapor
 
 struct TodoController: RouteCollection {
+
     func boot(routes: RoutesBuilder) throws {
         let todos = routes.grouped("todos")
         todos.get(use: index)
@@ -28,4 +29,5 @@ struct TodoController: RouteCollection {
         try await todo.delete(on: req.db)
         return .ok
     }
+
 }
