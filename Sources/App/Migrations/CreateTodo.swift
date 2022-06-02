@@ -1,6 +1,7 @@
 import Fluent
 
 struct CreateTodo: AsyncMigration {
+
     func prepare(on database: Database) async throws {
         try await database.schema("todos")
             .id()
@@ -11,4 +12,5 @@ struct CreateTodo: AsyncMigration {
     func revert(on database: Database) async throws {
         try await database.schema("todos").delete()
     }
+
 }

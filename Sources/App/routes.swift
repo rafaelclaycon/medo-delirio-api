@@ -6,8 +6,11 @@ func routes(_ app: Application) throws {
         return "It works!"
     }
 
-    app.get("hello") { req -> String in
-        return "Hello, world!"
+    app.get("hello", ":name") { req -> String in
+        guard let name = req.parameters.get("name") else {
+            throw Abort(.internalServerError)
+        }
+        return "Hello, \(name)!"
     }
 
     try app.register(collection: TodoController())
