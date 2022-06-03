@@ -4,7 +4,7 @@ import SQLiteNIO
 
 func routes(_ app: Application) throws {
     app.get { req in
-        return "Servidor OK."
+        return "Conexão com o servidor OK."
     }
 
     app.get("hello", ":name") { req -> String in
