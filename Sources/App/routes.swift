@@ -3,7 +3,7 @@ import Vapor
 
 func routes(_ app: Application) throws {
     app.get { req in
-        return "It works!"
+        return "Shantay you stay! medo-delirio-api is up and running."
     }
 
     app.get("hello", ":name") { req -> String in
