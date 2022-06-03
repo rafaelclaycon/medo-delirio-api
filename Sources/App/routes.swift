@@ -12,6 +12,23 @@ func routes(_ app: Application) throws {
         }
         return "Hello, \(name)!"
     }
+    
+    app.post("api", "ShareCountStat") { req -> EventLoopFuture<ShareCountStat> in
+        let stat = try req.content.decode(ShareCountStat.self)
+        return stat.save(on: req.db).map {
+            stat
+        }
+    }
+    
+    app.get("api", "ShareCountStats") { req -> EventLoopFuture<[ShareCountStat]> in
+        ShareCountStat.query(on: req.db).all()
+    }
 
-    try app.register(collection: TodoController())
+    //try app.register(collection: TodoController())
+}
+
+struct InfoData: Content {
+
+    let name: String
+
 }
