@@ -3,29 +3,29 @@ import Vapor
 import SQLiteNIO
 
 func routes(_ app: Application) throws {
-    app.get { req in
+    app.get("api", "v1", "status-check") { req in
         return "Conexão com o servidor OK."
     }
 
-    app.get("hello", ":name") { req -> String in
+    app.get("api", "v1", "hello", ":name") { req -> String in
         guard let name = req.parameters.get("name") else {
             throw Abort(.internalServerError)
         }
         return "Hello, \(name)!"
     }
     
-    app.post("api", "ShareCountStat") { req -> EventLoopFuture<ShareCountStat> in
+    app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
         let stat = try req.content.decode(ShareCountStat.self)
         return stat.save(on: req.db).map {
             stat
         }
     }
     
-    app.get("api", "AllSoundShareCountStats") { req -> EventLoopFuture<[ShareCountStat]> in
+    app.get("api", "v1", "all-sound-share-count-stats") { req -> EventLoopFuture<[ShareCountStat]> in
         ShareCountStat.query(on: req.db).all()
     }
     
-    app.get("api", "SoundShareCountStats") { req -> EventLoopFuture<[ShareCountStat]> in
+    app.get("api", "v1", "sound-share-count-stats") { req -> EventLoopFuture<[ShareCountStat]> in
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
