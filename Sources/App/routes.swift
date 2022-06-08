@@ -3,8 +3,12 @@ import Vapor
 import SQLiteNIO
 
 func routes(_ app: Application) throws {
+    
+    // MARK: - API V1
+    
     app.get("api", "v1", "status-check") { req in
         return "Conexão com o servidor OK."
+        // TODO: Add is-accepting-new-transactions property.
     }
 
     app.get("api", "v1", "hello", ":name") { req -> String in
@@ -19,6 +23,17 @@ func routes(_ app: Application) throws {
         return stat.save(on: req.db).map {
             stat
         }
+    }
+    
+    app.post("api", "v1", "client-device-info") { req -> EventLoopFuture<ClientDeviceInfo> in
+        let info = try req.content.decode(ClientDeviceInfo.self)
+        return info.save(on: req.db).map {
+            info
+        }
+    }
+    
+    app.get("api", "v1", "all-client-device-info") { req -> EventLoopFuture<[ClientDeviceInfo]> in
+        ClientDeviceInfo.query(on: req.db).all()
     }
     
     app.get("api", "v1", "all-sound-share-count-stats") { req -> EventLoopFuture<[ShareCountStat]> in
