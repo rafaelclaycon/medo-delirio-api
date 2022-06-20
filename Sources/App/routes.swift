@@ -8,7 +8,6 @@ func routes(_ app: Application) throws {
     
     app.get("api", "v1", "status-check") { req in
         return "Conexão com o servidor OK."
-        // TODO: Add is-accepting-new-transactions property.
     }
 
     app.get("api", "v1", "hello", ":name") { req -> String in
