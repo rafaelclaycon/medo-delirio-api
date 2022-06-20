@@ -24,6 +24,13 @@ func routes(_ app: Application) throws {
         }
     }
     
+    app.post("api", "v1", "shared-to-bundle-id") { req -> EventLoopFuture<ShareBundleIdLog> in
+        let log = try req.content.decode(ShareBundleIdLog.self)
+        return log.save(on: req.db).map {
+            log
+        }
+    }
+    
     app.post("api", "v1", "client-device-info") { req -> EventLoopFuture<ClientDeviceInfo> in
         let info = try req.content.decode(ClientDeviceInfo.self)
         return info.save(on: req.db).map {

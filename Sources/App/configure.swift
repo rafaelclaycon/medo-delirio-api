@@ -11,6 +11,7 @@ public func configure(_ app: Application) throws {
 
     app.migrations.add(CreateShareCountStat())
     app.migrations.add(CreateClientDeviceInfo())
+    app.migrations.add(CreateShareBundleIdLog())
     
     app.logger.logLevel = .debug
     
