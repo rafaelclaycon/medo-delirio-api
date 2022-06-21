@@ -16,7 +16,8 @@ public func configure(_ app: Application) throws {
     app.logger.logLevel = .debug
     
     try app.autoMigrate().wait()
-
-    // register routes
+    
     try routes(app)
+    
+    try app.configurePush()
 }
