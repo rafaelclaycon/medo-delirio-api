@@ -42,6 +42,22 @@ func routes(_ app: Application) throws {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
         }
     }
+
+    app.get("api", "v1", "install-id-count") { req -> EventLoopFuture<[Int]> in
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select count(c.installId) totalCount
+                from ClientDeviceInfo c
+                where c.installId not in ("0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","A93E5354-41F9-5170-AFD9-817FAE37D037","F60AF930-0CBA-41FF-A80E-1E6007ED6AE8","F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4","FC2ADC6B-B70E-4B69-BC69-CCCADB64903F","0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","0A4D4541-BC16-4C15-842E-DA6ACF957027");
+            """
+            
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(row.column("totalCount")?.integer ?? 0)
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([0])
+        }
+    }
     
     // MARK: - API V1 - POST
     
