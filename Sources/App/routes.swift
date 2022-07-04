@@ -79,6 +79,10 @@ func routes(_ app: Application) throws {
             return req.eventLoop.makeSucceededFuture([0])
         }
     }
+    
+    app.get("api", "v1", "display-ask-for-money-view") { req in
+        return 0
+    }
 
     //try app.register(collection: TodoController())
 }
