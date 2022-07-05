@@ -79,7 +79,26 @@ func routes(_ app: Application) throws {
             return req.eventLoop.makeSucceededFuture([0])
         }
     }
-
+    
+    app.get("api", "v1", "display-ask-for-money-view") { req -> String in
+        let userDefaults = UserDefaults.standard
+        guard let value = userDefaults.object(forKey: "display-ask-for-money-view") else {
+            return "0"
+        }
+        return String(value as! String)
+    }
+    
+    app.post("api", "v1", "display-ask-for-money-view") { req -> String in
+        let newValue = try req.content.decode(String.self)
+        let userDefaults = UserDefaults.standard
+        if newValue.contains("1") {
+            userDefaults.set("1", forKey: "display-ask-for-money-view")
+        } else {
+            userDefaults.set("0", forKey: "display-ask-for-money-view")
+        }
+        return "Novo valor setado."
+    }
+    
     //try app.register(collection: TodoController())
 }
 
