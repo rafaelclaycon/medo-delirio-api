@@ -99,6 +99,10 @@ func routes(_ app: Application) throws {
         return "Novo valor setado."
     }
     
+    app.post("api", "v1", "push-device") { req -> String in
+        
+    }
+    
     //try app.register(collection: TodoController())
 }
 
