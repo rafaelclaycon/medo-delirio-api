@@ -99,8 +99,11 @@ func routes(_ app: Application) throws {
         return "Novo valor setado."
     }
     
-    app.post("api", "v1", "push-device") { req -> String in
-        
+    app.post("api", "v1", "push-device") { req -> EventLoopFuture<PushDevice> in
+        let device = try req.content.decode(PushDevice.self)
+        return device.save(on: req.db).map {
+            device
+        }
     }
     
     //try app.register(collection: TodoController())
