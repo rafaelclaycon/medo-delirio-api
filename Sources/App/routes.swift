@@ -118,6 +118,23 @@ func routes(_ app: Application) throws {
         return "Novo valor setado."
     }
     
+    app.get("api", "v1", "any-iphone-14-in-user-stats") { req -> EventLoopFuture<[Int]> in
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select count(c.installId) totalCount
+                from ClientDeviceInfo c
+                where c.modelName like '%14%'
+                group by c.modelName;
+            """
+            
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(row.column("totalCount")?.integer ?? 0)
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([0])
+        }
+    }
+    
     //try app.register(collection: TodoController())
 
 }
