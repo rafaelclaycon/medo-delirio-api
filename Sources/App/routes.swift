@@ -99,6 +99,42 @@ func routes(_ app: Application) throws {
         return "Novo valor setado."
     }
     
+    app.get("api", "v1", "display-lula-won-on-lock-screen-widgets") { req -> String in
+        let userDefaults = UserDefaults.standard
+        guard let value = userDefaults.object(forKey: "display-lula-won-on-lock-screen-widgets") else {
+            return "0"
+        }
+        return String(value as! String)
+    }
+    
+    app.post("api", "v1", "display-lula-won-on-lock-screen-widgets") { req -> String in
+        let newValue = try req.content.decode(String.self)
+        let userDefaults = UserDefaults.standard
+        if newValue.contains("1") {
+            userDefaults.set("1", forKey: "display-lula-won-on-lock-screen-widgets")
+        } else {
+            userDefaults.set("0", forKey: "display-lula-won-on-lock-screen-widgets")
+        }
+        return "Novo valor setado."
+    }
+    
+    app.get("api", "v1", "any-iphone-14-in-user-stats") { req -> EventLoopFuture<[Int]> in
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select count(c.installId) totalCount
+                from ClientDeviceInfo c
+                where c.modelName like '%14%'
+                group by c.modelName;
+            """
+            
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(row.column("totalCount")?.integer ?? 0)
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([0])
+        }
+    }
+    
     app.post("api", "v1", "push-device") { req -> EventLoopFuture<PushDevice> in
         let device = try req.content.decode(PushDevice.self)
         return device.save(on: req.db).map {
@@ -107,6 +143,7 @@ func routes(_ app: Application) throws {
     }
     
     //try app.register(collection: TodoController())
+
 }
 
 struct InfoData: Content {
