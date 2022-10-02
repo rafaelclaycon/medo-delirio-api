@@ -1,6 +1,7 @@
 import Fluent
 import Vapor
 import SQLiteNIO
+import APNS
 
 func routes(_ app: Application) throws {
     
@@ -140,6 +141,20 @@ func routes(_ app: Application) throws {
         return device.save(on: req.db).map {
             device
         }
+    }
+    
+    app.post("api", "v1", "send-push-notification") { req in
+        let notif = try req.content.decode(PushNotification.self)
+        
+        guard let password = notif.password, password == "algal-peroxide-toddy-answer" else {
+            return HTTPStatus.unauthorized
+        }
+        
+        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+            let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
+            return req.apns.send(payload, to: device.pushToken).map { HTTPStatus.ok }
+        }
+        return HTTPStatus.ok
     }
     
     //try app.register(collection: TodoController())

@@ -21,7 +21,7 @@ extension Application {
                 teamIdentifier: "L8X3H5XA82"
             ),
             topic: "com.rafaelschmitt.MedoDelirioBrasilia",
-            environment: .sandbox // Change environment in release
+            environment: .production
         )
     }
 
