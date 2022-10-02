@@ -20,12 +20,14 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateShareCountStat())
     app.migrations.add(CreateClientDeviceInfo())
     app.migrations.add(CreateShareBundleIdLog())
+    app.migrations.add(CreatePushDevice())
     app.migrations.add(AddDateFieldToShareCountStat())
     
     app.logger.logLevel = .debug
     
     try app.autoMigrate().wait()
-
-    // register routes
+    
     try routes(app)
+    
+    try app.configurePush()
 }
