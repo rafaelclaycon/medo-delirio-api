@@ -20,8 +20,8 @@ final class ShareCountStat: Model, Content {
     @Field(key: "shareCount")
     var shareCount: Int
     
-    @Field(key: "date")
-    var date: Date?
+    @Field(key: "dateTime")
+    var dateTime: String?
     
     init() { }
     
@@ -30,13 +30,13 @@ final class ShareCountStat: Model, Content {
          contentId: String,
          contentType: Int,
          shareCount: Int,
-         date: Date) {
+         dateTime: String) {
         self.id = id
         self.installId = installId
         self.contentId = contentId
         self.contentType = contentType
         self.shareCount = shareCount
-        self.date = date
+        self.dateTime = dateTime
     }
 
 }
