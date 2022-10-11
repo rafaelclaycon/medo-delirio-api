@@ -58,7 +58,7 @@ func routes(_ app: Application) throws {
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
             }
         } else {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
@@ -79,7 +79,7 @@ func routes(_ app: Application) throws {
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
             }
         } else {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
@@ -110,7 +110,7 @@ func routes(_ app: Application) throws {
                 
                 //return req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: "", contentType: 0, shareCount: 0, date: Date(timeIntervalSince1970: 1000817900)))
                 
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
             }
         } else {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
