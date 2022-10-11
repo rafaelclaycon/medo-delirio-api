@@ -4,7 +4,7 @@ import SQLiteNIO
 import APNS
 
 func routes(_ app: Application) throws {
-    
+
     // MARK: - API V1
     
     app.get("api", "v1", "status-check") { req in
@@ -58,7 +58,59 @@ func routes(_ app: Application) throws {
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0))
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([ShareCountStat]())
+        }
+    }
+    
+    // sound-share-count-stats-last-week
+    // sound-share-count-stats-last-month
+    // sound-share-count-stats-all-time
+    app.get("api", "v2", "sound-share-count-stats-last-week") { req -> EventLoopFuture<[ShareCountStat]> in
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                where s.contentType = 0
+                group by s.contentId
+                order by totalShareCount desc
+            """
+            
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([ShareCountStat]())
+        }
+    }
+    
+    app.get("api", "v1", "sound-share-count-stats-test") { req -> EventLoopFuture<[ShareCountStat]> in
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select *
+                from ShareCountStat s
+                where s.contentType = 0
+            """
+            
+            // and s.date is not null
+            
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .secondsSince1970
+            
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+//                do {
+//                    return req.eventLoop.makeSucceededFuture(try req.content.decode(ShareCountStat.self, using: decoder))
+//                } catch {
+//                    print("Error: \(error.localizedDescription)")
+//                }
+                
+                //req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: 0, date: row.column("date")?. ?? Date(timeIntervalSince1970: 1000817900)))
+                
+                //return req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: "", contentType: 0, shareCount: 0, date: Date(timeIntervalSince1970: 1000817900)))
+                
+                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date.now.iso8601withFractionalSeconds))
             }
         } else {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
@@ -70,7 +122,7 @@ func routes(_ app: Application) throws {
             let query = """
                 select count(c.installId) totalCount
                 from ClientDeviceInfo c
-                where c.installId not in ("0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","A93E5354-41F9-5170-AFD9-817FAE37D037","F60AF930-0CBA-41FF-A80E-1E6007ED6AE8","F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4","FC2ADC6B-B70E-4B69-BC69-CCCADB64903F","F32538E4-6422-4D6F-9490-0984C17B7D80","285EAE4D-FBDE-482B-B8F2-705A68A67FDC","C78A6C1E-4EE0-521F-9C9E-F9AD9CA6C51D","04BCE1A6-5885-47D7-AD61-A14D6D6B61B7","C0821365-0003-4986-91EE-F9F79CDF4E7A","7CC49574-5275-4490-864B-65551784131F","DFD4128B-65C3-4251-9948-DC85D6E83FBE","E8120B41-E486-4170-95E0-5F13737A85AB");
+                where c.installId not in ("0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","A93E5354-41F9-5170-AFD9-817FAE37D037","F60AF930-0CBA-41FF-A80E-1E6007ED6AE8","F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4","FC2ADC6B-B70E-4B69-BC69-CCCADB64903F","F32538E4-6422-4D6F-9490-0984C17B7D80","285EAE4D-FBDE-482B-B8F2-705A68A67FDC","C78A6C1E-4EE0-521F-9C9E-F9AD9CA6C51D","04BCE1A6-5885-47D7-AD61-A14D6D6B61B7","C0821365-0003-4986-91EE-F9F79CDF4E7A","7CC49574-5275-4490-864B-65551784131F","DFD4128B-65C3-4251-9948-DC85D6E83FBE","E8120B41-E486-4170-95E0-5F13737A85AB","173BF7C0-CDF9-4A8D-A1B9-F91611AA12FF");
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
@@ -155,6 +207,44 @@ func routes(_ app: Application) throws {
             return req.apns.send(payload, to: device.pushToken).map { HTTPStatus.ok }
         }
         return HTTPStatus.ok
+    }
+    
+    app.get("api", "v1", "enable-sound-share-count-stats-last-week") { req -> String in
+        let userDefaults = UserDefaults.standard
+        guard let value = userDefaults.object(forKey: "enable-sound-share-count-stats-last-week") else {
+            return "0"
+        }
+        return String(value as! String)
+    }
+    
+    app.post("api", "v1", "enable-sound-share-count-stats-last-week") { req -> String in
+        let newValue = try req.content.decode(String.self)
+        let userDefaults = UserDefaults.standard
+        if newValue.contains("1") {
+            userDefaults.set("1", forKey: "enable-sound-share-count-stats-last-week")
+        } else {
+            userDefaults.set("0", forKey: "enable-sound-share-count-stats-last-week")
+        }
+        return "Novo valor setado."
+    }
+    
+    app.get("api", "v1", "enable-sound-share-count-stats-last-month") { req -> String in
+        let userDefaults = UserDefaults.standard
+        guard let value = userDefaults.object(forKey: "enable-sound-share-count-stats-last-week") else {
+            return "0"
+        }
+        return String(value as! String)
+    }
+    
+    app.post("api", "v1", "enable-sound-share-count-stats-last-month") { req -> String in
+        let newValue = try req.content.decode(String.self)
+        let userDefaults = UserDefaults.standard
+        if newValue.contains("1") {
+            userDefaults.set("1", forKey: "enable-sound-share-count-stats-last-week")
+        } else {
+            userDefaults.set("0", forKey: "enable-sound-share-count-stats-last-week")
+        }
+        return "Novo valor setado."
     }
     
     //try app.register(collection: TodoController())
