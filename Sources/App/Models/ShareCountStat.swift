@@ -7,7 +7,7 @@ final class ShareCountStat: Model, Content {
     
     @ID(key: .id)
     var id: UUID?
-
+    
     @Field(key: "installId")
     var installId: String
     
@@ -19,15 +19,24 @@ final class ShareCountStat: Model, Content {
     
     @Field(key: "shareCount")
     var shareCount: Int
-
+    
+    @Field(key: "dateTime")
+    var dateTime: String?
+    
     init() { }
-
-    init(id: UUID? = nil, installId: String, contentId: String, contentType: Int, shareCount: Int) {
+    
+    init(id: UUID? = nil,
+         installId: String,
+         contentId: String,
+         contentType: Int,
+         shareCount: Int,
+         dateTime: String) {
         self.id = id
         self.installId = installId
         self.contentId = contentId
         self.contentType = contentType
         self.shareCount = shareCount
+        self.dateTime = dateTime
     }
 
 }
