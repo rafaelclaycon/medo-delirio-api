@@ -47,14 +47,15 @@ func routes(_ app: Application) throws {
         ShareCountStat.query(on: req.db).all()
     }
     
-    app.get("api", "v1", "sound-share-count-stats") { req -> EventLoopFuture<[ShareCountStat]> in
+    app.get("api", "v2", "sound-share-count-stats-all-time") { req -> EventLoopFuture<[ShareCountStat]> in
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
                 from ShareCountStat s
-                where s.contentType = 0
+                where s.contentType in (0,2)
                 group by s.contentId
                 order by totalShareCount desc
+                limit 10
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
@@ -65,51 +66,23 @@ func routes(_ app: Application) throws {
         }
     }
     
-    // sound-share-count-stats-last-week
-    // sound-share-count-stats-last-month
-    // sound-share-count-stats-all-time
-    app.get("api", "v2", "sound-share-count-stats-last-week") { req -> EventLoopFuture<[ShareCountStat]> in
+    app.get("api", "v2", "sound-share-count-stats-from", ":date") { req -> EventLoopFuture<[ShareCountStat]> in
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.internalServerError)
+        }
+        
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
                 from ShareCountStat s
-                where s.contentType = 0
+                where s.contentType in (0,2)
+                and s.dateTime > '\(date)'
                 group by s.contentId
                 order by totalShareCount desc
+                limit 10
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([ShareCountStat]())
-        }
-    }
-    
-    app.get("api", "v1", "sound-share-count-stats-test") { req -> EventLoopFuture<[ShareCountStat]> in
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select *
-                from ShareCountStat s
-                where s.contentType = 0
-            """
-            
-            // and s.date is not null
-            
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .secondsSince1970
-            
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-//                do {
-//                    return req.eventLoop.makeSucceededFuture(try req.content.decode(ShareCountStat.self, using: decoder))
-//                } catch {
-//                    print("Error: \(error.localizedDescription)")
-//                }
-                
-                //req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: 0, date: row.column("date")?. ?? Date(timeIntervalSince1970: 1000817900)))
-                
-                //return req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: "", contentType: 0, shareCount: 0, date: Date(timeIntervalSince1970: 1000817900)))
-                
                 req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
             }
         } else {
