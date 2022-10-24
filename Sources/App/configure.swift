@@ -23,6 +23,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreatePushDevice())
     app.migrations.add(AddDateFieldToShareCountStat())
     app.migrations.add(CreateUserFolderLog())
+    app.migrations.add(CreateUserFolderContentLog())
     
     app.logger.logLevel = .debug
     

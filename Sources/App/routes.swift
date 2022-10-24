@@ -227,6 +227,13 @@ func routes(_ app: Application) throws {
         }
     }
     
+    app.post("api", "v1", "user-folder-content-log") { req -> EventLoopFuture<UserFolderContentLog> in
+        let contentLog = try req.content.decode(UserFolderContentLog.self)
+        return contentLog.save(on: req.db).map {
+            contentLog
+        }
+    }
+    
     //try app.register(collection: TodoController())
 
 }
