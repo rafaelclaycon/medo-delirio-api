@@ -220,18 +220,20 @@ func routes(_ app: Application) throws {
         return "Novo valor setado."
     }
     
-    app.post("api", "v1", "user-folder-log") { req -> EventLoopFuture<UserFolderLog> in
-        let folderLog = try req.content.decode(UserFolderLog.self)
-        return folderLog.save(on: req.db).map {
-            folderLog
+    app.post("api", "v1", "user-folder-logs") { req -> HTTPStatus in
+        let folderLogs = try req.content.decode([UserFolderLog].self)
+        for log in folderLogs {
+            log.save(on: req.db)
         }
+        return HTTPStatus.ok
     }
     
-    app.post("api", "v1", "user-folder-content-log") { req -> EventLoopFuture<UserFolderContentLog> in
-        let contentLog = try req.content.decode(UserFolderContentLog.self)
-        return contentLog.save(on: req.db).map {
-            contentLog
+    app.post("api", "v1", "user-folder-content-logs") { req -> HTTPStatus in
+        let contentLogs = try req.content.decode([UserFolderContentLog].self)
+        for log in contentLogs {
+            log.save(on: req.db)
         }
+        return HTTPStatus.ok
     }
     
     //try app.register(collection: TodoController())
