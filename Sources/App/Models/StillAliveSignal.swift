@@ -7,7 +7,7 @@ final class StillAliveSignal: Model, Content {
     
     @ID(key: .id)
     var id: UUID?
-
+    
     @Field(key: "systemName")
     var systemName: String
     
@@ -19,9 +19,9 @@ final class StillAliveSignal: Model, Content {
     
     @Field(key: "dateTime")
     var dateTime: Date
-
+    
     init() { }
-
+    
     init(id: UUID? = nil,
          systemName: String,
          systemVersion: String,
