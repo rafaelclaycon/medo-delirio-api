@@ -11,7 +11,7 @@ struct CreateShareCountStat: AsyncMigration {
             .field("shareCount", .int, .required)
             .create()
     }
-
+    
     func revert(on database: Database) async throws {
         try await database.schema("ShareCountStat").delete()
     }
