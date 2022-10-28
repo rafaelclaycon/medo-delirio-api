@@ -24,6 +24,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(AddDateFieldToShareCountStat())
     app.migrations.add(CreateUserFolderLog())
     app.migrations.add(CreateUserFolderContentLog())
+    app.migrations.add(CreateStillAliveSignal())
     
     app.logger.logLevel = .debug
     
