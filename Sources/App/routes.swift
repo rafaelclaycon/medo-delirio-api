@@ -96,6 +96,10 @@ func routes(_ app: Application) throws {
         }
     }
     
+    app.get("api", "v2", "collections") { req -> EventLoopFuture<[ContentCollection]> in
+        ContentCollection.query(on: req.db).all()
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -193,7 +197,25 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    //try app.register(collection: TodoController())
+    // MARK: - API V2 - POST
+    
+    app.post("api", "v2", "create-collection") { req -> HTTPStatus in
+        let collection = try req.content.decode(ContentCollection.self)
+        
+        try await req.db.transaction { transaction in
+            try await collection.save(on: transaction)
+        }
+        return .ok
+    }
+    
+//    app.post("api", "v2", "add-sounds-to-collection") { req -> HTTPStatus in
+//        let collection = try req.content.decode([ContentCollection].self)
+//
+//        try await req.db.transaction { transaction in
+//            try await collection.save(on: transaction)
+//        }
+//        return .ok
+//    }
 
 }
 
