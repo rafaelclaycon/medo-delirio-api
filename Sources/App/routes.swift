@@ -164,25 +164,33 @@ func routes(_ app: Application) throws {
     
     app.post("api", "v1", "user-folder-logs") { req -> HTTPStatus in
         let folderLogs = try req.content.decode([UserFolderLog].self)
-        for log in folderLogs {
-            log.save(on: req.db)
+        
+        try await req.db.transaction { transaction in
+            for log in folderLogs {
+                try await log.save(on: transaction)
+            }
         }
-        return HTTPStatus.ok
+        return .ok
     }
     
     app.post("api", "v1", "user-folder-content-logs") { req -> HTTPStatus in
         let contentLogs = try req.content.decode([UserFolderContentLog].self)
-        for log in contentLogs {
-            log.save(on: req.db)
+        
+        try await req.db.transaction { transaction in
+            for log in contentLogs {
+                try await log.save(on: transaction)
+            }
         }
-        return HTTPStatus.ok
+        return .ok
     }
     
-    app.post("api", "v1", "still-alive-signal") { req -> EventLoopFuture<StillAliveSignal> in
+    app.post("api", "v1", "still-alive-signal") { req -> HTTPStatus in
         let signal = try req.content.decode(StillAliveSignal.self)
-        return signal.save(on: req.db).map {
-            signal
+        
+        try await req.db.transaction { transaction in
+            try await signal.save(on: transaction)
         }
+        return .ok
     }
     
     //try app.register(collection: TodoController())
