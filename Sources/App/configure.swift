@@ -1,3 +1,10 @@
+//
+//  configure.swift
+//  medo-delirio-api
+//
+//  Created by Rafael Claycon Schmitt on 01/06/22.
+//
+
 import Fluent
 import FluentSQLiteDriver
 import Vapor
@@ -25,6 +32,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderLog())
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
+    app.migrations.add(CreateContentCollection())
+    app.migrations.add(CreateCollectionSound())
     
     app.logger.logLevel = .debug
     

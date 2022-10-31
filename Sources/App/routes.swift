@@ -107,6 +107,13 @@ func routes(_ app: Application) throws {
         ContentCollection.query(on: req.db).all()
     }
     
+    app.get("api", "v2", "collection-content", ":collectionId") { req -> EventLoopFuture<[CollectionSound]> in
+        guard let collectionId = req.parameters.get("collectionId") else {
+            throw Abort(.internalServerError)
+        }
+        return CollectionSound.query(on: req.db).filter(\.$collectionId == collectionId).all()
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -215,14 +222,16 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-//    app.post("api", "v2", "add-sounds-to-collection") { req -> HTTPStatus in
-//        let collection = try req.content.decode([ContentCollection].self)
-//
-//        try await req.db.transaction { transaction in
-//            try await collection.save(on: transaction)
-//        }
-//        return .ok
-//    }
+    app.post("api", "v2", "add-sounds-to-collection") { req -> HTTPStatus in
+        let sounds = try req.content.decode([CollectionSound].self)
+
+        try await req.db.transaction { transaction in
+            for sound in sounds {
+                try await sound.save(on: transaction)
+            }
+        }
+        return .ok
+    }
 
 }
 
