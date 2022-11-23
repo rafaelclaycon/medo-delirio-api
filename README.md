@@ -26,9 +26,11 @@ To build and run this project, you'll need:
 
 That's it.
 
-## 📢 Known glaring shortcoming 💥
+## 🚧 📢 Known glaring shortcoming 💥 🚧
 
-This project does not use random access tokens or any other client-server communication security measure. This is a small project coded by just me (a mostly front-end person). If you want to help make this better, you're more than welcome to do so by opening a pull request (let's see some code)!
+This project does not use random access tokens or any other client-server communication security measure. This is a small project coded by just me (a mostly front-end person) and no personal life-threatening information is sent back and forth.
+
+That said, if you want to help make this better, you're more than welcome to do so by opening a pull request (let's see some code!).
 
 ## About this repo
 
