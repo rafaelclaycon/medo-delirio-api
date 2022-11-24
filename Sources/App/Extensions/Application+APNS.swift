@@ -6,9 +6,7 @@ extension Application {
     func configurePush() throws {
         let appleECP8PrivateKey =
         """
-        -----BEGIN PRIVATE KEY-----
         
-        -----END PRIVATE KEY-----
         """
         
         apns.configuration = try .init(
