@@ -215,6 +215,14 @@ func routes(_ app: Application) throws {
         UserDefaults.standard.set(newValue, forKey: "current-test-version")
         return .ok
     }
+    
+    app.post("api", "v2", "usage-metric") { req -> HTTPStatus in
+        let metric = try req.content.decode(UsageMetric.self)
+        try await req.db.transaction { transaction in
+            try await metric.save(on: transaction)
+        }
+        return .ok
+    }
 
 }
 

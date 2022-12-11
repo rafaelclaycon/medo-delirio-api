@@ -25,6 +25,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderLog())
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
+    app.migrations.add(CreateUsageMetric())
     
     app.logger.logLevel = .debug
     
