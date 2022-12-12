@@ -32,6 +32,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderLog())
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
+    app.migrations.add(CreateUsageMetric())
     app.migrations.add(CreateContentCollection())
     app.migrations.add(CreateCollectionSound())
     
@@ -41,5 +42,6 @@ public func configure(_ app: Application) throws {
     
     try routes(app)
     
-    try app.configurePush()
+    // Commented out just for development. Comment back in upon release.
+    //try app.configurePush()
 }

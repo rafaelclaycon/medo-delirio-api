@@ -61,6 +61,10 @@ func routes(_ app: Application) throws {
     
     // MARK: - API V2 - GET
     
+    app.get("api", "v2", "status-check") { req -> HTTPStatus in
+        return .ok
+    }
+    
     app.get("api", "v2", "sound-share-count-stats-all-time") { req -> EventLoopFuture<[ShareCountStat]> in
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
@@ -102,6 +106,13 @@ func routes(_ app: Application) throws {
         } else {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
         }
+    }
+    
+    app.get("api", "v2", "current-test-version") { req -> String in
+        guard let value = UserDefaults.standard.object(forKey: "current-test-version") else {
+            throw Abort(.notFound)
+        }
+        return String(value as! String)
     }
     
     app.get("api", "v2", "collections") { req -> EventLoopFuture<[ContentCollection]> in
@@ -213,6 +224,23 @@ func routes(_ app: Application) throws {
     }
     
     // MARK: - API V2 - POST
+    
+    app.post("api", "v2", "set-test-version") { req -> HTTPStatus in
+        let newValue = try req.content.decode(String.self)
+        guard newValue.isEmpty == false else {
+            return HTTPStatus.badRequest
+        }
+        UserDefaults.standard.set(newValue, forKey: "current-test-version")
+        return .ok
+    }
+    
+    app.post("api", "v2", "usage-metric") { req -> HTTPStatus in
+        let metric = try req.content.decode(UsageMetric.self)
+        try await req.db.transaction { transaction in
+            try await metric.save(on: transaction)
+        }
+        return .ok
+    }
     
     app.post("api", "v2", "create-collection") { req -> HTTPStatus in
         let collection = try req.content.decode(ContentCollection.self)
