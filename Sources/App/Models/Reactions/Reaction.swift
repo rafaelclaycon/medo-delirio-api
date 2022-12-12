@@ -1,5 +1,5 @@
 //
-//  ContentCollection.swift
+//  Reaction.swift
 //  medo-delirio-api
 //
 //  Created by Rafael Claycon Schmitt on 28/10/22.
@@ -8,9 +8,9 @@
 import Fluent
 import Vapor
 
-final class ContentCollection: Model, Content {
+final class Reaction: Model, Content {
 
-    static let schema = "ContentCollection"
+    static let schema = "Reaction"
     
     @ID(key: .id)
     var id: UUID?

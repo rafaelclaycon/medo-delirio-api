@@ -7,19 +7,19 @@
 
 import Fluent
 
-struct CreateCollectionSound: AsyncMigration {
+struct CreateReactionSound: AsyncMigration {
 
     func prepare(on database: Database) async throws {
-        try await database.schema("CollectionSound")
+        try await database.schema("ReactionSound")
             .id()
-            .field("collectionId", .string, .required)
+            .field("reactionId", .string, .required)
             .field("soundId", .string, .required)
             .field("dateAdded", .string, .required)
             .create()
     }
     
     func revert(on database: Database) async throws {
-        try await database.schema("CollectionSound").delete()
+        try await database.schema("ReactionSound").delete()
     }
 
 }

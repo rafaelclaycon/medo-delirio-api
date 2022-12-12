@@ -1,5 +1,5 @@
 //
-//  CollectionSound.swift
+//  ReactionSound.swift
 //  medo-delirio-api
 //
 //  Created by Rafael Claycon Schmitt on 28/10/22.
@@ -8,15 +8,15 @@
 import Fluent
 import Vapor
 
-final class CollectionSound: Model, Content {
+final class ReactionSound: Model, Content {
 
-    static let schema = "CollectionSound"
+    static let schema = "ReactionSound"
     
     @ID(key: .id)
     var id: UUID?
 
-    @Field(key: "collectionId")
-    var collectionId: String
+    @Field(key: "reactionId")
+    var reactionId: String
     
     @Field(key: "soundId")
     var soundId: String
@@ -27,11 +27,11 @@ final class CollectionSound: Model, Content {
     init() { }
 
     init(id: UUID? = nil,
-         collectionId: String,
+         reactionId: String,
          soundId: String,
          dateAdded: String) {
         self.id = id
-        self.collectionId = collectionId
+        self.reactionId = reactionId
         self.soundId = soundId
         self.dateAdded = dateAdded
     }

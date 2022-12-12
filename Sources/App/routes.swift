@@ -11,7 +11,11 @@ import SQLiteNIO
 import APNS
 
 func routes(_ app: Application) throws {
-
+    // Use your own secret keys here, these are just placeholders; don't make them public!!!
+    let pushNotificationPassword = "push-notification-password"
+    let createReactionPassword = "create-reaction-password"
+    let addSoundsToReactionPassword = "add-sounds-to-reaction-password"
+    
     // MARK: - API V1 - GET
     
     app.get("api", "v1", "status-check") { req in
@@ -115,15 +119,15 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
-    app.get("api", "v2", "collections") { req -> EventLoopFuture<[ContentCollection]> in
-        ContentCollection.query(on: req.db).all()
+    app.get("api", "v2", "reactions") { req -> EventLoopFuture<[Reaction]> in
+        Reaction.query(on: req.db).all()
     }
     
-    app.get("api", "v2", "collection-content", ":collectionId") { req -> EventLoopFuture<[CollectionSound]> in
-        guard let collectionId = req.parameters.get("collectionId") else {
+    app.get("api", "v2", "reaction-content", ":reactionId") { req -> EventLoopFuture<[ReactionSound]> in
+        guard let reactionId = req.parameters.get("reactionId") else {
             throw Abort(.internalServerError)
         }
-        return CollectionSound.query(on: req.db).filter(\.$collectionId == collectionId).all()
+        return ReactionSound.query(on: req.db).filter(\.$reactionId == reactionId).all()
     }
     
     // MARK: - API V1 - POST
@@ -181,7 +185,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == "use your own secret key here; don't make it public!!!" else {
+        guard let password = notif.password, password == pushNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -242,26 +246,33 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    app.post("api", "v2", "create-collection") { req -> HTTPStatus in
-        let collection = try req.content.decode(ContentCollection.self)
+    app.post("api", "v2", "create-reaction") { req -> HTTPStatus in
+        let reactionPackage = try req.content.decode(ReactionContainer.self)
+        
+        guard let password = reactionPackage.password, password == createReactionPassword else {
+            return HTTPStatus.unauthorized
+        }
         
         try await req.db.transaction { transaction in
-            try await collection.save(on: transaction)
+            try await reactionPackage.reaction.save(on: transaction)
         }
         return .ok
     }
     
-    app.post("api", "v2", "add-sounds-to-collection") { req -> HTTPStatus in
-        let sounds = try req.content.decode([CollectionSound].self)
-
+    app.post("api", "v2", "add-sounds-to-reaction") { req -> HTTPStatus in
+        let soundsPackage = try req.content.decode(ReactionSoundContainer.self)
+        
+        guard let password = soundsPackage.password, password == addSoundsToReactionPassword else {
+            return HTTPStatus.unauthorized
+        }
+        
         try await req.db.transaction { transaction in
-            for sound in sounds {
+            for sound in soundsPackage.sounds {
                 try await sound.save(on: transaction)
             }
         }
         return .ok
     }
-
 }
 
 struct InfoData: Content {

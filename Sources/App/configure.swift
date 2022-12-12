@@ -33,8 +33,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
     app.migrations.add(CreateUsageMetric())
-    app.migrations.add(CreateContentCollection())
-    app.migrations.add(CreateCollectionSound())
+    app.migrations.add(CreateReaction())
+    app.migrations.add(CreateReactionSound())
     
     app.logger.logLevel = .debug
     
