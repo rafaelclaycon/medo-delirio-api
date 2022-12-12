@@ -1,10 +1,21 @@
+//
+//  routes.swift
+//  medo-delirio-api
+//
+//  Created by Rafael Claycon Schmitt on 01/06/22.
+//
+
 import Fluent
 import Vapor
 import SQLiteNIO
 import APNS
 
 func routes(_ app: Application) throws {
-
+    // Use your own secret keys here, these are just placeholders; don't make them public!!!
+    let pushNotificationPassword = "push-notification-password"
+    let createReactionPassword = "create-reaction-password"
+    let addSoundsToReactionPassword = "add-sounds-to-reaction-password"
+    
     // MARK: - API V1 - GET
     
     app.get("api", "v1", "status-check") { req in
@@ -108,6 +119,17 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
+    app.get("api", "v2", "reactions") { req -> EventLoopFuture<[Reaction]> in
+        Reaction.query(on: req.db).all()
+    }
+    
+    app.get("api", "v2", "reaction-content", ":reactionId") { req -> EventLoopFuture<[ReactionSound]> in
+        guard let reactionId = req.parameters.get("reactionId") else {
+            throw Abort(.internalServerError)
+        }
+        return ReactionSound.query(on: req.db).filter(\.$reactionId == reactionId).all()
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -163,7 +185,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == "use your own secret key here; don't make it public!!!" else {
+        guard let password = notif.password, password == pushNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -223,7 +245,34 @@ func routes(_ app: Application) throws {
         }
         return .ok
     }
-
+    
+    app.post("api", "v2", "create-reaction") { req -> HTTPStatus in
+        let reactionPackage = try req.content.decode(ReactionContainer.self)
+        
+        guard let password = reactionPackage.password, password == createReactionPassword else {
+            return HTTPStatus.unauthorized
+        }
+        
+        try await req.db.transaction { transaction in
+            try await reactionPackage.reaction.save(on: transaction)
+        }
+        return .ok
+    }
+    
+    app.post("api", "v2", "add-sounds-to-reaction") { req -> HTTPStatus in
+        let soundsPackage = try req.content.decode(ReactionSoundContainer.self)
+        
+        guard let password = soundsPackage.password, password == addSoundsToReactionPassword else {
+            return HTTPStatus.unauthorized
+        }
+        
+        try await req.db.transaction { transaction in
+            for sound in soundsPackage.sounds {
+                try await sound.save(on: transaction)
+            }
+        }
+        return .ok
+    }
 }
 
 struct InfoData: Content {
