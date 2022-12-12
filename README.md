@@ -15,6 +15,7 @@ This is the server counterpart to the [Medo e Delírio iOS/iPadOS/macOS app](htt
 1. Provide total user base count for the curious developer.
 1. Store anonymized user-consented usage statistics (Folder data for now).
 1. Provide on/off switches (*flags*) for controlling app-side content.
+1. Collect usage metrics from certain screens (AuthorDetailView).
 
 ## How to run this project
 
@@ -26,7 +27,7 @@ To build and run this project, you'll need:
 
 That's it.
 
-## 🚧 📢 Known glaring shortcoming 💥 🚧
+## 🚧 Known glaring shortcoming 🚧
 
 This project does not use random access tokens or any other client-server communication security measure. This is a small project coded by just me (a mostly front-end person) and no personal life-threatening information is sent back and forth.
 
