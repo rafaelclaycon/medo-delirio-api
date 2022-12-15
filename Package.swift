@@ -7,11 +7,12 @@ let package = Package(
        .macOS(.v12)
     ],
     dependencies: [
-        // 💧 A server-side Swift web framework.
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/fluent.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.0.0"),
         .package(url: "https://github.com/vapor/apns", from: "3.0.0"),
+        .package(url: "https://github.com/m-barthelemy/vapor-queues-fluent-driver", from: "3.0.0-beta1"),
+        .package(url: "https://github.com/nmdias/FeedKit", from: "9.1.2"),
     ],
     targets: [
         .target(
@@ -20,7 +21,9 @@ let package = Package(
                 .product(name: "Fluent", package: "fluent"),
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "Vapor", package: "vapor"),
-                .product(name: "APNS", package: "apns")
+                .product(name: "APNS", package: "apns"),
+                .product(name: "QueuesFluentDriver", package: "vapor-queues-fluent-driver"),
+                .product(name: "FeedKit", package: "FeedKit")
             ],
             swiftSettings: [
                 // Enable better optimizations when building in Release configuration. Despite the use of

@@ -223,6 +223,23 @@ func routes(_ app: Application) throws {
         }
         return .ok
     }
+    
+    app.post("api", "v2", "add-episode") { req -> HTTPStatus in
+        let metric = try req.content.decode(PodcastEpisode.self)
+        
+        let episodes = try await PodcastEpisode.query(on: req.db).all()
+//            .field(PodcastEpisode.episodeId)
+//            .order()
+//            .first()
+        
+        print(episodes.first)
+        
+        try await req.db.transaction { transaction in
+            try await metric.save(on: transaction)
+        }
+        
+        return .ok
+    }
 
 }
 

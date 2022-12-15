@@ -14,9 +14,9 @@ public func configure(_ app: Application) throws {
     )
     let cors = CORSMiddleware(configuration: corsConfiguration)
     app.middleware.use(cors, at: .beginning)
-
+    
     app.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
-
+    
     app.migrations.add(CreateShareCountStat())
     app.migrations.add(CreateClientDeviceInfo())
     app.migrations.add(CreateShareBundleIdLog())
@@ -26,12 +26,17 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
     app.migrations.add(CreateUsageMetric())
+    app.migrations.add(CreatePodcastEpisode())
     
     app.logger.logLevel = .debug
     
     try app.autoMigrate().wait()
     
     try routes(app)
+    
+    app.eventLoopGroup.next().scheduleRepeatedTask(initialDelay: .seconds(1), delay: .minutes(15)) { task in
+        PodcastEpisodeHelper.lookForNewEpisode()
+    }
     
     // Commented out just for development. Comment back in upon release.
     //try app.configurePush()
