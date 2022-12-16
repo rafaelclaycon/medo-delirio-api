@@ -225,20 +225,31 @@ func routes(_ app: Application) throws {
     }
     
     app.post("api", "v2", "add-episode") { req -> HTTPStatus in
-        let metric = try req.content.decode(PodcastEpisode.self)
+        let incomingEpisode = try req.content.decode(PodcastEpisode.self)
         
-        let episodes = try await PodcastEpisode.query(on: req.db).all()
-//            .field(PodcastEpisode.episodeId)
-//            .order()
-//            .first()
+        let existingEpisode = try await PodcastEpisode.query(on: req.db)
+            .field(\PodcastEpisode.$episodeId)
+            .sort(\PodcastEpisode.$pubDate, .descending)
+            .first()
         
-        print(episodes.first)
-        
-        try await req.db.transaction { transaction in
-            try await metric.save(on: transaction)
+        // Scenario 1: No episodes saved. Saves the incoming one.
+        guard let latestEpisodeId = existingEpisode?.episodeId else {
+            try await req.db.transaction { transaction in
+                try await incomingEpisode.save(on: transaction)
+            }
+            return .created
         }
         
-        return .ok
+        // Scenario 2: Reporting an episode that was already saved. Responds: nope.
+        guard incomingEpisode.episodeId != latestEpisodeId else {
+            return .conflict
+        }
+        
+        // Scenario 3: Reporting an episode that wasn't already saved. Saves it.
+        try await req.db.transaction { transaction in
+            try await incomingEpisode.save(on: transaction)
+        }
+        return .created
     }
 
 }
