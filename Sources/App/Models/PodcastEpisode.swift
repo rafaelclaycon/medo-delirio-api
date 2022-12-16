@@ -30,6 +30,12 @@ final class PodcastEpisode: Model, Content {
     @Field(key: "duration")
     var duration: Double
     
+    @Field(key: "creationDate")
+    var creationDate: String
+    
+    @Field(key: "sendNotification")
+    var sendNotification: Bool
+    
     init() { }
     
     init(id: UUID? = nil,
@@ -37,13 +43,17 @@ final class PodcastEpisode: Model, Content {
          title: String,
          description: String,
          pubDate: String,
-         duration: Double) {
+         duration: Double,
+         creationDate: String,
+         sendNotification: Bool) {
         self.id = id
         self.episodeId = episodeId
         self.title = title
         self.description = description
         self.pubDate = pubDate
         self.duration = duration
+        self.creationDate = creationDate
+        self.sendNotification = sendNotification
     }
 
 }

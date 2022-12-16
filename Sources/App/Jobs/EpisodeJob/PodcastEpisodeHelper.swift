@@ -11,20 +11,22 @@ import FeedKit
 class PodcastEpisodeHelper {
 
     static func lookForNewEpisode() {
+        let postPassword = "knit-mishmash-destruct-drag"
+        
         let parser = FeedParser(URL: URL(string: "https://www.central3.com.br/category/podcasts/medo-e-delirio/feed/podcast/")!)
         
         parser.parseAsync { result in
             switch result {
             case let .success(feed):
                 guard let feed = feed.rssFeed else {
-                    return print("Not an RSS feed")
+                    return print("PodcastEpisodeHelper: Not an RSS feed. \(Date().iso8601withFractionalSeconds)")
                 }
                 guard let items = feed.items else {
-                    return print("Empty feed")
+                    return print("PodcastEpisodeHelper: Empty feed. \(Date().iso8601withFractionalSeconds)")
                 }
                 
                 guard let topItem = items.first else {
-                    return print("Unable to get top episode")
+                    return print("PodcastEpisodeHelper: Unable to get top episode. \(Date().iso8601withFractionalSeconds)")
                 }
                 //let topItem = items[1]
                 
@@ -33,9 +35,11 @@ class PodcastEpisodeHelper {
                     title: topItem.title ?? "Sem Título",
                     description: extractFirstParagraphFrom(topItem.description),
                     pubDate: topItem.pubDate?.iso8601withFractionalSeconds ?? Date().iso8601withFractionalSeconds,
-                    duration: topItem.iTunes?.iTunesDuration ?? 0)
+                    duration: topItem.iTunes?.iTunesDuration ?? 0,
+                    creationDate: Date().iso8601withFractionalSeconds,
+                    sendNotification: true)
                 
-                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode")!
+                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode/\(postPassword)")!
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
@@ -47,15 +51,15 @@ class PodcastEpisodeHelper {
 
                 let task = URLSession.shared.dataTask(with: request) { _, response, _ in
                     guard let httpResponse = response as? HTTPURLResponse else {
-                        return print("URLResponse is nil")
+                        return print("PodcastEpisodeHelper: URLResponse is nil. \(Date().iso8601withFractionalSeconds)")
                     }
-                    print(httpResponse.statusCode)
+                    print("PodcastEpisodeHelper: \(httpResponse.statusCode) \(Date().iso8601withFractionalSeconds)")
                 }
 
                 task.resume()
                 
             case .failure(_):
-                print("unableToAccessRSSFeed")
+                print("PodcastEpisodeHelper: Unable to access RSS feed. \(Date().iso8601withFractionalSeconds)")
             }
         }
     }

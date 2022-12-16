@@ -224,7 +224,14 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    app.post("api", "v2", "add-episode") { req -> HTTPStatus in
+    app.post("api", "v2", "add-episode", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == "knit-mishmash-destruct-drag" else {
+            return .forbidden
+        }
+        
         let incomingEpisode = try req.content.decode(PodcastEpisode.self)
         
         let existingEpisode = try await PodcastEpisode.query(on: req.db)
@@ -250,6 +257,10 @@ func routes(_ app: Application) throws {
             try await incomingEpisode.save(on: transaction)
         }
         return .created
+        
+//        guard incomingEpisode.sendNotification else {
+//            return .created
+//        }
     }
 
 }
