@@ -223,5 +223,20 @@ func routes(_ app: Application) throws {
         }
         return .ok
     }
+    
+    app.post("api", "v2", "send-push-notification-to", ":token") { req -> EventLoopFuture<HTTPStatus> in
+        guard let token = req.parameters.get("token") else {
+            throw Abort(.internalServerError)
+        }
+        
+        let notif = try req.content.decode(PushNotification.self)
+        
+        guard let password = notif.password, password == "send-push-notification-to password here" else {
+            throw Abort(.unauthorized)
+        }
+        
+        let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
+        return req.apns.send(payload, to: token).map { HTTPStatus.ok }
+    }
 
 }
