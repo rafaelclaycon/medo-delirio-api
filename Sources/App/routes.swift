@@ -264,9 +264,3 @@ func routes(_ app: Application) throws {
     }
 
 }
-
-struct InfoData: Content {
-
-    let name: String
-
-}
