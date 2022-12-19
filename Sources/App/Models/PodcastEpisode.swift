@@ -33,8 +33,14 @@ final class PodcastEpisode: Model, Content {
     @Field(key: "creationDate")
     var creationDate: String
     
-    @Field(key: "sendNotification")
-    var sendNotification: Bool
+    @Field(key: "spotifyLink")
+    var spotifyLink: String
+    
+    @Field(key: "applePodcastsLink")
+    var applePodcastsLink: String
+    
+    @Field(key: "pocketCastsLink")
+    var pocketCastsLink: String
     
     init() { }
     
@@ -45,7 +51,9 @@ final class PodcastEpisode: Model, Content {
          pubDate: String,
          duration: Double,
          creationDate: String,
-         sendNotification: Bool) {
+         spotifyLink: String,
+         applePodcastsLink: String,
+         pocketCastsLink: String) {
         self.id = id
         self.episodeId = episodeId
         self.title = title
@@ -53,7 +61,9 @@ final class PodcastEpisode: Model, Content {
         self.pubDate = pubDate
         self.duration = duration
         self.creationDate = creationDate
-        self.sendNotification = sendNotification
+        self.spotifyLink = spotifyLink
+        self.applePodcastsLink = applePodcastsLink
+        self.pocketCastsLink = pocketCastsLink
     }
 
 }

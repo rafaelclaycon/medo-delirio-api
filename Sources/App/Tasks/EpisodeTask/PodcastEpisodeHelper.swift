@@ -29,15 +29,17 @@ class PodcastEpisodeHelper {
                 //let topItem = items[4]
                 
                 let episode = PrimitivePodcastEpisode(
-                    episodeId: topItem.guid?.value ?? UUID().uuidString,
+                    episodeId: extractEpisodeId(from: topItem.guid?.value),
                     title: topItem.title ?? "Sem Título",
                     description: extractFirstParagraphFrom(topItem.description),
                     pubDate: topItem.pubDate?.iso8601withFractionalSeconds ?? Date().iso8601withFractionalSeconds,
                     duration: topItem.iTunes?.iTunesDuration ?? 0,
                     creationDate: Date().iso8601withFractionalSeconds,
-                    sendNotification: true)
+                    spotifyLink: "",
+                    applePodcastsLink: "",
+                    pocketCastsLink: "")
                 
-                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode/\(Passwords.episodePassword)")!
+                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode/\(Passwords.episodePassword)/true")!
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
@@ -60,6 +62,16 @@ class PodcastEpisodeHelper {
                 print("PodcastEpisodeHelper: Unable to access RSS feed. \(Date().iso8601withFractionalSeconds)")
             }
         }
+    }
+    
+    private static func extractEpisodeId(from central3EpisodeLink: String?) -> String {
+        guard let episodeLink = central3EpisodeLink else { return UUID().uuidString }
+        guard let preStart = episodeLink.firstIndex(of: "=") else {
+            return UUID().uuidString
+        }
+        let start = episodeLink.index(preStart, offsetBy: 1)
+        let range = start..<episodeLink.endIndex
+        return String(episodeLink[range])
     }
     
     private static func extractFirstParagraphFrom(_ text: String?) -> String {

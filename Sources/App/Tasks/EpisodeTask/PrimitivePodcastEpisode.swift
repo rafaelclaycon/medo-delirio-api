@@ -16,7 +16,9 @@ struct PrimitivePodcastEpisode: Hashable, Codable, Identifiable {
     var pubDate: String
     var duration: Double
     var creationDate: String
-    var sendNotification: Bool
+    var spotifyLink: String
+    var applePodcastsLink: String
+    var pocketCastsLink: String
     
     init(episodeId: String,
          title: String,
@@ -24,14 +26,18 @@ struct PrimitivePodcastEpisode: Hashable, Codable, Identifiable {
          pubDate: String,
          duration: Double,
          creationDate: String,
-         sendNotification: Bool) {
+         spotifyLink: String,
+         applePodcastsLink: String,
+         pocketCastsLink: String) {
         self.episodeId = episodeId
         self.title = title
         self.description = description
         self.pubDate = pubDate
         self.duration = duration
         self.creationDate = creationDate
-        self.sendNotification = sendNotification
+        self.spotifyLink = spotifyLink
+        self.applePodcastsLink = applePodcastsLink
+        self.pocketCastsLink = pocketCastsLink
     }
 
 }

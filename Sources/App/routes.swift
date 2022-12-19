@@ -224,13 +224,18 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    app.post("api", "v2", "add-episode", ":password") { req -> HTTPStatus in
+    app.post("api", "v2", "add-episode", ":password", ":sendpush") { req -> HTTPStatus in
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
-        guard password == "knit-mishmash-destruct-drag" else {
+        guard password == Passwords.episodePassword else {
             return .forbidden
         }
+        guard let sendPushString = req.parameters.get("sendpush") else {
+            throw Abort(.internalServerError)
+        }
+        let sendPush = sendPushString == "true"
+        print(sendPush)
         
         let incomingEpisode = try req.content.decode(PodcastEpisode.self)
         
@@ -261,6 +266,29 @@ func routes(_ app: Application) throws {
 //        guard incomingEpisode.sendNotification else {
 //            return .created
 //        }
+    }
+    
+    app.patch("api", "v2", "add-links-to", ":episodeId", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == Passwords.episodePassword else {
+            return .forbidden
+        }
+        guard let episodeId = req.parameters.get("episodeId") else {
+            throw Abort(.internalServerError)
+        }
+        
+        let linksObj = try req.content.decode(EpisodeLinks.self)
+        
+        PodcastEpisode.query(on: req.db)
+            .set(\.$spotifyLink, to: linksObj.spotify)
+            .set(\.$applePodcastsLink, to: linksObj.applePodcasts)
+            .set(\.$pocketCastsLink, to: linksObj.pocketCasts)
+            .filter(\.$episodeId == episodeId)
+            .update()
+        
+        return .ok
     }
 
 }

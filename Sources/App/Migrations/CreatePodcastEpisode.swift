@@ -18,7 +18,9 @@ struct CreatePodcastEpisode: AsyncMigration {
             .field("pubDate", .string, .required)
             .field("duration", .double, .required)
             .field("creationDate", .string, .required)
-            .field("sendNotification", .bool, .required)
+            .field("spotifyLink", .string, .required)
+            .field("applePodcastsLink", .string, .required)
+            .field("pocketCastsLink", .string, .required)
             .create()
     }
     
