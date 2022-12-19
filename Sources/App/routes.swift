@@ -163,7 +163,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == "use your own secret key here; don't make it public!!!" else {
+        guard let password = notif.password, password == Passwords.sendNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         

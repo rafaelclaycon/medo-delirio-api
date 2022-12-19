@@ -11,8 +11,6 @@ import FeedKit
 class PodcastEpisodeHelper {
 
     static func lookForNewEpisode() {
-        let postPassword = "knit-mishmash-destruct-drag"
-        
         let parser = FeedParser(URL: URL(string: "https://www.central3.com.br/category/podcasts/medo-e-delirio/feed/podcast/")!)
         
         parser.parseAsync { result in
@@ -28,7 +26,7 @@ class PodcastEpisodeHelper {
                 guard let topItem = items.first else {
                     return print("PodcastEpisodeHelper: Unable to get top episode. \(Date().iso8601withFractionalSeconds)")
                 }
-                //let topItem = items[1]
+                //let topItem = items[4]
                 
                 let episode = PrimitivePodcastEpisode(
                     episodeId: topItem.guid?.value ?? UUID().uuidString,
@@ -39,7 +37,7 @@ class PodcastEpisodeHelper {
                     creationDate: Date().iso8601withFractionalSeconds,
                     sendNotification: true)
                 
-                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode/\(postPassword)")!
+                let url = URL(string: "http://127.0.0.1:8080/api/v2/add-episode/\(Passwords.episodePassword)")!
 
                 var request = URLRequest(url: url)
                 request.httpMethod = "POST"
