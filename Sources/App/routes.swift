@@ -163,7 +163,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == "use your own secret key here; don't make it public!!!" else {
+        guard let password = notif.password, password == Passwords.sendNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -221,6 +221,73 @@ func routes(_ app: Application) throws {
         try await req.db.transaction { transaction in
             try await metric.save(on: transaction)
         }
+        return .ok
+    }
+    
+    app.post("api", "v2", "add-episode", ":password", ":sendpush") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == Passwords.episodePassword else {
+            return .forbidden
+        }
+        guard let sendPushString = req.parameters.get("sendpush") else {
+            throw Abort(.internalServerError)
+        }
+        let sendPush = sendPushString == "true"
+        print(sendPush)
+        
+        let incomingEpisode = try req.content.decode(PodcastEpisode.self)
+        
+        let existingEpisode = try await PodcastEpisode.query(on: req.db)
+            .field(\PodcastEpisode.$episodeId)
+            .sort(\PodcastEpisode.$pubDate, .descending)
+            .first()
+        
+        // Scenario 1: No episodes saved. Saves the incoming one.
+        guard let latestEpisodeId = existingEpisode?.episodeId else {
+            try await req.db.transaction { transaction in
+                try await incomingEpisode.save(on: transaction)
+            }
+            return .created
+        }
+        
+        // Scenario 2: Reporting an episode that was already saved. Responds: nope.
+        guard incomingEpisode.episodeId != latestEpisodeId else {
+            return .conflict
+        }
+        
+        // Scenario 3: Reporting an episode that wasn't already saved. Saves it.
+        try await req.db.transaction { transaction in
+            try await incomingEpisode.save(on: transaction)
+        }
+        return .created
+        
+//        guard incomingEpisode.sendNotification else {
+//            return .created
+//        }
+    }
+    
+    app.patch("api", "v2", "add-links-to", ":episodeId", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == Passwords.episodePassword else {
+            return .forbidden
+        }
+        guard let episodeId = req.parameters.get("episodeId") else {
+            throw Abort(.internalServerError)
+        }
+        
+        let linksObj = try req.content.decode(EpisodeLinks.self)
+        
+        PodcastEpisode.query(on: req.db)
+            .set(\.$spotifyLink, to: linksObj.spotify)
+            .set(\.$applePodcastsLink, to: linksObj.applePodcasts)
+            .set(\.$pocketCastsLink, to: linksObj.pocketCasts)
+            .filter(\.$episodeId == episodeId)
+            .update()
+        
         return .ok
     }
 
