@@ -231,7 +231,13 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    app.post("api", "v2", "set-donor-names") { req -> HTTPStatus in
+    app.post("api", "v2", "set-donor-names", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == "set-donor-names password :)))" else {
+            return .forbidden
+        }
         let newValue = try req.content.decode(String.self)
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
