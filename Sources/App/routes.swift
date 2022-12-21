@@ -170,7 +170,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == "use your own secret key here; don't make it public!!!" else {
+        guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -235,7 +235,7 @@ func routes(_ app: Application) throws {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
-        guard password == "set-donor-names password :)))" else {
+        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
             return .forbidden
         }
         let newValue = try req.content.decode(String.self)
