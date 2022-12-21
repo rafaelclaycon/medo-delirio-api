@@ -108,6 +108,13 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
+    app.get("api", "v2", "donor-names") { req -> String in
+        guard let value = UserDefaults.standard.object(forKey: "donor-names") else {
+            throw Abort(.notFound)
+        }
+        return String(value as! String)
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -221,6 +228,15 @@ func routes(_ app: Application) throws {
         try await req.db.transaction { transaction in
             try await metric.save(on: transaction)
         }
+        return .ok
+    }
+    
+    app.post("api", "v2", "set-donor-names") { req -> HTTPStatus in
+        let newValue = try req.content.decode(String.self)
+        guard newValue.isEmpty == false else {
+            return HTTPStatus.badRequest
+        }
+        UserDefaults.standard.set(newValue, forKey: "donor-names")
         return .ok
     }
     
