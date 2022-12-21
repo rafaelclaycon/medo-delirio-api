@@ -223,5 +223,13 @@ func routes(_ app: Application) throws {
         }
         return .ok
     }
+    
+//    app.post("api", "v2", "add-all-existing-devices-to-general-channel") { req -> HTTPStatus in
+//        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+//            let deviceChannel = try DeviceChannel(id: UUID(), device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(id: UUID(), channelId: "general"))
+//            try deviceChannel.save(on: req.db)
+//        }
+//        return HTTPStatus.ok
+//    }
 
 }

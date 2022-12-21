@@ -17,10 +17,11 @@ struct CreateDeviceChannel: AsyncMigration {
             .unique(on: "installId", "channel_id")
             .create()
         
-        try await PushDevice.query(on: database).all().compactMap { device in
-            let deviceChannel = try DeviceChannel(device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(channelId: "general"))
-            deviceChannel.save(on: database)
-        }
+        //try await PushDevice.query(on: database).all().compactMap { device in
+//            let deviceChannel = try DeviceChannel(device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(channelId: "general"))
+//            deviceChannel.save(on: database)
+            //print(device.installId)
+        //}
     }
     
     func revert(on database: Database) async throws {
