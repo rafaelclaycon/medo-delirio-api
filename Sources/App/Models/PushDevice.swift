@@ -1,3 +1,10 @@
+//
+//  PushDevice.swift
+//  medo-delirio-api
+//
+//  Created by Rafael Claycon Schmitt on 06/07/22.
+//
+
 import Fluent
 import Vapor
 
@@ -13,6 +20,9 @@ final class PushDevice: Model, Content {
     
     @Field(key: "pushToken")
     var pushToken: String
+    
+    @Siblings(through: DeviceChannel.self, from: \.$device, to: \.$channel)
+    public var channels: [PushChannel]
     
     init() { }
     

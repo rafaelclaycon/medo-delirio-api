@@ -108,6 +108,13 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
+    app.get("api", "v2", "donor-names") { req -> String in
+        guard let value = UserDefaults.standard.object(forKey: "donor-names") else {
+            throw Abort(.notFound)
+        }
+        return String(value as! String)
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -163,7 +170,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
         let notif = try req.content.decode(PushNotification.self)
         
-        guard let password = notif.password, password == Passwords.sendNotificationPassword else {
+        guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -224,6 +231,21 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
+    app.post("api", "v2", "set-donor-names", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
+            return .forbidden
+        }
+        let newValue = try req.content.decode(String.self)
+        guard newValue.isEmpty == false else {
+            return HTTPStatus.badRequest
+        }
+        UserDefaults.standard.set(newValue, forKey: "donor-names")
+        return .ok
+    }
+
     app.post("api", "v2", "add-episode", ":password", ":sendpush") { req -> HTTPStatus in
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
@@ -290,5 +312,13 @@ func routes(_ app: Application) throws {
         
         return .ok
     }
+    
+//    app.post("api", "v2", "add-all-existing-devices-to-general-channel") { req -> HTTPStatus in
+//        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+//            let deviceChannel = try DeviceChannel(id: UUID(), device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(id: UUID(), channelId: "general"))
+//            try deviceChannel.save(on: req.db)
+//        }
+//        return HTTPStatus.ok
+//    }
 
 }
