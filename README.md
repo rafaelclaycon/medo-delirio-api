@@ -35,6 +35,6 @@ That said, if you want to help make this better, you're more than welcome to do 
 
 ## About this repo
 
-Rafael C. Schmitt – [@claycon_](https://twitter.com/claycon_)
+Rafael C. Schmitt – [@mitt_rafael@toot.wales](https://toot.wales/@mitt_rafael)
 
 Distributed under the MIT license. See ``LICENSE`` for more information.
