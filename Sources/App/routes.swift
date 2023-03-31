@@ -174,9 +174,9 @@ func routes(_ app: Application) throws {
             return HTTPStatus.unauthorized
         }
         
-        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+        _ = PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
             let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
-            return req.apns.send(payload, to: device.pushToken).map { HTTPStatus.ok }
+            return req.apns.send(payload, to: device.pushToken).map { return HTTPStatus.ok }
         }
         return HTTPStatus.ok
     }
