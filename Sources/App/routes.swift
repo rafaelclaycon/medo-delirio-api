@@ -167,18 +167,18 @@ func routes(_ app: Application) throws {
         }
     }
     
-    app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
+    app.post("api", "v1", "send-push-notification") { req -> EventLoopFuture<HTTPStatus> in
         let notif = try req.content.decode(PushNotification.self)
         
         guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
-            return HTTPStatus.unauthorized
+            return req.eventLoop.future(.unauthorized)
         }
         
-        _ = PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+        let devices = PushDevice.query(on: req.db).all()
+        return devices.flatMapEach(on: req.eventLoop) { device in
             let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
             return req.apns.send(payload, to: device.pushToken).map { return HTTPStatus.ok }
-        }
-        return HTTPStatus.ok
+        }.transform(to: .ok)
     }
     
     app.post("api", "v1", "user-folder-logs") { req -> HTTPStatus in

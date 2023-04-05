@@ -1,5 +1,6 @@
 import Vapor
 import APNS
+import NIOCore
 
 extension Application {
 
@@ -12,7 +13,8 @@ extension Application {
 //                teamIdentifier: ReleaseConfigs.Push.teamIdentifier
 //            ),
 //            topic: "com.rafaelschmitt.MedoDelirioBrasilia",
-//            environment: .production
+//            environment: .production,
+//            timeout: TimeAmount.seconds(30)
 //        )
 //    }
 
