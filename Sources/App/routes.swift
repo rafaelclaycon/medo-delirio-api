@@ -115,6 +115,21 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
+    // MARK: - API V3 - GET
+    
+    app.get("api", "v3", "donor-names") { req -> [Donor] in
+        guard let rawInputString = UserDefaults.standard.object(forKey: "donors") as? String else {
+            throw Abort(.notFound)
+        }
+        guard let data = rawInputString.data(using: .utf8) else {
+            throw Abort(.internalServerError)
+        }
+        guard let donors = try? JSONDecoder().decode([Donor].self, from: data) else {
+            throw Abort(.internalServerError)
+        }
+        return donors
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -243,6 +258,23 @@ func routes(_ app: Application) throws {
             return HTTPStatus.badRequest
         }
         UserDefaults.standard.set(newValue, forKey: "donor-names")
+        return .ok
+    }
+    
+    // MARK: - API V3 - POST
+    
+    app.post("api", "v3", "set-donor-names", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
+            throw Abort(.forbidden)
+        }
+        let rawInputString = try req.content.decode(String.self)
+        guard rawInputString.isEmpty == false else {
+            throw Abort(.badRequest)
+        }
+        UserDefaults.standard.set(rawInputString, forKey: "donors")
         return .ok
     }
     
