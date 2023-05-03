@@ -130,6 +130,10 @@ func routes(_ app: Application) throws {
         return donors
     }
     
+    app.get("api", "v3", "all-authors") { req -> EventLoopFuture<[Author]> in
+        Author.query(on: req.db).all()
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
