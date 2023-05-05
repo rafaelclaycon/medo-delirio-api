@@ -21,14 +21,39 @@ final class UpdateEvent: Model, Content {
     @Field(key: "dateTime")
     var dateTime: String
     
-    @Field(key: "isNewContent")
-    var isNewContent: Bool
+    @Field(key: "mediaType")
+    var mediaType: MediaType
     
-    @Field(key: "isMetadataChange")
-    var isMetadataChange: Bool
-    
-    @Field(key: "isFileChange")
-    var isFileChange: Bool
+    @Field(key: "eventType")
+    var eventType: EventType
     
     init() { }
+    
+    init(
+        id: UUID? = UUID(),
+        contentId: String,
+        dateTime: String,
+        mediaType: MediaType,
+        eventType: EventType
+    ) {
+        self.id = id
+        self.contentId = contentId
+        self.dateTime = dateTime
+        self.mediaType = mediaType
+        self.eventType = eventType
+    }
+    
+    init(
+        id: String,
+        contentId: String,
+        dateTime: String,
+        mediaType: Int,
+        eventType: Int
+    ) {
+        self.id = UUID(uuidString: id)
+        self.contentId = contentId
+        self.dateTime = dateTime
+        self.mediaType = MediaType(rawValue: mediaType) ?? .sound
+        self.eventType = EventType(rawValue: eventType) ?? .created
+    }
 }

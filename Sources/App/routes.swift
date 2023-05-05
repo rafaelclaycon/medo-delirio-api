@@ -134,6 +134,54 @@ func routes(_ app: Application) throws {
         Author.query(on: req.db).all()
     }
     
+    app.get("api", "v3", "update-events", ":date") { req -> EventLoopFuture<[UpdateEvent]> in
+        guard let date = req.parameters.get("date"), date != "all" else {
+            return UpdateEvent.query(on: req.db).all()
+        }
+        
+        print(date)
+        
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select *
+                from UpdateEvent
+                where dateTime > '\(date)'
+                order by dateTime desc
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    UpdateEvent(id: row.column("id")?.string ?? "",
+                                contentId: row.column("contentId")?.string ?? "",
+                                dateTime: row.column("dateTime")?.string ?? "",
+                                mediaType: row.column("mediaType")?.integer ?? 0,
+                                eventType: row.column("eventType")?.integer ?? 0)
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+    
+    app.get("api", "v3", "sound", ":id") { req -> EventLoopFuture<Sound> in
+        guard let soundId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(soundId)
+        guard let soundIdAsUUID = UUID(uuidString: soundId) else {
+            throw Abort(.internalServerError)
+        }
+        
+        return MedoContent.query(on: req.db)
+            .filter(\.$id == soundIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { content in
+                let sound = Sound(content: content)
+                return req.eventLoop.makeSucceededFuture(sound)
+            }
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -283,12 +331,30 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
-    app.post("api", "v3", "create-sound") { req -> HTTPStatus in
+    app.post("api", "v3", "create-sound") { req -> Response in
         let content = try req.content.decode(MedoContent.self)
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)
         }
-        return .ok
+        
+        let contentFile = ContentFile(fileId: content.fileId, hash: "")
+        try await req.db.transaction { transaction in
+            try await contentFile.save(on: transaction)
+        }
+        
+        guard let contentId = content.id?.uuidString else {
+            throw Abort(.internalServerError)
+        }
+        
+        let updateEvent = UpdateEvent(contentId: contentId,
+                                      dateTime: Date.now.iso8601withFractionalSeconds,
+                                      mediaType: .sound,
+                                      eventType: .created)
+        try await req.db.transaction { transaction in
+            try await updateEvent.save(on: transaction)
+        }
+        
+        return Response(status: .created, body: Response.Body(stringLiteral: content.id?.uuidString ?? ""))
     }
     
     app.post("api", "v3", "import-authors") { req -> HTTPStatus in

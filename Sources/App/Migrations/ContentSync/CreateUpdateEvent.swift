@@ -14,9 +14,8 @@ struct CreateUpdateEvent: AsyncMigration {
             .id()
             .field("contentId", .string, .required)
             .field("dateTime", .string, .required)
-            .field("isNewContent", .bool, .required)
-            .field("isMetadataChange", .bool, .required)
-            .field("isFileChange", .bool, .required)
+            .field("mediaType", .int, .required)
+            .field("eventType", .int, .required)
             .create()
     }
     

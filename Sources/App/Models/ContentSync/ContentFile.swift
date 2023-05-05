@@ -22,4 +22,13 @@ final class ContentFile: Model, Content {
     var hash: String
     
     init() { }
+    
+    init(
+        fileId: String,
+        hash: String
+    ) {
+        self.id = UUID()
+        self.fileId = fileId
+        self.hash = hash
+    }
 }
