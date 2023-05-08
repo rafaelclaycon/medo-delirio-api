@@ -365,6 +365,19 @@ func routes(_ app: Application) throws {
         return .ok
     }
     
+    app.post("api", "v3", "import-sounds") { req -> HTTPStatus in
+        let sounds = try req.content.decode([Sound].self)
+        
+        try await req.db.transaction { transaction in
+            for sound in sounds {
+                let medoContent = MedoContent(sound: sound)
+                try await medoContent.create(on: transaction)
+            }
+        }
+        
+        return .ok
+    }
+    
 //    app.post("api", "v2", "add-all-existing-devices-to-general-channel") { req -> HTTPStatus in
 //        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
 //            let deviceChannel = try DeviceChannel(id: UUID(), device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(id: UUID(), channelId: "general"))

@@ -37,4 +37,17 @@ final class MedoContent: Model, Content {
     var isOffensive: Bool
     
     init() { }
+    
+    init(
+        sound: Sound
+    ) {
+        self.id = UUID(uuidString: sound.id)
+        self.title = sound.title
+        self.authorId = sound.authorId
+        self.description = sound.description
+        self.fileId = sound.filename
+        self.creationDate = sound.dateAdded?.iso8601withFractionalSeconds ?? ""
+        self.duration = sound.duration
+        self.isOffensive = sound.isOffensive
+    }
 }
