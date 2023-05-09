@@ -19,6 +19,8 @@ struct CreateMedoContent: AsyncMigration {
             .field("creationDate", .string, .required)
             .field("duration", .double, .required)
             .field("isOffensive", .bool, .required)
+            .field("musicGenre", .string)
+            .field("contentType", .int, .required)
             .create()
     }
     

@@ -36,6 +36,12 @@ final class MedoContent: Model, Content {
     @Field(key: "isOffensive")
     var isOffensive: Bool
     
+    @Field(key: "musicGenre")
+    var musicGenre: String?
+    
+    @Field(key: "contentType")
+    var contentType: ContentType
+    
     init() { }
     
     init(
@@ -49,5 +55,7 @@ final class MedoContent: Model, Content {
         self.creationDate = sound.dateAdded?.iso8601withFractionalSeconds ?? ""
         self.duration = sound.duration
         self.isOffensive = sound.isOffensive
+        self.musicGenre = nil
+        self.contentType = .sound
     }
 }

@@ -182,6 +182,17 @@ func routes(_ app: Application) throws {
             }
     }
     
+    app.get("api", "v3", "all-sounds") { req -> EventLoopFuture<[Sound]> in
+        let query = MedoContent.query(on: req.db)
+            .filter(\.$contentType == .sound)
+        
+        return query.all().flatMapThrowing { medoContentList in
+            medoContentList.map { content in
+                return Sound(content: content)
+            }
+        }
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -385,5 +396,34 @@ func routes(_ app: Application) throws {
 //        }
 //        return HTTPStatus.ok
 //    }
+    
+    // MARK: - API V3 - PUT
+    
+    app.put("api", "v3", "update-content") { req -> EventLoopFuture<HTTPStatus> in
+        let medoContent = try req.content.decode(MedoContent.self)
 
+        return MedoContent.find(medoContent.id, on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { existingMedoContent in
+                existingMedoContent.title = medoContent.title
+                existingMedoContent.authorId = medoContent.authorId
+                existingMedoContent.description = medoContent.description
+                //existingMedoContent.fileId = medoContent.fileId
+                existingMedoContent.duration = medoContent.duration
+                existingMedoContent.isOffensive = medoContent.isOffensive
+                existingMedoContent.musicGenre = medoContent.musicGenre
+                existingMedoContent.contentType = medoContent.contentType
+                
+                let updateEvent = UpdateEvent(
+                    contentId: medoContent.id!.uuidString,
+                    dateTime: Date().iso8601withFractionalSeconds,
+                    mediaType: medoContent.contentType == .sound ? .sound : .song,
+                    eventType: .metadataUpdated
+                )
+                
+                return existingMedoContent.save(on: req.db)
+                    .and(updateEvent.save(on: req.db))
+                    .transform(to: .ok)
+            }
+    }
 }
