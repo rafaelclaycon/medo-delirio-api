@@ -115,6 +115,21 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
+    // MARK: - API V3 - GET
+    
+    app.get("api", "v3", "donor-names") { req -> [Donor] in
+        guard let rawInputString = UserDefaults.standard.object(forKey: "donors") as? String else {
+            throw Abort(.notFound)
+        }
+        guard let data = rawInputString.data(using: .utf8) else {
+            throw Abort(.internalServerError)
+        }
+        guard let donors = try? JSONDecoder().decode([Donor].self, from: data) else {
+            throw Abort(.internalServerError)
+        }
+        return donors
+    }
+    
     // MARK: - API V1 - POST
     
     app.post("api", "v1", "share-count-stat") { req -> EventLoopFuture<ShareCountStat> in
@@ -171,14 +186,15 @@ func routes(_ app: Application) throws {
         let notif = try req.content.decode(PushNotification.self)
         
         guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
-            return HTTPStatus.unauthorized
+            throw Abort(.unauthorized)
         }
         
-        _ = PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
+        let devices = try await PushDevice.query(on: req.db).all()
+        for device in devices {
             let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
-            return req.apns.send(payload, to: device.pushToken).map { return HTTPStatus.ok }
+            try await req.apns.send(payload, to: device.pushToken)
         }
-        return HTTPStatus.ok
+        return .ok
     }
     
     app.post("api", "v1", "user-folder-logs") { req -> HTTPStatus in
@@ -243,6 +259,23 @@ func routes(_ app: Application) throws {
             return HTTPStatus.badRequest
         }
         UserDefaults.standard.set(newValue, forKey: "donor-names")
+        return .ok
+    }
+    
+    // MARK: - API V3 - POST
+    
+    app.post("api", "v3", "set-donor-names", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
+            throw Abort(.forbidden)
+        }
+        let rawInputString = try req.content.decode(String.self)
+        guard rawInputString.isEmpty == false else {
+            throw Abort(.badRequest)
+        }
+        UserDefaults.standard.set(rawInputString, forKey: "donors")
         return .ok
     }
     

@@ -21,8 +21,8 @@ This is the server counterpart to the [Medo e Delírio iOS/iPadOS/macOS app](htt
 
 To build and run this project, you'll need:
 
-- A Mac running macOS 12 Monterey or newer;
-- Xcode 13.4+;
+- A Mac running macOS 13 Ventura;
+- Xcode 14.3;
 - admin privileges on the Mac's user account to run and bind the server to the 8080 port.
 
 That's it.
