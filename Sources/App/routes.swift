@@ -190,9 +190,12 @@ func routes(_ app: Application) throws {
         }
         
         let devices = try await PushDevice.query(on: req.db).all()
+        print("TOTAL PUSH DEVICES: \(devices.count)")
         for device in devices {
-            let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
-            try await req.apns.send(payload, to: device.pushToken)
+            //let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
+            //try await req.apns.send(payload, to: device.pushToken)
+            _ = app.apns.send(.init(title: notif.title, subtitle: notif.description), to: device.pushToken)
+            sleep(1)
         }
         return .ok
     }
