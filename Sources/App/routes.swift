@@ -182,19 +182,27 @@ func routes(_ app: Application) throws {
         }
     }
     
-    app.post("api", "v1", "send-push-notification") { req -> HTTPStatus in
+    app.post("api", "v1", "send-push-notification") { req -> EventLoopFuture<HTTPStatus> in
         let notif = try req.content.decode(PushNotification.self)
         
         guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
             throw Abort(.unauthorized)
         }
         
-        let devices = try await PushDevice.query(on: req.db).all()
-        for device in devices {
-            let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
-            try await req.apns.send(payload, to: device.pushToken)
-        }
-        return .ok
+        return PushDevice.query(on: req.db).all().flatMap { devices in
+            let sendNotifications = devices.map { device in
+                app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken)
+            }
+            return EventLoopFuture.andAllComplete(sendNotifications, on: req.eventLoop)
+        }.transform(to: .ok)
+        
+//        let devices = try await PushDevice.query(on: req.db).all()
+//        print("TOTAL PUSH DEVICES: \(devices.count)")
+//        for device in devices {
+//            _ = app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken)
+//            sleep(1)
+//        }
+//        return .ok
     }
     
     app.post("api", "v1", "user-folder-logs") { req -> HTTPStatus in
