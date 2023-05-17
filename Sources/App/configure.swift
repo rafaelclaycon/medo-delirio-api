@@ -36,5 +36,5 @@ public func configure(_ app: Application) throws {
     try routes(app)
     
     // Commented out just for development. Comment back in upon release.
-    try app.configurePush()
+    //try app.configurePush()
 }
