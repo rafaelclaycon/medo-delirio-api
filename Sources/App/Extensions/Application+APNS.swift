@@ -3,7 +3,7 @@ import APNS
 import NIOCore
 
 extension Application {
-
+    
     // Commented out just for development. Comment back in upon release.
 //    func configurePush() throws {
 //        apns.configuration = try .init(
@@ -17,5 +17,4 @@ extension Application {
 //            timeout: TimeAmount.seconds(30)
 //        )
 //    }
-
 }
