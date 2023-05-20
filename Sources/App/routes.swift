@@ -135,8 +135,16 @@ func routes(_ app: Application) throws {
     }
     
     app.get("api", "v3", "update-events", ":date") { req -> EventLoopFuture<[UpdateEvent]> in
-        guard let date = req.parameters.get("date"), date != "all" else {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest)
+        }
+        
+        if date == "all" {
             return UpdateEvent.query(on: req.db).all()
+        }
+        
+        guard date.isUTCDateString() else {
+            throw Abort(.badRequest)
         }
         
         print(date)
@@ -146,7 +154,7 @@ func routes(_ app: Application) throws {
                 select *
                 from UpdateEvent
                 where dateTime > '\(date)'
-                order by dateTime desc
+                order by dateTime
             """
 
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
@@ -374,6 +382,20 @@ func routes(_ app: Application) throws {
         }
         
         return Response(status: .created, body: Response.Body(stringLiteral: content.id?.uuidString ?? ""))
+    }
+    
+    app.post("api", "v3", "create-author", ":password") { req -> HTTPStatus in
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+        let content = try req.content.decode(Author.self)
+        try await req.db.transaction { transaction in
+            try await content.save(on: transaction)
+        }
+        return .ok
     }
     
     app.post("api", "v3", "import-authors") { req -> HTTPStatus in
