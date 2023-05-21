@@ -188,11 +188,11 @@ func routes(_ app: Application) throws {
         guard let password = notif.password, password == ReleaseConfigs.Passwords.sendNotificationPassword else {
             throw Abort(.unauthorized)
         }
-        
+
         let devices = try await PushDevice.query(on: req.db).all()
         for device in devices {
-            let payload = APNSwiftPayload(alert: .init(title: notif.title, body: notif.description), sound: .normal("default"))
-            try await req.apns.send(payload, to: device.pushToken)
+            _ = app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken)
+            sleep(1)
         }
         return .ok
     }
