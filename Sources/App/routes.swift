@@ -57,164 +57,19 @@ func routes(_ app: Application) throws {
         return .ok
     }
     //app.post("api", "v2", "add-all-existing-devices-to-general-channel", use: notificationsController.postAddAllExistingDevicesToGeneralChannelHandlerV2)
-
-    app.get("api", "v3", "sound", ":id") { req -> EventLoopFuture<Sound> in
-        guard let soundId = req.parameters.get("id", as: String.self) else {
-            throw Abort(.badRequest)
-        }
-        print(soundId)
-        guard let soundIdAsUUID = UUID(uuidString: soundId) else {
-            throw Abort(.internalServerError)
-        }
-        
-        return MedoContent.query(on: req.db)
-            .filter(\.$id == soundIdAsUUID)
-            .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                let sound = Sound(content: content)
-                return req.eventLoop.makeSucceededFuture(sound)
-            }
-    }
     
-    app.get("api", "v3", "all-sounds") { req -> EventLoopFuture<[Sound]> in
-        let query = MedoContent.query(on: req.db)
-            .filter(\.$contentType == .sound)
-        
-        return query.all().flatMapThrowing { medoContentList in
-            medoContentList.map { content in
-                return Sound(content: content)
-            }
-        }
-    }
-
-    app.get("api", "v3", "all-authors") { req -> EventLoopFuture<[Author]> in
-        Author.query(on: req.db).all()
-    }
+    let soundsController = SoundsController()
+    app.post("api", "v3", "import-sounds", use: soundsController.postImportSoundsHandlerV3)
+    app.post("api", "v3", "create-sound", use: soundsController.postCreateSoundHandlerV3)
+    app.get("api", "v3", "sound", ":id", use: soundsController.getSoundHandlerV3)
+    app.get("api", "v3", "all-sounds", use: soundsController.getAllSoundsHandlerV3)
     
-    app.get("api", "v3", "update-events", ":date") { req -> EventLoopFuture<[UpdateEvent]> in
-        guard let date = req.parameters.get("date") else {
-            throw Abort(.badRequest)
-        }
-        
-        if date == "all" {
-            return UpdateEvent.query(on: req.db).all()
-        }
-        
-        guard date.isUTCDateString() else {
-            throw Abort(.badRequest)
-        }
-        
-        print(date)
-        
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select *
-                from UpdateEvent
-                where dateTime > '\(date)'
-                order by dateTime
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    UpdateEvent(id: row.column("id")?.string ?? "",
-                                contentId: row.column("contentId")?.string ?? "",
-                                dateTime: row.column("dateTime")?.string ?? "",
-                                mediaType: row.column("mediaType")?.integer ?? 0,
-                                eventType: row.column("eventType")?.integer ?? 0)
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
-    }
-
-    app.post("api", "v3", "create-sound") { req -> Response in
-        let content = try req.content.decode(MedoContent.self)
-        try await req.db.transaction { transaction in
-            try await content.save(on: transaction)
-        }
-        
-        let contentFile = ContentFile(fileId: content.fileId, hash: "")
-        try await req.db.transaction { transaction in
-            try await contentFile.save(on: transaction)
-        }
-        
-        guard let contentId = content.id?.uuidString else {
-            throw Abort(.internalServerError)
-        }
-        
-        let updateEvent = UpdateEvent(contentId: contentId,
-                                      dateTime: Date.now.iso8601withFractionalSeconds,
-                                      mediaType: .sound,
-                                      eventType: .created)
-        try await req.db.transaction { transaction in
-            try await updateEvent.save(on: transaction)
-        }
-        
-        return Response(status: .created, body: Response.Body(stringLiteral: content.id?.uuidString ?? ""))
-    }
+    let authorsController = AuthorsController()
+    app.post("api", "v3", "import-authors", use: authorsController.postImportAuthorsHandlerV3)
+    app.post("api", "v3", "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
+    app.get("api", "v3", "all-authors", use: authorsController.getAllAuthorsHandlerV3)
     
-    app.post("api", "v3", "create-author", ":password") { req -> HTTPStatus in
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
-            throw Abort(.forbidden)
-        }
-        let content = try req.content.decode(Author.self)
-        try await req.db.transaction { transaction in
-            try await content.save(on: transaction)
-        }
-        return .ok
-    }
-    
-    app.post("api", "v3", "import-authors") { req -> HTTPStatus in
-        let authors = try req.content.decode([Author].self)
-        try await req.db.transaction { transaction in
-            try await authors.create(on: transaction)
-        }
-        return .ok
-    }
-    
-    app.post("api", "v3", "import-sounds") { req -> HTTPStatus in
-        let sounds = try req.content.decode([Sound].self)
-        
-        try await req.db.transaction { transaction in
-            for sound in sounds {
-                let medoContent = MedoContent(sound: sound)
-                try await medoContent.create(on: transaction)
-            }
-        }
-        
-        return .ok
-    }
-    
-    app.put("api", "v3", "update-content") { req -> EventLoopFuture<HTTPStatus> in
-        let medoContent = try req.content.decode(MedoContent.self)
-
-        return MedoContent.find(medoContent.id, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { existingMedoContent in
-                existingMedoContent.title = medoContent.title
-                existingMedoContent.authorId = medoContent.authorId
-                existingMedoContent.description = medoContent.description
-                //existingMedoContent.fileId = medoContent.fileId
-                existingMedoContent.duration = medoContent.duration
-                existingMedoContent.isOffensive = medoContent.isOffensive
-                existingMedoContent.musicGenre = medoContent.musicGenre
-                existingMedoContent.contentType = medoContent.contentType
-                
-                let updateEvent = UpdateEvent(
-                    contentId: medoContent.id!.uuidString,
-                    dateTime: Date().iso8601withFractionalSeconds,
-                    mediaType: medoContent.contentType == .sound ? .sound : .song,
-                    eventType: .metadataUpdated
-                )
-                
-                return existingMedoContent.save(on: req.db)
-                    .and(updateEvent.save(on: req.db))
-                    .transform(to: .ok)
-            }
-    }
+    let updateEventsController = UpdateEventsController()
+    app.get("api", "v3", "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
+    app.put("api", "v3", "update-content", use: updateEventsController.putUpdateContentHandlerV3)
 }
