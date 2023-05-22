@@ -4,12 +4,9 @@ import SQLiteNIO
 import APNS
 
 func routes(_ app: Application) throws {
-
-    // MARK: - API V1 - GET
-    
-    app.get("api", "v1", "status-check") { req in
-        return "Conexão com o servidor OK."
-    }
+    let statusCheckController = StatusCheckController()
+    app.get("api", "v1", "status-check", use: statusCheckController.statusCheckHandlerV1)
+    app.get("api", "v2", "status-check", use: statusCheckController.statusCheckHandlerV2)
     
     app.get("api", "v1", "all-client-device-info") { req -> EventLoopFuture<[ClientDeviceInfo]> in
         ClientDeviceInfo.query(on: req.db).all()
@@ -44,19 +41,7 @@ func routes(_ app: Application) throws {
         return String(value as! String)
     }
     
-    app.get("api", "v1", "display-lula-won-on-lock-screen-widgets") { req -> String in
-        let userDefaults = UserDefaults.standard
-        guard let value = userDefaults.object(forKey: "display-lula-won-on-lock-screen-widgets") else {
-            return "0"
-        }
-        return String(value as! String)
-    }
-    
     // MARK: - API V2 - GET
-    
-    app.get("api", "v2", "status-check") { req -> HTTPStatus in
-        return .ok
-    }
     
     app.get("api", "v2", "sound-share-count-stats-all-time") { req -> EventLoopFuture<[ShareCountStat]> in
         if let sqlite = req.db as? SQLiteDatabase {
@@ -286,5 +271,4 @@ func routes(_ app: Application) throws {
 //        }
 //        return HTTPStatus.ok
 //    }
-
 }
