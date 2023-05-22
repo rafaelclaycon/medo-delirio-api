@@ -64,17 +64,17 @@ func routes(_ app: Application) throws {
     //app.post(api, v2, "add-all-existing-devices-to-general-channel", use: notificationsController.postAddAllExistingDevicesToGeneralChannelHandlerV2)
     
     let soundsController = SoundsController()
-    app.post("api", "v3", "import-sounds", use: soundsController.postImportSoundsHandlerV3)
-    app.post("api", "v3", "create-sound", use: soundsController.postCreateSoundHandlerV3)
-    app.get("api", "v3", "sound", ":id", use: soundsController.getSoundHandlerV3)
-    app.get("api", "v3", "all-sounds", use: soundsController.getAllSoundsHandlerV3)
+    app.post(api, v3, "import-sounds", use: soundsController.postImportSoundsHandlerV3)
+    app.post(api, v3, "create-sound", use: soundsController.postCreateSoundHandlerV3)
+    app.get(api, v3, "sound", ":id", use: soundsController.getSoundHandlerV3)
+    app.get(api, v3, "all-sounds", use: soundsController.getAllSoundsHandlerV3)
     
     let authorsController = AuthorsController()
-    app.post("api", "v3", "import-authors", use: authorsController.postImportAuthorsHandlerV3)
-    app.post("api", "v3", "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
-    app.get("api", "v3", "all-authors", use: authorsController.getAllAuthorsHandlerV3)
+    app.post(api, v3, "import-authors", use: authorsController.postImportAuthorsHandlerV3)
+    app.post(api, v3, "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
+    app.get(api, v3, "all-authors", use: authorsController.getAllAuthorsHandlerV3)
     
     let updateEventsController = UpdateEventsController()
-    app.get("api", "v3", "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
-    app.put("api", "v3", "update-content", use: updateEventsController.putUpdateContentHandlerV3)
+    app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
+    app.put(api, v3, "update-content", use: updateEventsController.putUpdateContentHandlerV3)
 }
