@@ -10,15 +10,15 @@ import SQLiteNIO
 
 struct StatisticsController {
     
-    func allClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
+    func getAllClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
         return ClientDeviceInfo.query(on: req.db).all()
     }
     
-    func allSoundShareCountStatsHandlerV1(req: Request) -> EventLoopFuture<[ShareCountStat]> {
+    func getAllSoundShareCountStatsHandlerV1(req: Request) -> EventLoopFuture<[ShareCountStat]> {
         return ShareCountStat.query(on: req.db).all()
     }
     
-    func installIdCountHandlerV1(req: Request) -> EventLoopFuture<[Int]> {
+    func getInstallIdCountHandlerV1(req: Request) -> EventLoopFuture<[Int]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
                 select count(c.installId) totalCount
@@ -35,7 +35,7 @@ struct StatisticsController {
         }
     }
     
-    func soundShareCountStatsAllTimeHandlerV2(req: Request) -> EventLoopFuture<[ShareCountStat]> {
+    func getSoundShareCountStatsAllTimeHandlerV2(req: Request) -> EventLoopFuture<[ShareCountStat]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
@@ -54,7 +54,7 @@ struct StatisticsController {
         }
     }
     
-    func soundShareCountStatsFromHandlerV2(req: Request) throws -> EventLoopFuture<[ShareCountStat]> {
+    func getSoundShareCountStatsFromHandlerV2(req: Request) throws -> EventLoopFuture<[ShareCountStat]> {
         guard let date = req.parameters.get("date") else {
             throw Abort(.internalServerError)
         }
@@ -78,14 +78,14 @@ struct StatisticsController {
         }
     }
     
-    func shareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
+    func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
         let stat = try req.content.decode(ShareCountStat.self)
         return stat.save(on: req.db).map {
             stat
         }
     }
     
-    func sharedToBundleIdHandlerV1(req: Request) throws -> EventLoopFuture<ShareBundleIdLog> {
+    func postSharedToBundleIdHandlerV1(req: Request) throws -> EventLoopFuture<ShareBundleIdLog> {
         let log = try req.content.decode(ShareBundleIdLog.self)
         return log.save(on: req.db).map {
             log

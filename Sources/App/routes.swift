@@ -5,92 +5,29 @@ import APNS
 
 func routes(_ app: Application) throws {
     let statusCheckController = StatusCheckController()
-    app.get("api", "v1", "status-check", use: statusCheckController.statusCheckHandlerV1)
-    app.get("api", "v2", "status-check", use: statusCheckController.statusCheckHandlerV2)
+    app.get("api", "v1", "status-check", use: statusCheckController.getStatusCheckHandlerV1)
+    app.get("api", "v2", "status-check", use: statusCheckController.getStatusCheckHandlerV2)
     
     let statisticsController = StatisticsController()
-    app.get("api", "v1", "all-client-device-info", use: statisticsController.allClientDeviceInfoHandlerV1)
-    app.get("api", "v1", "all-sound-share-count-stats", use: statisticsController.allSoundShareCountStatsHandlerV1)
-    app.get("api", "v1", "install-id-count", use: statisticsController.installIdCountHandlerV1)
-    app.get("api", "v2", "sound-share-count-stats-all-time", use: statisticsController.soundShareCountStatsAllTimeHandlerV2)
-    app.get("api", "v2", "sound-share-count-stats-from", ":date", use: statisticsController.soundShareCountStatsFromHandlerV2)
-    app.post("api", "v1", "share-count-stat", use: statisticsController.shareCountStatHandlerV1)
-    app.post("api", "v1", "shared-to-bundle-id", use: statisticsController.sharedToBundleIdHandlerV1)
+    app.get("api", "v1", "all-client-device-info", use: statisticsController.getAllClientDeviceInfoHandlerV1)
+    app.get("api", "v1", "all-sound-share-count-stats", use: statisticsController.getAllSoundShareCountStatsHandlerV1)
+    app.get("api", "v1", "install-id-count", use: statisticsController.getInstallIdCountHandlerV1)
+    app.get("api", "v2", "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV2)
+    app.get("api", "v2", "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV2)
+    app.post("api", "v1", "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
+    app.post("api", "v1", "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
     
     let askForMoneyController = AskForMoneyController()
-    app.get("api", "v1", "display-ask-for-money-view", use: askForMoneyController.displayAskForMoneyViewHandlerV1)
-    app.get("api", "v2", "current-test-version") { req -> String in
-        guard let value = UserDefaults.standard.object(forKey: "current-test-version") else {
-            throw Abort(.notFound)
-        }
-        return String(value as! String)
-    }
-    app.post("api", "v1", "display-ask-for-money-view") { req -> String in
-        let newValue = try req.content.decode(String.self)
-        let userDefaults = UserDefaults.standard
-        if newValue.contains("1") {
-            userDefaults.set("1", forKey: "display-ask-for-money-view")
-        } else {
-            userDefaults.set("0", forKey: "display-ask-for-money-view")
-        }
-        return "Novo valor setado."
-    }
-    app.post("api", "v2", "set-test-version") { req -> HTTPStatus in
-        let newValue = try req.content.decode(String.self)
-        guard newValue.isEmpty == false else {
-            return HTTPStatus.badRequest
-        }
-        UserDefaults.standard.set(newValue, forKey: "current-test-version")
-        return .ok
-    }
+    app.get("api", "v1", "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
+    app.get("api", "v2", "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
+    app.post("api", "v1", "display-ask-for-money-view", use: askForMoneyController.postDisplayAskForMoneyViewHandlerV1)
+    app.post("api", "v2", "set-test-version", use: askForMoneyController.postSetTestVersionHandlerV2)
     
     let donorsController = DonorsController()
-    app.get("api", "v2", "donor-names") { req -> String in
-        guard let value = UserDefaults.standard.object(forKey: "donor-names") else {
-            throw Abort(.notFound)
-        }
-        return String(value as! String)
-    }
-    app.get("api", "v3", "donor-names") { req -> [Donor] in
-        guard let rawInputString = UserDefaults.standard.object(forKey: "donors") as? String else {
-            throw Abort(.notFound)
-        }
-        guard let data = rawInputString.data(using: .utf8) else {
-            throw Abort(.internalServerError)
-        }
-        guard let donors = try? JSONDecoder().decode([Donor].self, from: data) else {
-            throw Abort(.internalServerError)
-        }
-        return donors
-    }
-    app.post("api", "v2", "set-donor-names", ":password") { req -> HTTPStatus in
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
-            return .forbidden
-        }
-        let newValue = try req.content.decode(String.self)
-        guard newValue.isEmpty == false else {
-            return HTTPStatus.badRequest
-        }
-        UserDefaults.standard.set(newValue, forKey: "donor-names")
-        return .ok
-    }
-    app.post("api", "v3", "set-donor-names", ":password") { req -> HTTPStatus in
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
-            throw Abort(.forbidden)
-        }
-        let rawInputString = try req.content.decode(String.self)
-        guard rawInputString.isEmpty == false else {
-            throw Abort(.badRequest)
-        }
-        UserDefaults.standard.set(rawInputString, forKey: "donors")
-        return .ok
-    }
+    app.get("api", "v2", "donor-names", use: donorsController.getDonorNamesHandlerV2)
+    app.get("api", "v3", "donor-names", use: donorsController.getDonorNamesHandlerV3)
+    app.post("api", "v2", "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV2)
+    app.post("api", "v3", "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV3)
     
     let clientLoggingController = ClientLoggingController()
     app.post("api", "v1", "client-device-info") { req -> EventLoopFuture<ClientDeviceInfo> in

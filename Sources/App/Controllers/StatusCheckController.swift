@@ -9,11 +9,11 @@ import Vapor
 
 struct StatusCheckController {
     
-    func statusCheckHandlerV1(req: Request) throws -> EventLoopFuture<String> {
+    func getStatusCheckHandlerV1(req: Request) throws -> EventLoopFuture<String> {
         return req.eventLoop.makeSucceededFuture("Conexão com o servidor OK.")
     }
     
-    func statusCheckHandlerV2(req: Request) -> HTTPStatus {
+    func getStatusCheckHandlerV2(req: Request) -> HTTPStatus {
         return .ok
     }
 }
