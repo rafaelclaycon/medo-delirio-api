@@ -68,6 +68,7 @@ func routes(_ app: Application) throws {
     app.post(api, v3, "create-sound", use: soundsController.postCreateSoundHandlerV3)
     app.get(api, v3, "sound", ":id", use: soundsController.getSoundHandlerV3)
     app.get(api, v3, "all-sounds", use: soundsController.getAllSoundsHandlerV3)
+    app.put(api, v3, "remove-sound", ":id", use: soundsController.putRemoveSoundHandlerV3)
     
     let authorsController = AuthorsController()
     app.post(api, v3, "import-authors", use: authorsController.postImportAuthorsHandlerV3)

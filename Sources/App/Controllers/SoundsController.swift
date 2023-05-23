@@ -78,4 +78,29 @@ struct SoundsController {
             }
         }
     }
+    
+    func putRemoveSoundHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let soundId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(soundId)
+        guard let soundIdAsUUID = UUID(uuidString: soundId) else {
+            throw Abort(.internalServerError)
+        }
+        
+        return MedoContent.query(on: req.db)
+            .filter(\.$id == soundIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { content in
+                content.isHidden = true
+                return content.save(on: req.db).flatMap {
+                    let updateEvent = UpdateEvent(contentId: soundId,
+                                                  dateTime: Date.now.iso8601withFractionalSeconds,
+                                                  mediaType: .sound,
+                                                  eventType: .deleted)
+                    return updateEvent.save(on: req.db).transform(to: .ok)
+                }
+            }
+    }
 }

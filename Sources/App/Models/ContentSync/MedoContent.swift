@@ -42,6 +42,9 @@ final class MedoContent: Model, Content {
     @Field(key: "contentType")
     var contentType: ContentType
     
+    @Field(key: "isHidden")
+    var isHidden: Bool
+    
     init() { }
     
     init(
@@ -57,5 +60,6 @@ final class MedoContent: Model, Content {
         self.isOffensive = sound.isOffensive
         self.musicGenre = nil
         self.contentType = .sound
+        self.isHidden = false
     }
 }
