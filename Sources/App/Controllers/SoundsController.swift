@@ -71,6 +71,7 @@ struct SoundsController {
     func getAllSoundsHandlerV3(req: Request) throws -> EventLoopFuture<[Sound]> {
         let query = MedoContent.query(on: req.db)
             .filter(\.$contentType == .sound)
+            .filter(\.$isHidden == false)
         
         return query.all().flatMapThrowing { medoContentList in
             medoContentList.map { content in
