@@ -88,7 +88,6 @@ struct SoundsController {
         guard let soundIdAsUUID = UUID(uuidString: soundId) else {
             throw Abort(.internalServerError)
         }
-        
         return MedoContent.query(on: req.db)
             .filter(\.$id == soundIdAsUUID)
             .first()

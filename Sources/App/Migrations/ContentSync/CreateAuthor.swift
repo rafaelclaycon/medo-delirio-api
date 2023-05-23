@@ -15,6 +15,7 @@ struct CreateAuthor: AsyncMigration {
             .field("name", .string, .required)
             .field("photo", .string)
             .field("description", .string)
+            .field("isHidden", .bool, .required)
             .create()
     }
     

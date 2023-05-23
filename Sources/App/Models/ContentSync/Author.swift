@@ -24,5 +24,8 @@ final class Author: Model, Content {
     @Field(key: "description")
     var description: String?
     
+    @Field(key: "isHidden")
+    var isHidden: Bool?
+    
     init() { }
 }

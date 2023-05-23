@@ -6,11 +6,15 @@
 //
 
 import Vapor
+import Fluent
 
 struct AuthorsController {
     
     func postImportAuthorsHandlerV3(req: Request) async throws -> HTTPStatus {
         let authors = try req.content.decode([Author].self)
+        for i in authors.indices {
+            authors[i].isHidden = false
+        }
         try await req.db.transaction { transaction in
             try await authors.create(on: transaction)
         }
@@ -25,13 +29,40 @@ struct AuthorsController {
             throw Abort(.forbidden)
         }
         let content = try req.content.decode(Author.self)
+        content.isHidden = false
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)
         }
         return .ok
     }
     
-    func getAllAuthorsHandlerV3(req: Request) -> EventLoopFuture<[Author]> {
-        Author.query(on: req.db).all()
+    func getAllAuthorsHandlerV3(req: Request) throws -> EventLoopFuture<[Author]> {
+        Author.query(on: req.db)
+            .filter(\.$isHidden == false)
+            .all()
+    }
+    
+    func deleteRemoveAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let authorId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(authorId)
+        guard let authorIdAsUUID = UUID(uuidString: authorId) else {
+            throw Abort(.internalServerError)
+        }
+        return Author.query(on: req.db)
+            .filter(\.$id == authorIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { content in
+                content.isHidden = true
+                return content.save(on: req.db).flatMap {
+                    let updateEvent = UpdateEvent(contentId: authorId,
+                                                  dateTime: Date.now.iso8601withFractionalSeconds,
+                                                  mediaType: .author,
+                                                  eventType: .deleted)
+                    return updateEvent.save(on: req.db).transform(to: .ok)
+                }
+            }
     }
 }
