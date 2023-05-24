@@ -55,11 +55,27 @@ final class MedoContent: Model, Content {
         self.authorId = sound.authorId
         self.description = sound.description
         self.fileId = sound.filename
-        self.creationDate = sound.dateAdded?.iso8601withFractionalSeconds ?? ""
+        self.creationDate = sound.dateAdded?.iso8601withFractionalSeconds ?? Date.now.iso8601withFractionalSeconds
         self.duration = sound.duration
         self.isOffensive = sound.isOffensive
         self.musicGenre = nil
         self.contentType = .sound
+        self.isHidden = false
+    }
+    
+    init(
+        song: Song
+    ) {
+        self.id = UUID(uuidString: song.id)
+        self.title = song.title
+        self.authorId = ""
+        self.description = song.description
+        self.fileId = song.filename
+        self.creationDate = song.dateAdded?.iso8601withFractionalSeconds ?? Date.now.iso8601withFractionalSeconds
+        self.duration = song.duration
+        self.isOffensive = song.isOffensive
+        self.musicGenre = song.genre.rawValue
+        self.contentType = .song
         self.isHidden = false
     }
 }

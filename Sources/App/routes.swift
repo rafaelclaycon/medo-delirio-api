@@ -76,6 +76,10 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "all-authors", use: authorsController.getAllAuthorsHandlerV3)
     app.delete(api, v3, "author", ":id", use: authorsController.deleteAuthorHandlerV3)
     
+    let songsController = SongsController()
+    app.post(api, v3, "import-songs", use: songsController.postImportSongsHandlerV3)
+    app.get(api, v3, "all-songs", use: songsController.getAllSongsHandlerV3)
+    
     let updateEventsController = UpdateEventsController()
     app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
     app.put(api, v3, "update-content", use: updateEventsController.putUpdateContentHandlerV3)
