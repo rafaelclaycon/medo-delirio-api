@@ -68,13 +68,13 @@ func routes(_ app: Application) throws {
     app.post(api, v3, "create-sound", use: soundsController.postCreateSoundHandlerV3)
     app.get(api, v3, "sound", ":id", use: soundsController.getSoundHandlerV3)
     app.get(api, v3, "all-sounds", use: soundsController.getAllSoundsHandlerV3)
-    app.delete(api, v3, "remove-sound", ":id", use: soundsController.putRemoveSoundHandlerV3)
+    app.delete(api, v3, "sound", ":id", use: soundsController.deleteSoundHandlerV3)
     
     let authorsController = AuthorsController()
     app.post(api, v3, "import-authors", use: authorsController.postImportAuthorsHandlerV3)
     app.post(api, v3, "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
     app.get(api, v3, "all-authors", use: authorsController.getAllAuthorsHandlerV3)
-    app.delete(api, v3, "remove-author", ":id", use: authorsController.deleteRemoveAuthorHandlerV3)
+    app.delete(api, v3, "author", ":id", use: authorsController.deleteAuthorHandlerV3)
     
     let updateEventsController = UpdateEventsController()
     app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)

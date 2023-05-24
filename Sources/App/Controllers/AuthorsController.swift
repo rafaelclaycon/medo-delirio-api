@@ -42,7 +42,7 @@ struct AuthorsController {
             .all()
     }
     
-    func deleteRemoveAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let authorId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }

@@ -80,7 +80,7 @@ struct SoundsController {
         }
     }
     
-    func putRemoveSoundHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteSoundHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let soundId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
