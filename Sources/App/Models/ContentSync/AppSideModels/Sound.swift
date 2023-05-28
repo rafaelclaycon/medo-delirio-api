@@ -20,7 +20,6 @@ struct Sound: Hashable, Codable, Identifiable, Content {
     let dateAdded: Date?
     let duration: Double
     let isOffensive: Bool
-    let isNew: Bool?
     let isFromServer: Bool?
     
     init(
@@ -33,7 +32,6 @@ struct Sound: Hashable, Codable, Identifiable, Content {
         dateAdded: Date?,
         duration: Double,
         isOffensive: Bool,
-        isNew: Bool?,
         isFromServer: Bool?
     ) {
         self.id = id
@@ -45,7 +43,6 @@ struct Sound: Hashable, Codable, Identifiable, Content {
         self.dateAdded = dateAdded
         self.duration = duration
         self.isOffensive = isOffensive
-        self.isNew = isNew
         self.isFromServer = isFromServer
     }
     
@@ -61,7 +58,6 @@ struct Sound: Hashable, Codable, Identifiable, Content {
         self.dateAdded = content.creationDate.iso8601withFractionalSeconds
         self.duration = content.duration
         self.isOffensive = content.isOffensive
-        self.isNew = false
         self.isFromServer = true
     }
 }

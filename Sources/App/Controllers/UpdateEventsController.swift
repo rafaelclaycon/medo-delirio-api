@@ -74,4 +74,23 @@ struct UpdateEventsController {
                     .transform(to: .ok)
             }
     }
+    
+    func postUpdateContentFileHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let mediaTypeString = req.parameters.get("type", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        guard let contentId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        guard let mediaType = MediaType.from(string: mediaTypeString) else {
+            throw Abort(.badRequest)
+        }
+        let updateEvent = UpdateEvent(
+            contentId: contentId,
+            dateTime: Date().iso8601withFractionalSeconds,
+            mediaType: mediaType,
+            eventType: .fileUpdated
+        )
+        return updateEvent.save(on: req.db).transform(to: .ok)
+    }
 }

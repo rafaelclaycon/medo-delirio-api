@@ -19,7 +19,6 @@ struct Song: Hashable, Codable, Identifiable, Content {
     let filename: String
     var dateAdded: Date?
     let isOffensive: Bool
-    let isNew: Bool?
     
     init(
         id: String = UUID().uuidString,
@@ -29,8 +28,7 @@ struct Song: Hashable, Codable, Identifiable, Content {
         duration: Double = 0,
         filename: String = "",
         dateAdded: Date = Date(),
-        isOffensive: Bool = false,
-        isNew: Bool? = nil
+        isOffensive: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -40,7 +38,6 @@ struct Song: Hashable, Codable, Identifiable, Content {
         self.filename = filename
         self.dateAdded = dateAdded
         self.isOffensive = isOffensive
-        self.isNew = isNew
     }
     
     init(
@@ -54,6 +51,5 @@ struct Song: Hashable, Codable, Identifiable, Content {
         self.filename = "\(content.fileId).mp3"
         self.dateAdded = content.creationDate.iso8601withFractionalSeconds
         self.isOffensive = content.isOffensive
-        self.isNew = false
     }
 }
