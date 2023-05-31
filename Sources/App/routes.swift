@@ -73,6 +73,7 @@ func routes(_ app: Application) throws {
     let authorsController = AuthorsController()
     app.post(api, v3, "import-authors", use: authorsController.postImportAuthorsHandlerV3)
     app.post(api, v3, "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
+    app.get(api, v3, "author", ":id", use: authorsController.getAuthorHandlerV3)
     app.get(api, v3, "all-authors", use: authorsController.getAllAuthorsHandlerV3)
     app.delete(api, v3, "author", ":id", use: authorsController.deleteAuthorHandlerV3)
     

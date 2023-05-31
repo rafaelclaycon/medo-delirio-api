@@ -33,7 +33,38 @@ struct AuthorsController {
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)
         }
+        
+        guard let contentId = content.id?.uuidString else {
+            throw Abort(.internalServerError)
+        }
+        
+        let updateEvent = UpdateEvent(contentId: contentId,
+                                      dateTime: Date.now.iso8601withFractionalSeconds,
+                                      mediaType: .author,
+                                      eventType: .created)
+        try await req.db.transaction { transaction in
+            try await updateEvent.save(on: transaction)
+        }
+        
         return .ok
+    }
+    
+    func getAuthorHandlerV3(req: Request) throws -> EventLoopFuture<Author> {
+        guard let authorId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(authorId)
+        guard let authorIdAsUUID = UUID(uuidString: authorId) else {
+            throw Abort(.internalServerError)
+        }
+        
+        return Author.query(on: req.db)
+            .filter(\.$id == authorIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { author in
+                return req.eventLoop.makeSucceededFuture(author)
+            }
     }
     
     func getAllAuthorsHandlerV3(req: Request) throws -> EventLoopFuture<[Author]> {
