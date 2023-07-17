@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/fluent-kit.git",
       "state" : {
-        "revision" : "2d7dce5cb04156eecdb17e7349f4eac4206e8a17",
-        "version" : "1.42.4"
+        "revision" : "763627fbb81f3fdcf5d38db15afae41d7926eee3",
+        "version" : "1.43.0"
       }
     },
     {
@@ -68,8 +68,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/fluent-sqlite-driver.git",
       "state" : {
-        "revision" : "33e920bd53c9a3a77f82733aaf26a82495afddd4",
-        "version" : "4.4.0"
+        "revision" : "138a546e3b7e33efa5362e05da2a0dec3a30534f",
+        "version" : "4.5.0"
       }
     },
     {
@@ -104,8 +104,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/sql-kit.git",
       "state" : {
-        "revision" : "5026e7c0f2e464ea1af9f5948701aa8922ab14eb",
-        "version" : "3.27.0"
+        "revision" : "b2f128cb62a3abfbb1e3b2893ff3ee69e70f4f0f",
+        "version" : "3.28.0"
       }
     },
     {
@@ -113,8 +113,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/sqlite-kit.git",
       "state" : {
-        "revision" : "f66ddded9a330454856f5ba272cccc9e0c995b17",
-        "version" : "4.3.0"
+        "revision" : "2b20fc0f4f6574f59dae402ccf0ed050c6790b43",
+        "version" : "4.3.1"
       }
     },
     {
@@ -194,8 +194,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "324bc65a28323660fad8a36a7a37f0c2c78eeb9a",
-        "version" : "2.55.0"
+        "revision" : "5f542894dd8efbd766d8adf73ef2f947b0cd5e21",
+        "version" : "2.56.0"
       }
     },
     {
