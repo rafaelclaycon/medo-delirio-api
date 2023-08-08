@@ -59,8 +59,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/fluent-kit.git",
       "state" : {
-        "revision" : "763627fbb81f3fdcf5d38db15afae41d7926eee3",
-        "version" : "1.43.0"
+        "revision" : "e562a1015a814d42582cbccd3e58f03187d6718c",
+        "version" : "1.44.0"
       }
     },
     {
@@ -77,8 +77,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/jwt-kit.git",
       "state" : {
-        "revision" : "dd3fe317f826d43bcefbe20d86f0f787927d05d8",
-        "version" : "4.12.0"
+        "revision" : "9e929d925434b91857661bcd455d1bd53f00bf22",
+        "version" : "4.13.0"
       }
     },
     {
@@ -167,8 +167,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-crypto.git",
       "state" : {
-        "revision" : "33a20e650c33f6d72d822d558333f2085effa3dc",
-        "version" : "2.5.0"
+        "revision" : "60f13f60c4d093691934dc6cfdf5f508ada1f894",
+        "version" : "2.6.0"
       }
     },
     {
@@ -194,8 +194,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "5f542894dd8efbd766d8adf73ef2f947b0cd5e21",
-        "version" : "2.56.0"
+        "revision" : "cf281631ff10ec6111f2761052aa81896a83a007",
+        "version" : "2.58.0"
       }
     },
     {
@@ -248,8 +248,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/vapor.git",
       "state" : {
-        "revision" : "1baf62327cc55f55a0767c3a9414dec8ebfdff96",
-        "version" : "4.77.1"
+        "revision" : "6b96684e150d3b3afcd53df12fe66e6bd9b67a04",
+        "version" : "4.78.0"
       }
     },
     {
