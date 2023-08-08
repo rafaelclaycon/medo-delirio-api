@@ -26,6 +26,9 @@ final class UpdateEvent: Model, Content {
     
     @Field(key: "eventType")
     var eventType: EventType
+
+    @Field(key: "visible")
+    var visible: Bool
     
     init() { }
     
@@ -34,13 +37,15 @@ final class UpdateEvent: Model, Content {
         contentId: String,
         dateTime: String,
         mediaType: MediaType,
-        eventType: EventType
+        eventType: EventType,
+        visible: Bool
     ) {
         self.id = id
         self.contentId = contentId
         self.dateTime = dateTime
         self.mediaType = mediaType
         self.eventType = eventType
+        self.visible = visible
     }
     
     init(
@@ -48,12 +53,14 @@ final class UpdateEvent: Model, Content {
         contentId: String,
         dateTime: String,
         mediaType: Int,
-        eventType: Int
+        eventType: Int,
+        visible: Bool
     ) {
         self.id = UUID(uuidString: id)
         self.contentId = contentId
         self.dateTime = dateTime
         self.mediaType = MediaType(rawValue: mediaType) ?? .sound
         self.eventType = EventType(rawValue: eventType) ?? .created
+        self.visible = visible
     }
 }

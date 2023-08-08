@@ -41,7 +41,8 @@ struct SoundsController {
         let updateEvent = UpdateEvent(contentId: contentId,
                                       dateTime: Date.now.iso8601withFractionalSeconds,
                                       mediaType: .sound,
-                                      eventType: .created)
+                                      eventType: .created,
+                                      visible: false)
         try await req.db.transaction { transaction in
             try await updateEvent.save(on: transaction)
         }
@@ -98,7 +99,8 @@ struct SoundsController {
                     let updateEvent = UpdateEvent(contentId: soundId,
                                                   dateTime: Date.now.iso8601withFractionalSeconds,
                                                   mediaType: .sound,
-                                                  eventType: .deleted)
+                                                  eventType: .deleted,
+                                                  visible: true)
                     return updateEvent.save(on: req.db).transform(to: .ok)
                 }
             }

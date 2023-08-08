@@ -41,7 +41,8 @@ struct AuthorsController {
         let updateEvent = UpdateEvent(contentId: contentId,
                                       dateTime: Date.now.iso8601withFractionalSeconds,
                                       mediaType: .author,
-                                      eventType: .created)
+                                      eventType: .created,
+                                      visible: true)
         try await req.db.transaction { transaction in
             try await updateEvent.save(on: transaction)
         }
@@ -91,7 +92,8 @@ struct AuthorsController {
                     let updateEvent = UpdateEvent(contentId: authorId,
                                                   dateTime: Date.now.iso8601withFractionalSeconds,
                                                   mediaType: .author,
-                                                  eventType: .deleted)
+                                                  eventType: .deleted,
+                                                  visible: true)
                     return updateEvent.save(on: req.db).transform(to: .ok)
                 }
             }

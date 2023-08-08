@@ -39,7 +39,8 @@ struct UpdateEventsController {
                                 contentId: row.column("contentId")?.string ?? "",
                                 dateTime: row.column("dateTime")?.string ?? "",
                                 mediaType: row.column("mediaType")?.integer ?? 0,
-                                eventType: row.column("eventType")?.integer ?? 0)
+                                eventType: row.column("eventType")?.integer ?? 0,
+                                visible: row.column("visible")?.bool ?? false)
                 )
             }
         } else {
@@ -66,7 +67,8 @@ struct UpdateEventsController {
                     contentId: medoContent.id!.uuidString,
                     dateTime: Date().iso8601withFractionalSeconds,
                     mediaType: medoContent.contentType == .sound ? .sound : .song,
-                    eventType: .metadataUpdated
+                    eventType: .metadataUpdated,
+                    visible: true
                 )
                 
                 return existingMedoContent.save(on: req.db)
@@ -89,7 +91,8 @@ struct UpdateEventsController {
             contentId: contentId,
             dateTime: Date().iso8601withFractionalSeconds,
             mediaType: mediaType,
-            eventType: .fileUpdated
+            eventType: .fileUpdated,
+            visible: true
         )
         return updateEvent.save(on: req.db).transform(to: .ok)
     }
