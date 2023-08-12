@@ -9,6 +9,14 @@ import Vapor
 import Fluent
 
 struct SoundsController {
+
+    actor EventIdWrapper {
+        var updateEventId: String = ""
+
+        func setUpdateEventId(_ id: String) {
+            self.updateEventId = id
+        }
+    }
     
     func postImportSoundsHandlerV3(req: Request) async throws -> HTTPStatus {
         let sounds = try req.content.decode([Sound].self)
@@ -37,6 +45,8 @@ struct SoundsController {
         guard let contentId = content.id?.uuidString else {
             throw Abort(.internalServerError)
         }
+
+        let eventWrapper = EventIdWrapper()
         
         let updateEvent = UpdateEvent(contentId: contentId,
                                       dateTime: Date.now.iso8601withFractionalSeconds,
@@ -45,9 +55,15 @@ struct SoundsController {
                                       visible: false)
         try await req.db.transaction { transaction in
             try await updateEvent.save(on: transaction)
+            if let id = updateEvent.id?.uuidString {
+                await eventWrapper.setUpdateEventId(id)
+            }
         }
+
+        let response = await CreateSoundResponse(contentId: content.id?.uuidString ?? "", eventId: eventWrapper.updateEventId)
         
-        return Response(status: .created, body: Response.Body(stringLiteral: content.id?.uuidString ?? ""))
+        let data = try JSONEncoder().encode(response)
+        return Response(status: .created, body: Response.Body(data: data))
     }
     
     func getSoundHandlerV3(req: Request) throws -> EventLoopFuture<Sound> {

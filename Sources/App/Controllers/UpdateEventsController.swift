@@ -16,7 +16,7 @@ struct UpdateEventsController {
         }
         
         if date == "all" {
-            return UpdateEvent.query(on: req.db).all()
+            return UpdateEvent.query(on: req.db).filter("visible", .equal, true).all()
         }
         
         guard date.isUTCDateString() else {
@@ -30,6 +30,7 @@ struct UpdateEventsController {
                 select *
                 from UpdateEvent
                 where dateTime > '\(date)'
+                and visible == true
                 order by dateTime
             """
 
@@ -46,6 +47,37 @@ struct UpdateEventsController {
         } else {
             return req.eventLoop.makeSucceededFuture([])
         }
+    }
+
+    func putChangeUpdateVisibilityHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let uuidString = req.parameters.get("updateId"), !uuidString.isEmpty else {
+            throw Abort(.badRequest)
+        }
+        let regex = try NSRegularExpression(pattern: UUID.uuidRegex, options: [])
+        let matches = regex.matches(in: uuidString, options: [], range: NSRange(location: 0, length: uuidString.utf16.count))
+        guard matches.count > 0 else {
+            throw Abort(.badRequest, reason: "Invalid UUID format")
+        }
+
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.badRequest)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let newValueAsString = req.parameters.get("newValue"), newValueAsString == "0" || newValueAsString == "1" else {
+            throw Abort(.badRequest)
+        }
+        let visibleValue = newValueAsString == "1" ? true : false
+
+        return UpdateEvent.find(UUID(uuidString: uuidString), on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { updateEvent in
+                updateEvent.visible = visibleValue
+                return updateEvent.save(on: req.db)
+            }
+            .transform(to: .ok)
     }
     
     func putUpdateContentHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {

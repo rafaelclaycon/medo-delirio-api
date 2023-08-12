@@ -16,6 +16,7 @@ struct CreateUpdateEvent: AsyncMigration {
             .field("dateTime", .string, .required)
             .field("mediaType", .int, .required)
             .field("eventType", .int, .required)
+            .field("visible", .bool, .required)
             .create()
     }
     

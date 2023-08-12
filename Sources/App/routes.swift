@@ -83,6 +83,7 @@ func routes(_ app: Application) throws {
     
     let updateEventsController = UpdateEventsController()
     app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
+    app.put(api, v3, "change-update-visibility", ":updateId", ":newValue", ":password", use: updateEventsController.putChangeUpdateVisibilityHandlerV3)
     app.put(api, v3, "update-content", use: updateEventsController.putUpdateContentHandlerV3)
     app.post(api, v3, "update-content-file", ":type", ":id", use: updateEventsController.postUpdateContentFileHandlerV3)
 }
