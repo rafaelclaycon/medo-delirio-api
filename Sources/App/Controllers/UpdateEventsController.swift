@@ -74,6 +74,9 @@ struct UpdateEventsController {
         return UpdateEvent.find(UUID(uuidString: uuidString), on: req.db)
             .unwrap(or: Abort(.notFound))
             .flatMap { updateEvent in
+                if visibleValue {
+                    updateEvent.dateTime = Date.now.iso8601withFractionalSeconds
+                }
                 updateEvent.visible = visibleValue
                 return updateEvent.save(on: req.db)
             }
