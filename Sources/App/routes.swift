@@ -35,8 +35,10 @@ func routes(_ app: Application) throws {
     let donorsController = DonorsController()
     app.get(api, v2, "donor-names", use: donorsController.getDonorNamesHandlerV2)
     app.get(api, v3, "donor-names", use: donorsController.getDonorNamesHandlerV3)
+    app.get(api, v3, "display-recurring-donation-banner", use: donorsController.getDisplayRecurringDonationBannerHandlerV3)
     app.post(api, v2, "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV2)
     app.post(api, v3, "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV3)
+    app.post(api, v3, "display-recurring-donation-banner", use: donorsController.postSetDisplayRecurringDonationBannerHandlerV3)
     
     let clientLoggingController = ClientLoggingController()
     app.post(api, v1, "client-device-info", use: clientLoggingController.postClientDeviceInfoHandlerV1)

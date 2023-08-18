@@ -8,7 +8,6 @@
 import Vapor
 
 struct DonorsController {
-    
     func getDonorNamesHandlerV2(req: Request) throws -> String {
         guard let value = UserDefaults.standard.object(forKey: "donor-names") else {
             throw Abort(.notFound)
@@ -27,6 +26,14 @@ struct DonorsController {
             throw Abort(.internalServerError)
         }
         return donors
+    }
+
+    func getDisplayRecurringDonationBannerHandlerV3(req: Request) throws -> String {
+        let userDefaults = UserDefaults.standard
+        guard let value = userDefaults.object(forKey: "display-recurring-donation-banner") else {
+            return "0"
+        }
+        return String(value as! String)
     }
     
     func postSetDonorNamesHandlerV2(req: Request) throws -> HTTPStatus {
@@ -56,6 +63,15 @@ struct DonorsController {
             throw Abort(.badRequest)
         }
         UserDefaults.standard.set(rawInputString, forKey: "donors")
+        return .ok
+    }
+
+    func postSetDisplayRecurringDonationBannerHandlerV3(req: Request) throws -> HTTPStatus {
+        let newValue = try req.content.decode(String.self)
+        guard !newValue.isEmpty, ["0", "1"].contains(newValue) else {
+            return HTTPStatus.badRequest
+        }
+        UserDefaults.standard.set(newValue, forKey: "display-recurring-donation-banner")
         return .ok
     }
 }
