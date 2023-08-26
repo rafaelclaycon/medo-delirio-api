@@ -74,7 +74,7 @@ final class MedoContent: Model, Content {
         self.creationDate = song.dateAdded?.iso8601withFractionalSeconds ?? Date.now.iso8601withFractionalSeconds
         self.duration = song.duration
         self.isOffensive = song.isOffensive
-        self.musicGenre = song.genre.rawValue
+        self.musicGenre = song.genre
         self.contentType = .song
         self.isHidden = false
     }

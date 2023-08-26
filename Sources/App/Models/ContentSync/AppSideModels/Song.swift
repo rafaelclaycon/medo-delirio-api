@@ -14,7 +14,7 @@ struct Song: Hashable, Codable, Identifiable, Content {
     let id: String
     let title: String
     let description: String
-    let genre: MusicGenre
+    let genre: String
     let duration: Double
     let filename: String
     var dateAdded: Date?
@@ -24,7 +24,7 @@ struct Song: Hashable, Codable, Identifiable, Content {
         id: String = UUID().uuidString,
         title: String,
         description: String = "",
-        genre: MusicGenre = .undefined,
+        genre: String,
         duration: Double = 0,
         filename: String = "",
         dateAdded: Date = Date(),
@@ -46,7 +46,7 @@ struct Song: Hashable, Codable, Identifiable, Content {
         self.id = content.id?.uuidString ?? ""
         self.title = content.title
         self.description = content.description
-        self.genre = MusicGenre(rawValue: content.musicGenre ?? "undefined") ?? .undefined
+        self.genre = content.musicGenre ?? "undefined"
         self.duration = content.duration
         self.filename = "\(content.fileId).mp3"
         self.dateAdded = content.creationDate.iso8601withFractionalSeconds
