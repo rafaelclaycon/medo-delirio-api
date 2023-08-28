@@ -49,6 +49,38 @@ struct UpdateEventsController {
         }
     }
 
+    func getUpdateEventsForDisplayHandlerV3(req: Request) throws -> EventLoopFuture<[UpdateEvent]> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+        // TODO: - Finish this
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select *
+                from UpdateEvent
+                left join MedoContent
+                where visible == true
+                order by dateTime desc
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    UpdateEvent(id: row.column("id")?.string ?? "",
+                                contentId: row.column("contentId")?.string ?? "",
+                                dateTime: row.column("dateTime")?.string ?? "",
+                                mediaType: row.column("mediaType")?.integer ?? 0,
+                                eventType: row.column("eventType")?.integer ?? 0,
+                                visible: row.column("visible")?.bool ?? false)
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
     func putChangeUpdateVisibilityHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let uuidString = req.parameters.get("updateId"), !uuidString.isEmpty else {
             throw Abort(.badRequest)
