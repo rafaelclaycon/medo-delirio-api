@@ -85,7 +85,10 @@ func routes(_ app: Application) throws {
 
     let genresController = MusicGenresController()
     app.post(api, v3, "import-music-genres", use: genresController.postImportMusicGenresHandlerV3)
+    app.post(api, v3, "create-music-genre", ":password", use: genresController.postCreateMusicHandlerHandlerV3)
+    app.get(api, v3, "music-genre", ":id", use: genresController.getMusicGenreHandlerV3)
     app.get(api, v3, "all-music-genres", use: genresController.getAllMusicGenresHandlerV3)
+    app.delete(api, v3, "music-genre", ":id", use: genresController.deleteMusicGenreHandlerV3)
     
     let updateEventsController = UpdateEventsController()
     app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
