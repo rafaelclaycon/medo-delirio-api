@@ -15,6 +15,9 @@ final class MusicGenre: Model, Content {
     @ID(key: .id)
     var id: UUID?
 
+    @Field(key: "symbol")
+    var symbol: String
+
     @Field(key: "name")
     var name: String
 

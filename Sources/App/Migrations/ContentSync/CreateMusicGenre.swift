@@ -12,6 +12,7 @@ struct CreateMusicGenre: AsyncMigration {
     func prepare(on database: Database) async throws {
         try await database.schema("MusicGenre")
             .id()
+            .field("symbol", .string, .required)
             .field("name", .string, .required)
             .field("isHidden", .bool, .required)
             .create()
