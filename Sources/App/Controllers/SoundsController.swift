@@ -10,14 +10,6 @@ import Fluent
 
 struct SoundsController {
 
-    actor EventIdWrapper {
-        var updateEventId: String = ""
-
-        func setUpdateEventId(_ id: String) {
-            self.updateEventId = id
-        }
-    }
-    
     func postImportSoundsHandlerV3(req: Request) async throws -> HTTPStatus {
         let sounds = try req.content.decode([Sound].self)
         
@@ -60,7 +52,7 @@ struct SoundsController {
             }
         }
 
-        let response = await CreateSoundResponse(contentId: content.id?.uuidString ?? "", eventId: eventWrapper.updateEventId)
+        let response = await CreateContentResponse(contentId: content.id?.uuidString ?? "", eventId: eventWrapper.updateEventId)
         
         let data = try JSONEncoder().encode(response)
         return Response(status: .created, body: Response.Body(data: data))

@@ -82,6 +82,8 @@ func routes(_ app: Application) throws {
     let songsController = SongsController()
     app.post(api, v3, "import-songs", use: songsController.postImportSongsHandlerV3)
     app.get(api, v3, "all-songs", use: songsController.getAllSongsHandlerV3)
+    app.post(api, v3, "create-song", use: songsController.postCreateSongHandlerV3)
+    app.get(api, v3, "song", ":id", use: songsController.getSongHandlerV3)
 
     let genresController = MusicGenresController()
     app.post(api, v3, "import-music-genres", use: genresController.postImportMusicGenresHandlerV3)
