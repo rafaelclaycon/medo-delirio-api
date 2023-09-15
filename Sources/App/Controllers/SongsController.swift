@@ -54,7 +54,7 @@ struct SongsController {
 
         let updateEvent = UpdateEvent(
             contentId: contentId,
-            dateTime: Date.now.iso8601withFractionalSeconds,
+            dateTime: Date().iso8601withFractionalSeconds,
             mediaType: .song,
             eventType: .created,
             visible: false

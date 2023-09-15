@@ -47,7 +47,7 @@ struct MusicGenresController {
         }
 
         let updateEvent = UpdateEvent(contentId: contentId,
-                                      dateTime: Date.now.iso8601withFractionalSeconds,
+                                      dateTime: Date().iso8601withFractionalSeconds,
                                       mediaType: .musicGenre,
                                       eventType: .created,
                                       visible: true)
@@ -105,7 +105,7 @@ struct MusicGenresController {
                 content.isHidden = true
                 return content.save(on: req.db).flatMap {
                     let updateEvent = UpdateEvent(contentId: genreId,
-                                                  dateTime: Date.now.iso8601withFractionalSeconds,
+                                                  dateTime: Date().iso8601withFractionalSeconds,
                                                   mediaType: .musicGenre,
                                                   eventType: .deleted,
                                                   visible: true)

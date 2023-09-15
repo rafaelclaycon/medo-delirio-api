@@ -55,7 +55,7 @@ struct SoundsController {
         let eventWrapper = EventIdWrapper()
         
         let updateEvent = UpdateEvent(contentId: contentId,
-                                      dateTime: Date.now.iso8601withFractionalSeconds,
+                                      dateTime: Date().iso8601withFractionalSeconds,
                                       mediaType: .sound,
                                       eventType: .created,
                                       visible: false)
@@ -126,7 +126,7 @@ struct SoundsController {
                 content.isHidden = true
                 return content.save(on: req.db).flatMap {
                     let updateEvent = UpdateEvent(contentId: soundId,
-                                                  dateTime: Date.now.iso8601withFractionalSeconds,
+                                                  dateTime: Date().iso8601withFractionalSeconds,
                                                   mediaType: .sound,
                                                   eventType: .deleted,
                                                   visible: true)

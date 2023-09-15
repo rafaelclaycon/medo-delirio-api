@@ -107,7 +107,7 @@ struct UpdateEventsController {
             .unwrap(or: Abort(.notFound))
             .flatMap { updateEvent in
                 if visibleValue {
-                    updateEvent.dateTime = Date.now.iso8601withFractionalSeconds
+                    updateEvent.dateTime = Date().iso8601withFractionalSeconds
                 }
                 updateEvent.visible = visibleValue
                 return updateEvent.save(on: req.db)
