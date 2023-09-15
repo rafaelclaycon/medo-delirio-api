@@ -11,6 +11,13 @@ import Fluent
 struct MusicGenresController {
 
     func postImportMusicGenresHandlerV3(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let genres = try req.content.decode([MusicGenre].self)
         for i in genres.indices {
             genres[i].isHidden = false
@@ -28,6 +35,7 @@ struct MusicGenresController {
         guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
+
         let content = try req.content.decode(MusicGenre.self)
         content.isHidden = false
         try await req.db.transaction { transaction in
@@ -75,6 +83,13 @@ struct MusicGenresController {
     }
 
     func deleteMusicGenreHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         guard let genreId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }

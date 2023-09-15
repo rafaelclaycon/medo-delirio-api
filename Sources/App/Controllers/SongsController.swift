@@ -11,6 +11,13 @@ import Fluent
 struct SongsController {
     
     func postImportSongsHandlerV3(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let songs = try req.content.decode([Song].self)
         try await req.db.transaction { transaction in
             for song in songs {
@@ -22,6 +29,13 @@ struct SongsController {
     }
 
     func postCreateSongHandlerV3(req: Request) async throws -> Response {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let content = try req.content.decode(MedoContent.self)
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)

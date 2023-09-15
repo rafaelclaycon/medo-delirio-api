@@ -11,6 +11,13 @@ import Fluent
 struct SoundsController {
 
     func postImportSoundsHandlerV3(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let sounds = try req.content.decode([Sound].self)
         
         try await req.db.transaction { transaction in
@@ -24,6 +31,13 @@ struct SoundsController {
     }
     
     func postCreateSoundHandlerV3(req: Request) async throws -> Response {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let content = try req.content.decode(MedoContent.self)
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)
@@ -90,6 +104,13 @@ struct SoundsController {
     }
     
     func deleteSoundHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         guard let soundId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }

@@ -116,6 +116,13 @@ struct UpdateEventsController {
     }
     
     func putUpdateContentHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.badRequest)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let medoContent = try req.content.decode(MedoContent.self)
 
         return MedoContent.find(medoContent.id, on: req.db)
@@ -145,6 +152,13 @@ struct UpdateEventsController {
     }
     
     func postUpdateContentFileHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.badRequest)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         guard let mediaTypeString = req.parameters.get("type", as: String.self) else {
             throw Abort(.badRequest)
         }

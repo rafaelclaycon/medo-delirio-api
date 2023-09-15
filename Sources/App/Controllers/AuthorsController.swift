@@ -11,6 +11,13 @@ import Fluent
 struct AuthorsController {
 
     func postImportAuthorsHandlerV3(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         let authors = try req.content.decode([Author].self)
         for i in authors.indices {
             authors[i].isHidden = false
@@ -28,6 +35,7 @@ struct AuthorsController {
         guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
+
         let content = try req.content.decode(Author.self)
         content.isHidden = false
         try await req.db.transaction { transaction in
@@ -75,6 +83,13 @@ struct AuthorsController {
     }
     
     func deleteAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
         guard let authorId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
