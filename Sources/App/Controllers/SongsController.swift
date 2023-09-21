@@ -103,4 +103,36 @@ struct SongsController {
                 return req.eventLoop.makeSucceededFuture(song)
             }
     }
+
+    func deleteSongHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let songId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+
+        guard let songIdAsUUID = UUID(uuidString: songId) else {
+            throw Abort(.internalServerError)
+        }
+        return MedoContent.query(on: req.db)
+            .filter(\.$id == songIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { content in
+                content.isHidden = true
+                return content.save(on: req.db).flatMap {
+                    let updateEvent = UpdateEvent(contentId: songId,
+                                                  dateTime: Date().iso8601withFractionalSeconds,
+                                                  mediaType: .song,
+                                                  eventType: .deleted,
+                                                  visible: true)
+                    return updateEvent.save(on: req.db).transform(to: .ok)
+                }
+            }
+    }
 }
