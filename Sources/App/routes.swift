@@ -99,4 +99,8 @@ func routes(_ app: Application) throws {
     app.put(api, v3, "change-update-visibility", ":updateId", ":newValue", ":password", use: updateEventsController.putChangeUpdateVisibilityHandlerV3)
     app.put(api, v3, "update-content", ":password", use: updateEventsController.putUpdateContentHandlerV3)
     app.post(api, v3, "update-content-file", ":type", ":id", ":password", use: updateEventsController.postUpdateContentFileHandlerV3)
+
+    let retrospectiveController = RetrospectiveController()
+    app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
+    app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
 }
