@@ -57,7 +57,38 @@ struct AuthorsController {
         
         return .ok
     }
-    
+
+    func putUpdateAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.badRequest)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let author = try req.content.decode(Author.self)
+
+        return Author.find(author.id, on: req.db)
+            .unwrap(or: Abort(.notFound))
+            .flatMap { existingAuthor in
+                existingAuthor.name = author.name
+                existingAuthor.photo = author.photo
+                existingAuthor.description = author.description
+
+                let updateEvent = UpdateEvent(
+                    contentId: author.id!.uuidString,
+                    dateTime: Date().iso8601withFractionalSeconds,
+                    mediaType: .author,
+                    eventType: .metadataUpdated,
+                    visible: true
+                )
+
+                return existingAuthor.save(on: req.db)
+                    .and(updateEvent.save(on: req.db))
+                    .transform(to: .ok)
+            }
+    }
+
     func getAuthorHandlerV3(req: Request) throws -> EventLoopFuture<Author> {
         guard let authorId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
