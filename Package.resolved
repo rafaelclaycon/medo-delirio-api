@@ -41,8 +41,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/console-kit.git",
       "state" : {
-        "revision" : "2e3e205e8d7563d5c1a6f1c8992616d337f632e6",
-        "version" : "4.11.0"
+        "revision" : "a7dd7001196d39b758e4990ec0f26f80162f4c84",
+        "version" : "4.14.0"
       }
     },
     {
@@ -122,8 +122,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/sqlite-nio.git",
       "state" : {
-        "revision" : "c30afee62b00c59a5b3d010909a2d6005a5cc174",
-        "version" : "1.8.3"
+        "revision" : "e3a64424cc5c87a9a512200cad669e80615ed135",
+        "version" : "1.8.4"
       }
     },
     {
@@ -167,8 +167,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-http-types",
       "state" : {
-        "revision" : "99d066e29effa8845e4761dd3f2f831edfdf8925",
-        "version" : "1.0.0"
+        "revision" : "1827dc94bdab2eb5f2fc804e9b0cb43574282566",
+        "version" : "1.0.2"
       }
     },
     {
@@ -248,8 +248,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/vapor.git",
       "state" : {
-        "revision" : "da9c2805b1b93751b1922bbbf343aa120e9942c8",
-        "version" : "4.87.1"
+        "revision" : "00c902ce53f8b00703e2edcd457400fef422c7fd",
+        "version" : "4.89.1"
       }
     },
     {
