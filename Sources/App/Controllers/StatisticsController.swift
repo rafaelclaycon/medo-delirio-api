@@ -56,7 +56,7 @@ struct StatisticsController {
     
     func getSoundShareCountStatsFromHandlerV2(req: Request) throws -> EventLoopFuture<[ShareCountStat]> {
         guard let date = req.parameters.get("date") else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
         if let sqlite = req.db as? SQLiteDatabase {
@@ -71,13 +71,124 @@ struct StatisticsController {
             """
             
             return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
+                req.eventLoop.makeSucceededFuture(
+                    ShareCountStat(
+                        installId: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentType: 0,
+                        shareCount: row.column("totalShareCount")?.integer ?? 0,
+                        dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds
+                    )
+                )
             }
         } else {
-            return req.eventLoop.makeSucceededFuture([ShareCountStat]())
+            return req.eventLoop.makeSucceededFuture([])
         }
     }
-    
+
+    func getSoundShareCountStatsAllTimeHandlerV3(req: Request) -> EventLoopFuture<[TopChartItem]> {
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join Author a on c.authorId = a.id
+                where s.contentType in (0,2)
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: row.column("authorId")?.string ?? "",
+                        contentAuthorName: row.column("authorName")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getSoundShareCountStatsFromHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join Author a on c.authorId = a.id
+                where s.contentType in (0,2)
+                and s.dateTime > '\(date)'
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: row.column("authorId")?.string ?? "",
+                        contentAuthorName: row.column("authorName")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getSoundShareCountStatsFromToHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+        guard 
+            let firstDate = req.parameters.get("firstDate"),
+            let secondDate = req.parameters.get("secondDate")
+        else {
+            throw Abort(.badRequest, reason: "Missing date parameters.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join Author a on c.authorId = a.id
+                where s.contentType in (0,2)
+                and s.dateTime between '\(firstDate)' and '\(secondDate)'
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: row.column("authorId")?.string ?? "",
+                        contentAuthorName: row.column("authorName")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
     func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
         let stat = try req.content.decode(ShareCountStat.self)
         return stat.save(on: req.db).map {

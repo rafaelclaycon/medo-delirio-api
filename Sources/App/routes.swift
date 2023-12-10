@@ -23,6 +23,9 @@ func routes(_ app: Application) throws {
     app.get(api, v1, "install-id-count", use: statisticsController.getInstallIdCountHandlerV1)
     app.get(api, v2, "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV2)
     app.get(api, v2, "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV2)
+    app.get(api, v3, "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV3)
+    app.get(api, v3, "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV3)
+    app.get(api, v3, "sound-share-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getSoundShareCountStatsFromToHandlerV3)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
     
