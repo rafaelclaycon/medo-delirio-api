@@ -74,6 +74,7 @@ struct AuthorsController {
                 existingAuthor.name = author.name
                 existingAuthor.photo = author.photo
                 existingAuthor.description = author.description
+                existingAuthor.externalLinks = author.externalLinks
 
                 let updateEvent = UpdateEvent(
                     contentId: author.id!.uuidString,
@@ -97,7 +98,7 @@ struct AuthorsController {
         guard let authorIdAsUUID = UUID(uuidString: authorId) else {
             throw Abort(.internalServerError)
         }
-        
+
         return Author.query(on: req.db)
             .filter(\.$id == authorIdAsUUID)
             .first()
@@ -106,7 +107,25 @@ struct AuthorsController {
                 return req.eventLoop.makeSucceededFuture(author)
             }
     }
-    
+
+    func getAuthorLinksHandlerV4(req: Request) throws -> EventLoopFuture<Author> {
+        guard let authorId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(authorId)
+        guard let authorIdAsUUID = UUID(uuidString: authorId) else {
+            throw Abort(.internalServerError)
+        }
+
+        return Author.query(on: req.db)
+            .filter(\.$id == authorIdAsUUID)
+            .first()
+            .unwrap(or: Abort(.notFound))
+            .flatMap { author in
+                return req.eventLoop.makeSucceededFuture(author)
+            }
+    }
+
     func getAllAuthorsHandlerV3(req: Request) throws -> EventLoopFuture<[Author]> {
         Author.query(on: req.db)
             .filter(\.$isHidden == false)
