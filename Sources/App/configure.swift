@@ -38,6 +38,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateAuthor())
     app.migrations.add(CreateContentFile())
     app.migrations.add(CreateMusicGenre())
+    app.migrations.add(AddExternalLinksFieldToAuthor())
 //    app.migrations.add(CreatePushChannel())
 //    app.migrations.add(CreateDeviceChannel())
     
