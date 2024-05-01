@@ -1,3 +1,10 @@
+//
+//  AddDateFieldToShareCountStat.swift
+//  medo-delirio-api
+//
+//  Created by Rafael Schmitt on 21/09/22.
+//
+
 import Fluent
 
 struct AddDateFieldToShareCountStat: AsyncMigration {
@@ -13,5 +20,4 @@ struct AddDateFieldToShareCountStat: AsyncMigration {
             .deleteField("dateTime")
             .update()
     }
-
 }

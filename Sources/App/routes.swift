@@ -11,6 +11,7 @@ let api: PathComponent = "api"
 let v1: PathComponent = "v1"
 let v2: PathComponent = "v2"
 let v3: PathComponent = "v3"
+let v4: PathComponent = "v4"
 
 func routes(_ app: Application) throws {
     let statusCheckController = StatusCheckController()
@@ -79,7 +80,8 @@ func routes(_ app: Application) throws {
     app.post(api, v3, "import-authors", ":password", use: authorsController.postImportAuthorsHandlerV3)
     app.post(api, v3, "create-author", ":password", use: authorsController.postCreateAuthorHandlerV3)
     app.put(api, v3, "update-author", ":password", use: authorsController.putUpdateAuthorHandlerV3)
-    app.get(api, v3, "author", ":id", use: authorsController.getAuthorHandlerV3)
+    app.get(api, v3, "author", ":id", use: authorsController.getAuthorHandlerV3) // Links and no links
+    app.get(api, v4, "author-links-first-open", use: authorsController.getAuthorLinksHandlerV4)
     app.get(api, v3, "all-authors", use: authorsController.getAllAuthorsHandlerV3)
     app.delete(api, v3, "author", ":id", ":password", use: authorsController.deleteAuthorHandlerV3)
 

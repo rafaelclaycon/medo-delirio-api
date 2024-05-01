@@ -9,23 +9,26 @@ import Fluent
 import Vapor
 
 final class Author: Model, Content {
-    
+
     static let schema = "Author"
-    
+
     @ID(key: .id)
     var id: UUID?
-    
+
     @Field(key: "name")
     var name: String
-    
+
     @Field(key: "photo")
     var photo: String?
-    
+
     @Field(key: "description")
     var description: String?
-    
+
     @Field(key: "isHidden")
     var isHidden: Bool?
-    
+
+    @Field(key: "externalLinks")
+    var externalLinks: String?
+
     init() { }
 }
