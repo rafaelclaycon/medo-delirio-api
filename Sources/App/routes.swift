@@ -114,7 +114,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v2", "create-reaction") { req -> HTTPStatus in
         let reactionPackage = try req.content.decode(ReactionContainer.self)
         
-        guard let password = reactionPackage.password, password == createReactionPassword else {
+        guard let password = reactionPackage.password, password == ReleaseConfigs.Passwords.assetOperationPassword else {
             return HTTPStatus.unauthorized
         }
         
@@ -127,7 +127,7 @@ func routes(_ app: Application) throws {
     app.post("api", "v2", "add-sounds-to-reaction") { req -> HTTPStatus in
         let soundsPackage = try req.content.decode(ReactionSoundContainer.self)
         
-        guard let password = soundsPackage.password, password == addSoundsToReactionPassword else {
+        guard let password = soundsPackage.password, password == ReleaseConfigs.Passwords.assetOperationPassword else {
             return HTTPStatus.unauthorized
         }
         
