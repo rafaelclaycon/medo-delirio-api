@@ -12,7 +12,7 @@ import Vapor
 // configures your application
 public func configure(_ app: Application) throws {
     // uncomment to serve files from /Public folder
-    // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
+    app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     
     let corsConfiguration = CORSMiddleware.Configuration(
         allowedOrigin: .all,
@@ -33,6 +33,12 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateUserFolderContentLog())
     app.migrations.add(CreateStillAliveSignal())
     app.migrations.add(CreateUsageMetric())
+    app.migrations.add(CreateUpdateEvent())
+    app.migrations.add(CreateMedoContent())
+    app.migrations.add(CreateAuthor())
+    app.migrations.add(CreateContentFile())
+    app.migrations.add(CreateMusicGenre())
+    app.migrations.add(AddExternalLinksFieldToAuthor())
     app.migrations.add(CreateReaction())
     app.migrations.add(CreateReactionSound())
 //    app.migrations.add(CreatePushChannel())
