@@ -8,6 +8,7 @@
 import Fluent
 import FluentSQLiteDriver
 import Vapor
+import QueuesFluentDriver
 
 // configures your application
 public func configure(_ app: Application) throws {
@@ -43,7 +44,11 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateReactionSound())
 //    app.migrations.add(CreatePushChannel())
 //    app.migrations.add(CreateDeviceChannel())
-    
+
+    app.migrations.add(JobMetadataMigrate())
+    app.queues.use(.fluent())
+    app.queues.configuration.workerCount = 1
+
     app.logger.logLevel = .debug
     
     try app.autoMigrate().wait()
