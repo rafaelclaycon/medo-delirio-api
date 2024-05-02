@@ -37,7 +37,7 @@ struct ReactionsController {
         }
 
         let content = try req.content.decode(Reaction.self)
-        content.isHidden = false
+        // content.isHidden = false
         try await req.db.transaction { transaction in
             try await content.save(on: transaction)
         }
