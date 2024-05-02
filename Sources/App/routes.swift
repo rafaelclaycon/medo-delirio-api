@@ -111,6 +111,15 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
     app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
 
+    let reactionsController = ReactionsController()
+    app.post(api, v4, "import-reactions", ":password", use: reactionsController.postImportReactionsHandlerV4)
+    app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
+    app.post(api, v4, "add-sounds-to-reaction", use: reactionsController.postAddSoundsToReactionHandlerV4)
+    app.get(api, v4, "reactions", use: reactionsController.getAllReactionsHandlerV4)
+    app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionHandlerV4)
+
+
+
     app.post("api", "v2", "create-reaction") { req -> HTTPStatus in
         let reactionPackage = try req.content.decode(ReactionContainer.self)
         
