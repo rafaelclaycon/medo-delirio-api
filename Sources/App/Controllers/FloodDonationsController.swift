@@ -21,6 +21,13 @@ struct FloodDonationsController {
     }
 
     func postSetBannerDataHandlerV4(req: Request) throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.floodBannerPassword else {
+            throw Abort(.forbidden)
+        }
+
         let newValue = try req.content.decode(String.self)
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
