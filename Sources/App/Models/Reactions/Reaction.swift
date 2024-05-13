@@ -24,32 +24,22 @@ final class Reaction: Model, Content {
     @Field(key: "image")
     var image: String
 
-    @Field(key: "blackOverlay")
-    var blackOverlay: Int
-
-    @Field(key: "titleSize")
-    var titleSize: Int
-
     @Field(key: "lastUpdate")
     var lastUpdate: String
 
     init() { }
-    
+
     init(
         id: UUID? = nil,
         title: String,
         position: Int,
         image: String,
-        blackOverlay: Int,
-        titleSize: Int,
         lastUpdate: String
     ) {
         self.id = id
         self.title = title
         self.position = position
         self.image = image
-        self.blackOverlay = blackOverlay
-        self.titleSize = titleSize
         self.lastUpdate = lastUpdate
     }
 }

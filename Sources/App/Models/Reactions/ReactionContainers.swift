@@ -11,12 +11,10 @@ struct ReactionContainer: Content {
 
     var reaction: Reaction
     var password: String?
-
 }
 
 struct ReactionSoundContainer: Content {
 
     var sounds: [ReactionSound]
     var password: String?
-
 }

@@ -118,50 +118,9 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "flood-banner", use: floodDonationsController.getBannerDataHandlerV4)
 
     let reactionsController = ReactionsController()
-    app.post(api, v4, "import-reactions", ":password", use: reactionsController.postImportReactionsHandlerV4)
     app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
-    app.post(api, v4, "add-sounds-to-reaction", use: reactionsController.postAddSoundsToReactionHandlerV4)
+    app.post(api, v4, "add-sounds-to-reaction", ":password", use: reactionsController.postAddSoundsToReactionHandlerV4)
+    app.delete(api, v4, "delete-all-reactions", ":password", use: reactionsController.deleteAllReactionsHandlerV4)
     app.get(api, v4, "reactions", use: reactionsController.getAllReactionsHandlerV4)
-    app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionHandlerV4)
-
-
-
-    app.post("api", "v2", "create-reaction") { req -> HTTPStatus in
-        let reactionPackage = try req.content.decode(ReactionContainer.self)
-        
-        guard let password = reactionPackage.password, password == ReleaseConfigs.Passwords.assetOperationPassword else {
-            return HTTPStatus.unauthorized
-        }
-        
-        try await req.db.transaction { transaction in
-            try await reactionPackage.reaction.save(on: transaction)
-        }
-        return .ok
-    }
-    
-    app.post("api", "v2", "add-sounds-to-reaction") { req -> HTTPStatus in
-        let soundsPackage = try req.content.decode(ReactionSoundContainer.self)
-        
-        guard let password = soundsPackage.password, password == ReleaseConfigs.Passwords.assetOperationPassword else {
-            return HTTPStatus.unauthorized
-        }
-        
-        try await req.db.transaction { transaction in
-            for sound in soundsPackage.sounds {
-                try await sound.save(on: transaction)
-            }
-        }
-        return .ok
-    }
-
-    app.get("api", "v2", "reactions") { req -> EventLoopFuture<[Reaction]> in
-        Reaction.query(on: req.db).all()
-    }
-    
-    app.get("api", "v2", "reaction-content", ":reactionId") { req -> EventLoopFuture<[ReactionSound]> in
-        guard let reactionId = req.parameters.get("reactionId") else {
-            throw Abort(.internalServerError)
-        }
-        return ReactionSound.query(on: req.db).filter(\.$reactionId == reactionId).all()
-    }
+    app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionSoundsHandlerV4)
 }

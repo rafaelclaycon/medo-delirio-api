@@ -24,16 +24,22 @@ final class ReactionSound: Model, Content {
     @Field(key: "dateAdded")
     var dateAdded: String
 
+    @Field(key: "position")
+    var position: Int
+
     init() { }
 
-    init(id: UUID? = nil,
-         reactionId: String,
-         soundId: String,
-         dateAdded: String) {
+    init(
+        id: UUID? = nil,
+        reactionId: String,
+        soundId: String,
+        dateAdded: String,
+        position: Int
+    ) {
         self.id = id
         self.reactionId = reactionId
         self.soundId = soundId
         self.dateAdded = dateAdded
+        self.position = position
     }
-
 }

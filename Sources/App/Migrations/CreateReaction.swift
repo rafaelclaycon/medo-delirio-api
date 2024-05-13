@@ -13,12 +13,13 @@ struct CreateReaction: AsyncMigration {
         try await database.schema("Reaction")
             .id()
             .field("title", .string, .required)
-            .field("imageUrl", .string, .required)
+            .field("position", .int, .required)
+            .field("image", .string, .required)
+            .field("lastUpdate", .string, .required)
             .create()
     }
     
     func revert(on database: Database) async throws {
         try await database.schema("Reaction").delete()
     }
-
 }
