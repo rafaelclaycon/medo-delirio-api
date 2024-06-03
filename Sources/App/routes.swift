@@ -118,10 +118,12 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "flood-banner", use: floodDonationsController.getBannerDataHandlerV4)
 
     let reactionsController = ReactionsController()
-    app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
-    app.post(api, v4, "add-sounds-to-reaction", ":password", use: reactionsController.postAddSoundsToReactionHandlerV4)
-    app.delete(api, v4, "delete-all-reactions", ":password", use: reactionsController.deleteAllReactionsHandlerV4)
-    app.delete(api, v4, "delete-all-reaction-sounds", ":password", use: reactionsController.deleteAllReactionSoundsHandlerV4)
     app.get(api, v4, "reactions", use: reactionsController.getAllReactionsHandlerV4)
     app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionSoundsHandlerV4)
+    app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
+    app.post(api, v4, "add-sounds-to-reaction", ":password", use: reactionsController.postAddSoundsToReactionHandlerV4)
+    app.put(api, v4, "reaction", ":password", use: reactionsController.putUpdateReactionHandlerV4)
+    app.delete(api, v4, "delete-all-reactions", ":password", use: reactionsController.deleteAllReactionsHandlerV4)
+    app.delete(api, v4, "delete-all-reaction-sounds", ":password", use: reactionsController.deleteAllReactionSoundsHandlerV4)
+    app.delete(api, v4, "delete-reaction-sounds", ":id", ":password", use: reactionsController.deleteReactionSoundsHandlerV4)
 }

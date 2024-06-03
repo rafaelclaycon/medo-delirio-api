@@ -8,25 +8,29 @@
 import Vapor
 import Fluent
 
+// MARK: - GET
+
 struct ReactionsController {
 
-//    func postImportReactionsHandlerV4(req: Request) async throws -> HTTPStatus {
-//        guard let password = req.parameters.get("password") else {
-//            throw Abort(.internalServerError)
-//        }
-//        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
-//            throw Abort(.forbidden)
-//        }
-//
-//        let authors = try req.content.decode([Author].self)
-//        for i in authors.indices {
-//            authors[i].isHidden = false
-//        }
-//        try await req.db.transaction { transaction in
-//            try await authors.create(on: transaction)
-//        }
-//        return .ok
-//    }
+    func getReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<[ReactionSound]> {
+        guard let reactionId = req.parameters.get("reactionId", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        print(reactionId)
+        return ReactionSound.query(on: req.db)
+            .filter(\.$reactionId == reactionId)
+            .all()
+    }
+
+    func getAllReactionsHandlerV4(req: Request) throws -> EventLoopFuture<[Reaction]> {
+        Reaction.query(on: req.db)
+            .all()
+    }
+}
+
+// MARK: - POST
+
+extension ReactionsController {
 
     func postCreateReactionHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
@@ -45,6 +49,30 @@ struct ReactionsController {
         return .ok
     }
 
+    func postAddSoundsToReactionHandlerV4(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let sounds = try req.content.decode([ReactionSound].self)
+
+        try await req.db.transaction { transaction in
+            for sound in sounds {
+                try await sound.save(on: transaction)
+            }
+        }
+        return .ok
+    }
+}
+
+
+// MARK: - PUT
+
+extension ReactionsController {
+
     func putUpdateReactionHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
@@ -53,44 +81,30 @@ struct ReactionsController {
             throw Abort(.forbidden)
         }
 
-        let author = try req.content.decode(Author.self)
+        guard let reactionId = req.parameters.get("id", as: String.self) else {
+            throw Abort(.badRequest)
+        }
 
-        return Author.find(author.id, on: req.db)
+        let reaction = try req.content.decode(Reaction.self)
+
+        return Reaction.find(reaction.id, on: req.db)
             .unwrap(or: Abort(.notFound))
-            .flatMap { existingAuthor in
-                existingAuthor.name = author.name
-                existingAuthor.photo = author.photo
-                existingAuthor.description = author.description
-                existingAuthor.externalLinks = author.externalLinks
+            .flatMap { existingReaction in
+                existingReaction.title = reaction.title
+                existingReaction.position = reaction.position
+                existingReaction.image = reaction.image
+                existingReaction.lastUpdate = reaction.lastUpdate
 
-                let updateEvent = UpdateEvent(
-                    contentId: author.id!.uuidString,
-                    dateTime: Date().iso8601withFractionalSeconds,
-                    mediaType: .author,
-                    eventType: .metadataUpdated,
-                    visible: true
-                )
-
-                return existingAuthor.save(on: req.db)
-                    .and(updateEvent.save(on: req.db))
+                return existingReaction.save(on: req.db)
                     .transform(to: .ok)
             }
     }
+}
 
-    func getReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<[ReactionSound]> {
-        guard let reactionId = req.parameters.get("reactionId", as: String.self) else {
-            throw Abort(.badRequest)
-        }
-        print(reactionId)
-        return ReactionSound.query(on: req.db)
-            .filter(\.$reactionId == reactionId)
-            .all()
-    }
 
-    func getAllReactionsHandlerV4(req: Request) throws -> EventLoopFuture<[Reaction]> {
-        Reaction.query(on: req.db)
-            .all()
-    }
+// MARK: - DELETE
+
+extension ReactionsController {
 
     func deleteAllReactionsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let password = req.parameters.get("password") else {
@@ -122,7 +136,7 @@ struct ReactionsController {
         }
     }
 
-    func deleteReactionHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -130,47 +144,19 @@ struct ReactionsController {
             throw Abort(.forbidden)
         }
 
-        guard let authorId = req.parameters.get("id", as: String.self) else {
+        guard let reactionId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
-        print(authorId)
-        guard let authorIdAsUUID = UUID(uuidString: authorId) else {
-            throw Abort(.internalServerError)
-        }
-        return Author.query(on: req.db)
-            .filter(\.$id == authorIdAsUUID)
-            .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                content.isHidden = true
-                return content.save(on: req.db).flatMap {
-                    let updateEvent = UpdateEvent(contentId: authorId,
-                                                  dateTime: Date().iso8601withFractionalSeconds,
-                                                  mediaType: .author,
-                                                  eventType: .deleted,
-                                                  visible: true)
-                    return updateEvent.save(on: req.db).transform(to: .ok)
+        print(reactionId)
+
+        return ReactionSound.query(on: req.db)
+            .filter(\.$reactionId == reactionId)
+            .all()
+            .flatMap { contents in
+                let deleteFutures = contents.map { content in
+                    content.delete(on: req.db)
                 }
+                return EventLoopFuture.andAllSucceed(deleteFutures, on: req.eventLoop).transform(to: .ok)
             }
-    }
-
-    // MARK: - Reaction Detail
-
-    func postAddSoundsToReactionHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
-            throw Abort(.forbidden)
-        }
-
-        let sounds = try req.content.decode([ReactionSound].self)
-
-        try await req.db.transaction { transaction in
-            for sound in sounds {
-                try await sound.save(on: transaction)
-            }
-        }
-        return .ok
     }
 }
