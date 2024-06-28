@@ -77,12 +77,8 @@ extension ReactionsController {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
         }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
-        }
-
-        guard let reactionId = req.parameters.get("id", as: String.self) else {
-            throw Abort(.badRequest)
         }
 
         let reaction = try req.content.decode(Reaction.self)
