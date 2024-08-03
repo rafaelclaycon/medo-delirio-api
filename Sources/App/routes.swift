@@ -109,10 +109,4 @@ func routes(_ app: Application) throws {
 //    let retrospectiveController = RetrospectiveController()
 //    app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
 //    app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
-
-    let floodDonationsController = FloodDonationsController()
-    app.post(api, v4, "set-flood-banner-version", use: floodDonationsController.postSetBannerStartingVersionHandlerV4)
-    app.post(api, v4, "flood-banner", ":password", use: floodDonationsController.postSetBannerDataHandlerV4)
-    app.get(api, v4, "flood-banner-starting-version", use: floodDonationsController.getBannerStartingVersionHandlerV4)
-    app.get(api, v4, "flood-banner", use: floodDonationsController.getBannerDataHandlerV4)
 }
