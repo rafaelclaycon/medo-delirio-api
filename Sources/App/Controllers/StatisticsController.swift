@@ -197,7 +197,7 @@ struct StatisticsController {
         }
 
         if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
+            let shareCountQuery = """
                 SELECT
                     SUM(CASE WHEN s.dateTime >= date('now', '-7 days') THEN s.shareCount ELSE 0 END) AS lastWeekShareCount,
                     SUM(s.shareCount) AS totalShareCount
@@ -205,22 +205,52 @@ struct StatisticsController {
                 WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
             """
 
-            return sqlite.query(query).flatMapThrowing { rows in
-                guard let row = rows.first else {
+            let monthYearQuery = """
+                SELECT
+                    strftime('%Y', s.dateTime) AS year,
+                    strftime('%m', s.dateTime) AS month,
+                    SUM(s.shareCount) AS totalShareCount
+                FROM ShareCountStat s
+                WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
+                GROUP BY year, month
+                ORDER BY totalShareCount DESC
+                LIMIT 1
+            """
+
+            let shareCountFuture = sqlite.query(shareCountQuery)
+            let monthYearFuture = sqlite.query(monthYearQuery)
+
+            return shareCountFuture.and(monthYearFuture).flatMapThrowing { shareCountRows, monthYearRows in
+                // Processing the all-time and last-week share counts
+                guard let shareCountRow = shareCountRows.first else {
                     throw Abort(.notFound, reason: "No stats found for soundId \(soundId)")
                 }
+                let totalShareCount = shareCountRow.column("totalShareCount")?.integer ?? 0
+                let lastWeekShareCount = shareCountRow.column("lastWeekShareCount")?.integer ?? 0
 
-                let totalShareCount = row.column("totalShareCount")?.integer ?? 0
-                let lastWeekShareCount = row.column("lastWeekShareCount")?.integer ?? 0
+                // Processing the month and year with the most share counts
+                guard let monthYearRow = monthYearRows.first else {
+                    throw Abort(.notFound, reason: "No month-year stats found for soundId \(soundId)")
+                }
+                let year = monthYearRow.column("year")?.string ?? ""
+                let month = monthYearRow.column("month")?.string ?? ""
 
                 return ContentShareCountStats(
-                    contentId: soundId,
                     totalShareCount: totalShareCount,
-                    lastWeekShareCount: lastWeekShareCount
+                    lastWeekShareCount: lastWeekShareCount,
+                    topMonth: month,
+                    topYear: year
                 )
             }
         } else {
-            return req.eventLoop.makeSucceededFuture(ContentShareCountStats(contentId: soundId, totalShareCount: 0, lastWeekShareCount: 0))
+            return req.eventLoop.makeSucceededFuture(
+                ContentShareCountStats(
+                    totalShareCount: 0,
+                    lastWeekShareCount: 0,
+                    topMonth: "",
+                    topYear: ""
+                )
+            )
         }
     }
 

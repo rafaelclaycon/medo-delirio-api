@@ -9,7 +9,8 @@ import Vapor
 
 struct ContentShareCountStats: Content {
 
-    let contentId: String
     let totalShareCount: Int
     let lastWeekShareCount: Int
+    let topMonth: String
+    let topYear: String
 }
