@@ -14,7 +14,7 @@ extension Application {
 //            ),
 //            topic: "com.rafaelschmitt.MedoDelirioBrasilia",
 //            environment: .production,
-//            timeout: TimeAmount.seconds(30)
+//            timeout: TimeAmount.seconds(5)
 //        )
 //    }
 }
