@@ -2,7 +2,7 @@
 //  configure.swift
 //  medo-delirio-api
 //
-//  Created by Rafael Schmitt on 01/06/22.
+//  Created by Rafael Claycon Schmitt on 01/06/22.
 //
 
 import Fluent
@@ -39,6 +39,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateContentFile())
     app.migrations.add(CreateMusicGenre())
     app.migrations.add(AddExternalLinksFieldToAuthor())
+    app.migrations.add(CreateReaction())
+    app.migrations.add(CreateReactionSound())
 //    app.migrations.add(CreatePushChannel())
 //    app.migrations.add(CreateDeviceChannel())
     
