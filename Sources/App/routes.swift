@@ -27,9 +27,10 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV3)
     app.get(api, v3, "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV3)
     app.get(api, v3, "sound-share-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getSoundShareCountStatsFromToHandlerV3)
+    app.get(api, v3, "sound-share-count-stats-for", ":soundId", use: statisticsController.getSoundShareCountStatsForSoundIdHandler)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
-    
+
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
@@ -106,7 +107,7 @@ func routes(_ app: Application) throws {
     app.put(api, v3, "update-content", ":password", use: updateEventsController.putUpdateContentHandlerV3)
     app.post(api, v3, "update-content-file", ":type", ":id", ":password", use: updateEventsController.postUpdateContentFileHandlerV3)
 
-    let retrospectiveController = RetrospectiveController()
-    app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
-    app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
+//    let retrospectiveController = RetrospectiveController()
+//    app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
+//    app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
 }
