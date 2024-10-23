@@ -9,15 +9,17 @@ import Vapor
 import SQLiteNIO
 
 struct StatisticsController {
-    
+
+    // MARK: - GET
+
     func getAllClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
         return ClientDeviceInfo.query(on: req.db).all()
     }
-    
+
     func getAllSoundShareCountStatsHandlerV1(req: Request) -> EventLoopFuture<[ShareCountStat]> {
         return ShareCountStat.query(on: req.db).all()
     }
-    
+
     func getInstallIdCountHandlerV1(req: Request) -> EventLoopFuture<[Int]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
@@ -34,7 +36,7 @@ struct StatisticsController {
             return req.eventLoop.makeSucceededFuture([0])
         }
     }
-    
+
     func getSoundShareCountStatsAllTimeHandlerV2(req: Request) -> EventLoopFuture<[ShareCountStat]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
@@ -53,7 +55,7 @@ struct StatisticsController {
             return req.eventLoop.makeSucceededFuture([ShareCountStat]())
         }
     }
-    
+
     func getSoundShareCountStatsFromHandlerV2(req: Request) throws -> EventLoopFuture<[ShareCountStat]> {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
@@ -189,13 +191,78 @@ struct StatisticsController {
         }
     }
 
+    func getSoundShareCountStatsForSoundIdHandler(req: Request) -> EventLoopFuture<ContentShareCountStats> {
+        guard let soundId = req.parameters.get("soundId") else {
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Missing soundId parameter"))
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let shareCountQuery = """
+                SELECT
+                    SUM(CASE WHEN s.dateTime >= date('now', '-7 days') THEN s.shareCount ELSE 0 END) AS lastWeekShareCount,
+                    SUM(s.shareCount) AS totalShareCount
+                FROM ShareCountStat s
+                WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
+            """
+
+            let monthYearQuery = """
+                SELECT
+                    strftime('%Y', s.dateTime) AS year,
+                    strftime('%m', s.dateTime) AS month,
+                    SUM(s.shareCount) AS totalShareCount
+                FROM ShareCountStat s
+                WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
+                GROUP BY year, month
+                ORDER BY totalShareCount DESC
+                LIMIT 1
+            """
+
+            let shareCountFuture = sqlite.query(shareCountQuery)
+            let monthYearFuture = sqlite.query(monthYearQuery)
+
+            return shareCountFuture.and(monthYearFuture).flatMapThrowing { shareCountRows, monthYearRows in
+                // Processing the all-time and last-week share counts
+                guard let shareCountRow = shareCountRows.first else {
+                    throw Abort(.notFound, reason: "No stats found for soundId \(soundId)")
+                }
+                let totalShareCount = shareCountRow.column("totalShareCount")?.integer ?? 0
+                let lastWeekShareCount = shareCountRow.column("lastWeekShareCount")?.integer ?? 0
+
+                // Processing the month and year with the most share counts
+                guard let monthYearRow = monthYearRows.first else {
+                    throw Abort(.notFound, reason: "No month-year stats found for soundId \(soundId)")
+                }
+                let year = monthYearRow.column("year")?.string ?? ""
+                let month = monthYearRow.column("month")?.string ?? ""
+
+                return ContentShareCountStats(
+                    totalShareCount: totalShareCount,
+                    lastWeekShareCount: lastWeekShareCount,
+                    topMonth: month,
+                    topYear: year
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture(
+                ContentShareCountStats(
+                    totalShareCount: 0,
+                    lastWeekShareCount: 0,
+                    topMonth: "",
+                    topYear: ""
+                )
+            )
+        }
+    }
+
+    // MARK: - POST
+
     func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
         let stat = try req.content.decode(ShareCountStat.self)
         return stat.save(on: req.db).map {
             stat
         }
     }
-    
+
     func postSharedToBundleIdHandlerV1(req: Request) throws -> EventLoopFuture<ShareBundleIdLog> {
         let log = try req.content.decode(ShareBundleIdLog.self)
         return log.save(on: req.db).map {
