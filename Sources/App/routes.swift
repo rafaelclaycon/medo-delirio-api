@@ -2,9 +2,10 @@
 //  routes.swift
 //  medo-delirio-api
 //
-//  Created by Rafael Schmitt on 01/06/22.
+//  Created by Rafael Claycon Schmitt on 01/06/22.
 //
 
+import Fluent
 import Vapor
 
 let api: PathComponent = "api"
@@ -51,7 +52,7 @@ func routes(_ app: Application) throws {
     app.post(api, v1, "user-folder-content-logs", use: clientLoggingController.postUserFolderContentLogsHandlerV1)
     app.post(api, v1, "still-alive-signal", use: clientLoggingController.postStillAliveSignalHandlerV1)
     app.post(api, v2, "usage-metric", use: clientLoggingController.postUsageMetricHandlerV2)
-    
+
     let notificationsController = NotificationsController()
     app.post(api, v1, "push-device", use: notificationsController.postPushDeviceHandlerV1)
     app.post(api, v1, "send-push-notification") { req -> HTTPStatus in
@@ -110,4 +111,14 @@ func routes(_ app: Application) throws {
 //    let retrospectiveController = RetrospectiveController()
 //    app.get(api, v3, "retro-starting-version", use: retrospectiveController.getRetroStartingVersionHandlerV3)
 //    app.post(api, v3, "set-retro-version", use: retrospectiveController.postSetRetroStartingVersionHandlerV3)
+
+    let reactionsController = ReactionsController()
+    app.get(api, v4, "reactions", use: reactionsController.getAllReactionsHandlerV4)
+    app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionSoundsHandlerV4)
+    app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
+    app.post(api, v4, "add-sounds-to-reaction", ":password", use: reactionsController.postAddSoundsToReactionHandlerV4)
+    app.put(api, v4, "reaction", ":password", use: reactionsController.putUpdateReactionHandlerV4)
+    app.delete(api, v4, "delete-all-reactions", ":password", use: reactionsController.deleteAllReactionsHandlerV4)
+    app.delete(api, v4, "delete-all-reaction-sounds", ":password", use: reactionsController.deleteAllReactionSoundsHandlerV4)
+    app.delete(api, v4, "delete-reaction-sounds", ":id", ":password", use: reactionsController.deleteReactionSoundsHandlerV4)
 }
