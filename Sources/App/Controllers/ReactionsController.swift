@@ -155,4 +155,23 @@ extension ReactionsController {
                 return EventLoopFuture.andAllSucceed(deleteFutures, on: req.eventLoop).transform(to: .ok)
             }
     }
+
+    func deleteReactionHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard
+            let reactionIdString = req.parameters.get("id", as: String.self),
+            let reactionId = UUID(uuidString: reactionIdString)
+        else {
+            throw Abort(.badRequest)
+        }
+        return Reaction.query(on: req.db)
+            .filter(\.$id == reactionId)
+            .delete()
+            .transform(to: .ok)
+    }
 }
