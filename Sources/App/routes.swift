@@ -64,7 +64,7 @@ func routes(_ app: Application) throws {
         let devices = try await PushDevice.query(on: req.db).all()
         for device in devices {
             _ = app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken)
-            sleep(1)
+            try await Task.sleep(nanoseconds: 500_000_000)
         }
         return .ok
     }
