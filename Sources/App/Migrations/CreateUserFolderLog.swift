@@ -24,5 +24,4 @@ struct CreateUserFolderLog: AsyncMigration {
     func revert(on database: Database) async throws {
         try await database.schema("UserFolderLog").delete()
     }
-
 }

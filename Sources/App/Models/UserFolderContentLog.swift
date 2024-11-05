@@ -20,15 +20,21 @@ final class UserFolderContentLog: Model, Content {
     
     @Field(key: "contentId")
     var contentId: String
-    
+
+    @Field(key: "logDateTime")
+    var logDateTime: String?
+
     init() { }
     
-    init(id: UUID? = nil,
-         userFolderLogId: String,
-         contentId: String) {
+    init(
+        id: UUID? = nil,
+        userFolderLogId: String,
+        contentId: String,
+        logDateTime: String
+    ) {
         self.id = id
         self.userFolderLogId = userFolderLogId
         self.contentId = contentId
+        self.logDateTime = logDateTime
     }
-
 }

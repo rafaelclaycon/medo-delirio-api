@@ -35,13 +35,15 @@ final class UserFolderLog: Model, Content {
     
     init() { }
     
-    init(id: UUID? = nil,
-         installId: String,
-         folderId: String,
-         folderSymbol: String,
-         folderName: String,
-         backgroundColor: String,
-         logDateTime: String) {
+    init(
+        id: UUID? = nil,
+        installId: String,
+        folderId: String,
+        folderSymbol: String,
+        folderName: String,
+        backgroundColor: String,
+        logDateTime: String
+    ) {
         self.id = id
         self.installId = installId
         self.folderId = folderId
@@ -50,5 +52,4 @@ final class UserFolderLog: Model, Content {
         self.backgroundColor = backgroundColor
         self.logDateTime = logDateTime
     }
-
 }

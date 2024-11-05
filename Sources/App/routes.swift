@@ -51,7 +51,7 @@ func routes(_ app: Application) throws {
     app.post(api, v1, "user-folder-content-logs", use: clientLoggingController.postUserFolderContentLogsHandlerV1)
     app.post(api, v1, "still-alive-signal", use: clientLoggingController.postStillAliveSignalHandlerV1)
     app.post(api, v2, "usage-metric", use: clientLoggingController.postUsageMetricHandlerV2)
-    
+
     let notificationsController = NotificationsController()
     app.post(api, v1, "push-device", use: notificationsController.postPushDeviceHandlerV1)
     app.post(api, v1, "send-push-notification") { req -> HTTPStatus in
