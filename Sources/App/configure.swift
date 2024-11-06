@@ -39,6 +39,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateContentFile())
     app.migrations.add(CreateMusicGenre())
     app.migrations.add(AddExternalLinksFieldToAuthor())
+    app.migrations.add(AddLogDateTimeFieldToUserFolderContentLog())
     app.migrations.add(CreateReaction())
     app.migrations.add(CreateReactionSound())
 //    app.migrations.add(CreatePushChannel())
