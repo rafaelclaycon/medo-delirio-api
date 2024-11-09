@@ -16,7 +16,6 @@ struct ReactionsController {
         guard let reactionId = req.parameters.get("reactionId", as: String.self) else {
             throw Abort(.badRequest)
         }
-        print(reactionId)
         return ReactionSound.query(on: req.db)
             .filter(\.$reactionId == reactionId)
             .all()
@@ -113,10 +112,11 @@ extension ReactionsController {
             return req.eventLoop.makeSucceededFuture(.ok)
         }.flatMapError { error in
             req.logger.error("Failed to delete reactions: \(error.localizedDescription)")
-            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete reactions"))
+            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete Reactions."))
         }
     }
 
+    /// Deletes all sounds for all Reactions.
     func deleteAllReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
@@ -128,10 +128,11 @@ extension ReactionsController {
             return req.eventLoop.makeSucceededFuture(.ok)
         }.flatMapError { error in
             req.logger.error("Failed to delete reaction sounds: \(error.localizedDescription)")
-            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete reaction sounds"))
+            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete Reaction sounds."))
         }
     }
 
+    /// Deletes all sounds for a specific Reaction.
     func deleteReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
