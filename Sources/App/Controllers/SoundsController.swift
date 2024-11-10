@@ -54,11 +54,13 @@ struct SoundsController {
 
         let eventWrapper = EventIdWrapper()
         
-        let updateEvent = UpdateEvent(contentId: contentId,
-                                      dateTime: Date().iso8601withFractionalSeconds,
-                                      mediaType: .sound,
-                                      eventType: .created,
-                                      visible: false)
+        let updateEvent = UpdateEvent(
+            contentId: contentId,
+            dateTime: Date().iso8601withFractionalSeconds,
+            mediaType: .sound,
+            eventType: .created,
+            visible: false
+        )
         try await req.db.transaction { transaction in
             try await updateEvent.save(on: transaction)
             if let id = updateEvent.id?.uuidString {

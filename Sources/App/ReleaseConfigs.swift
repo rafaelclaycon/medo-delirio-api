@@ -15,6 +15,7 @@ struct ReleaseConfigs {
         static let sendNotificationPassword = "total-real-password"
         static let setDonorNamesPassword = "total-real-password-2"
         static let assetOperationPassword = "total-real-password-3"
+        static let reactionsPassword = "total-real-password-5"
     }
     
     struct Push {
