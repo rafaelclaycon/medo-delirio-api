@@ -12,6 +12,19 @@ import Fluent
 
 struct ReactionsController {
 
+    func getReactionHandlerV4(req: Request) throws -> EventLoopFuture<Reaction> {
+        guard
+            let rawId = req.parameters.get("reactionId", as: String.self),
+            let reactionId = UUID(uuidString: rawId)
+        else {
+            throw Abort(.badRequest)
+        }
+        return Reaction.query(on: req.db)
+            .filter(\.$id == reactionId)
+            .first()
+            .unwrap(or: Abort(.notFound))
+    }
+
     func getReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<[ReactionSound]> {
         guard let reactionId = req.parameters.get("reactionId", as: String.self) else {
             throw Abort(.badRequest)
@@ -144,7 +157,6 @@ extension ReactionsController {
         guard let reactionId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
-        print(reactionId)
 
         return ReactionSound.query(on: req.db)
             .filter(\.$reactionId == reactionId)
