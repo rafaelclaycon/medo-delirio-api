@@ -10,7 +10,7 @@ import Vapor
 struct RetrospectiveController {
 
     func getRetroStartingVersionHandlerV3(req: Request) throws -> String {
-        guard let value = UserDefaults.standard.object(forKey: "show-retro-starting-with-version") else {
+        guard let value = UserDefaults.standard.object(forKey: "show-classic-retro-starting-with-version") else {
             throw Abort(.notFound)
         }
         return String(value as! String)
@@ -21,7 +21,7 @@ struct RetrospectiveController {
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
         }
-        UserDefaults.standard.set(newValue, forKey: "show-retro-starting-with-version")
+        UserDefaults.standard.set(newValue, forKey: "show-classic-retro-starting-with-version")
         return .ok
     }
 }

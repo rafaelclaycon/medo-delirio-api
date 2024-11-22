@@ -254,6 +254,10 @@ struct StatisticsController {
         }
     }
 
+//    func getReactionsForSoundIdHandler(req: Request) -> EventLoopFuture<[Reaction]> {
+//
+//    }
+
     // MARK: - POST
 
     func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
