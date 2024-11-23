@@ -28,7 +28,6 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV3)
     app.get(api, v3, "sound-share-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getSoundShareCountStatsFromToHandlerV3)
     app.get(api, v3, "sound-share-count-stats-for", ":soundId", use: statisticsController.getSoundShareCountStatsForSoundIdHandler)
-    //app.get(api, v3, "reactions-sound-is-in", ":soundId", use: statisticsController.getReactionsForSoundIdHandler)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
 
@@ -116,6 +115,7 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "reactions", use: reactionsController.getAllReactionsHandlerV4)
     app.get(api, v4, "reaction", ":reactionId", use: reactionsController.getReactionHandlerV4)
     app.get(api, v4, "reaction-sounds", ":reactionId", use: reactionsController.getReactionSoundsHandlerV4)
+    app.get(api, v4, "reactions-for-sound", ":soundId", use: reactionsController.getReactionsForSoundHandler)
     app.post(api, v4, "create-reaction", ":password", use: reactionsController.postCreateReactionHandlerV4)
     app.post(api, v4, "add-sounds-to-reaction", ":password", use: reactionsController.postAddSoundsToReactionHandlerV4)
     app.put(api, v4, "reaction", ":password", use: reactionsController.putUpdateReactionHandlerV4)

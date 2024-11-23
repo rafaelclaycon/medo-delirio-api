@@ -38,6 +38,22 @@ struct ReactionsController {
         Reaction.query(on: req.db)
             .all()
     }
+
+    func getReactionsForSoundHandler(req: Request) throws -> EventLoopFuture<[Reaction]> {
+        guard let soundId = req.parameters.get("soundId", as: String.self) else {
+            throw Abort(.badRequest)
+        }
+        return ReactionSound.query(on: req.db)
+            .filter(\.$soundId == soundId)
+            .all()
+            .flatMap { reactions in
+                let reactionIds = reactions.compactMap { UUID(uuidString: $0.reactionId) }
+
+                return Reaction.query(on: req.db)
+                    .filter(\.$id ~~ reactionIds)
+                    .all()
+            }
+    }
 }
 
 // MARK: - POST
