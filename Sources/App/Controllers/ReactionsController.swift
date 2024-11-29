@@ -118,6 +118,8 @@ extension ReactionsController {
                 existingReaction.position = reaction.position
                 existingReaction.image = reaction.image
                 existingReaction.lastUpdate = reaction.lastUpdate
+                existingReaction.attributionText = reaction.attributionText
+                existingReaction.attributionURL = reaction.attributionURL
 
                 return existingReaction.save(on: req.db)
                     .transform(to: .ok)

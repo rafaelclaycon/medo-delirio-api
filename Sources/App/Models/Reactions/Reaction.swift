@@ -27,6 +27,12 @@ final class Reaction: Model, Content {
     @Field(key: "lastUpdate")
     var lastUpdate: String
 
+    @Field(key: "attributionText")
+    var attributionText: String?
+
+    @Field(key: "attributionURL")
+    var attributionURL: String?
+
     init() { }
 
     init(
@@ -34,12 +40,16 @@ final class Reaction: Model, Content {
         title: String,
         position: Int,
         image: String,
-        lastUpdate: String
+        lastUpdate: String,
+        attributionText: String?,
+        attributionURL: String?
     ) {
         self.id = id
         self.title = title
         self.position = position
         self.image = image
         self.lastUpdate = lastUpdate
+        self.attributionText = attributionText
+        self.attributionURL = attributionURL
     }
 }
