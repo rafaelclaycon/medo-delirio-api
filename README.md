@@ -10,16 +10,18 @@ Prefer to do it in Reais? [Here you go](https://apoia.se/app-medo-delirio-ios).
 
 ## Features
 
-1. Serve sound files for a custom-built sync system built on 100% Apple-native technologies.
-1. Store user push notification tokens.
-1. Send push notifications.
-1. Collect anonymized client device model names.
-1. Collect anonymized active user data.
-1. Store anonymized content sharing statistics sent to the server (opt-out available on the app).
-1. Provide top 10 most shared content rankings to the client app (in 2 different flavors - all time and between two dates).
-1. Provide total user base count for the curious developer.
-1. Store anonymized usage metrics.
-1. Provide on/off switches (*flags*) for controlling app-side content.
+1. **Serving Sound Files:** Seamlessly supports a custom sync system built entirely on Apple-native technologies.
+2. **Push Notifications:**
+- Stores user push notification tokens.
+- Sends push notifications to keep users updated.
+3. **User Insights (Anonymized)**:
+- Collects anonymized device model names and active user data.
+- Tracks anonymized content-sharing statistics (opt-out available in the app).
+- Stores anonymized usage metrics.
+4. **Content Sharing Rankings**:
+Delivers Top 10 Most Shared Content rankings to the app (all-time and date-specific).
+5. **Developer Metrics**: Provides total user base counts for the curious developer.
+6. **Feature Flags**: Offers on/off switches for controlling app-side content.
 
 ## How to run this project
 
@@ -33,9 +35,9 @@ That's it.
 
 ## Curious about how this runs?
 
-This is an API built for the [Medo e Delírio iOS app](https://github.com/rafaelclaycon/MedoDelirioBrasilia) written in 100% Swift that relies on the [Vapor framework](https://vapor.codes) to work. It runs on a Linux VM (Ubuntu to be specific) that costs me just 5 Dollars a month and serves an average of 6,000 unique users, sync system and all. Neat, right?
+This is an API built for the [Medo e Delírio iOS app](https://github.com/rafaelclaycon/MedoDelirioBrasilia) written in 100% Swift that relies on the [Vapor framework](https://vapor.codes) to work. It runs on a Linux VM (Ubuntu to be specific) that costs me just 5 Dollars a month and serves an average of 5,000 unique monthly users, sync system and all. I think that's pretty neat.
 
-## 🚧 Known glaring shortcoming 🚧
+## 🚧 Work in Progress 🚧
 
 This project does not use random access tokens or any other client-server communication security measure. This is a small project coded by just me (a mostly front-end person) and no personal life-threatening information is sent back and forth. I do plan on adding HTTPS support in the near future.
 
