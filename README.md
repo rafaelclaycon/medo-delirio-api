@@ -1,5 +1,7 @@
 # medo-delirio-api
 
+![The Swift language logo shakes hands with the Vapor framework logo and with the Linux tux.](Resources/readme_banner.png)
+
 This is the server counterpart to the [Medo e Delírio iOS/iPadOS/macOS app](https://github.com/rafaelclaycon/MedoDelirioBrasilia).
 
 🌟 Star this repo! ↗️
