@@ -270,3 +270,224 @@ struct StatisticsController {
         }
     }
 }
+
+// MARK: - Songs
+
+extension StatisticsController {
+
+    func getSongShareCountStatsAllTimeHandlerV3(req: Request) -> EventLoopFuture<[TopChartItem]> {
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join MusicGenre mg on mg.id = c.musicGenre
+                where s.contentType in (1,3)
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: "",
+                        contentAuthorName: row.column("musicGenre")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getSongShareCountStatsFromHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join MusicGenre mg on mg.id = c.musicGenre
+                where s.contentType in (1,3)
+                and s.dateTime > '\(date)'
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: "",
+                        contentAuthorName: row.column("musicGenre")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getSongShareCountStatsFromToHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+        guard
+            let firstDate = req.parameters.get("firstDate"),
+            let secondDate = req.parameters.get("secondDate")
+        else {
+            throw Abort(.badRequest, reason: "Missing date parameters.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+                from ShareCountStat s
+                inner join MedoContent c on c.id = s.contentId
+                inner join MusicGenre mg on mg.id = c.musicGenre
+                where s.contentType in (1,3)
+                and s.dateTime between '\(firstDate)' and '\(secondDate)'
+                group by s.contentId
+                order by totalShareCount desc
+                limit 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopChartItem(
+                        rankNumber: "",
+                        contentId: row.column("contentId")?.string ?? "",
+                        contentName: row.column("contentName")?.string ?? "",
+                        contentAuthorId: "",
+                        contentAuthorName: row.column("musicGenre")?.string ?? "",
+                        shareCount: row.column("totalShareCount")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+}
+
+// MARK: - Reactions
+
+extension StatisticsController {
+
+    func getReactionPopularityStatsHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartReaction]> {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+
+        let todaysTopReaction = """
+            select
+                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
+                count(*) as reactionCount,
+                r.*
+            from UsageMetric um
+            left join Reaction r on r.title = reaction
+            where destinationScreen like 'didViewReaction%'
+                and destinationScreen != 'didViewReactionsTab'
+                and dateTime >= date('now')
+            group by reaction
+            order by reactionCount desc
+            limit 1
+        """
+
+        let lastWeeksTopReaction = """
+            select
+                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
+                count(*) as reactionCount,
+                r.*
+            from UsageMetric um
+            left join Reaction r on r.title = reaction
+            where destinationScreen like 'didViewReaction%'
+                and destinationScreen != 'didViewReactionsTab'
+                and dateTime >= datetime('now', '-7 days')
+            group by reaction
+            order by reactionCount desc
+            limit 1
+        """
+
+        let allTimeTopReaction = """
+            select
+                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
+                count(*) as reactionCount,
+                r.*
+            from UsageMetric um
+            left join Reaction r on r.title = reaction
+            where destinationScreen like 'didViewReaction%'
+            and destinationScreen != 'didViewReactionsTab'
+            group by reaction
+            order by reactionCount desc
+            limit 1
+        """
+
+        let todaysFuture = sqlite.query(todaysTopReaction)
+        let lastWeekFuture = sqlite.query(lastWeeksTopReaction)
+        let allTimeFuture = sqlite.query(allTimeTopReaction)
+
+        return todaysFuture.and(lastWeekFuture).and(allTimeFuture).flatMap { results in
+            let (todaysRows, lastWeekRows, allTimeRows) = (results.0.0, results.0.1, results.1)
+
+            let today = todaysRows.compactMap { row in
+                TopChartReaction(
+                    id: UUID().uuidString,
+                    reaction: Reaction(
+                        id: UUID(uuidString: row.column("id")?.string ?? ""),
+                        title: row.column("title")?.string ?? "",
+                        position: row.column("position")?.integer ?? 0,
+                        image: row.column("image")?.string ?? "",
+                        lastUpdate: row.column("lastUpdate")?.string ?? "",
+                        attributionText: row.column("attributionText")?.string,
+                        attributionURL: row.column("attributionURL")?.string
+                    ),
+                    description: "hoje"
+                )
+            }
+
+            let lastWeek = lastWeekRows.compactMap { row in
+                TopChartReaction(
+                    id: UUID().uuidString,
+                    reaction: Reaction(
+                        id: UUID(uuidString: row.column("id")?.string ?? ""),
+                        title: row.column("title")?.string ?? "",
+                        position: row.column("position")?.integer ?? 0,
+                        image: row.column("image")?.string ?? "",
+                        lastUpdate: row.column("lastUpdate")?.string ?? "",
+                        attributionText: row.column("attributionText")?.string,
+                        attributionURL: row.column("attributionURL")?.string
+                    ),
+                    description: "última semana"
+                )
+            }
+
+            let allTime = allTimeRows.compactMap { row in
+                TopChartReaction(
+                    id: UUID().uuidString,
+                    reaction: Reaction(
+                        id: UUID(uuidString: row.column("id")?.string ?? ""),
+                        title: row.column("title")?.string ?? "",
+                        position: row.column("position")?.integer ?? 0,
+                        image: row.column("image")?.string ?? "",
+                        lastUpdate: row.column("lastUpdate")?.string ?? "",
+                        attributionText: row.column("attributionText")?.string,
+                        attributionURL: row.column("attributionURL")?.string
+                    ),
+                    description: "todos os tempos"
+                )
+            }
+
+            return req.eventLoop.makeSucceededFuture(today + lastWeek + allTime)
+        }
+    }
+}

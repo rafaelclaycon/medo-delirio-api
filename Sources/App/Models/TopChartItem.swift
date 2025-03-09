@@ -36,3 +36,10 @@ struct TopChartItem: Hashable, Codable, Identifiable, Content {
         self.shareCount = shareCount
     }
 }
+
+struct TopChartReaction: Hashable, Codable, Identifiable, Content {
+
+    let id: String
+    let reaction: Reaction
+    let description: String
+}

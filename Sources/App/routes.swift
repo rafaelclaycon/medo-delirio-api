@@ -31,6 +31,14 @@ func routes(_ app: Application) throws {
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
 
+    // Songs
+    app.get(api, v3, "song-share-count-stats-all-time", use: statisticsController.getSongShareCountStatsAllTimeHandlerV3)
+    app.get(api, v3, "song-share-count-stats-from", ":date", use: statisticsController.getSongShareCountStatsFromHandlerV3)
+    app.get(api, v3, "song-share-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getSongShareCountStatsFromToHandlerV3)
+
+    // Reactions
+    app.get(api, v3, "reaction-popularity-stats", use: statisticsController.getReactionPopularityStatsHandlerV3)
+
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)

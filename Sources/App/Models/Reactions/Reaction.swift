@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class Reaction: Model, Content {
+final class Reaction: Model, Content, Equatable, Hashable {
 
     static let schema = "Reaction"
     
@@ -51,5 +51,14 @@ final class Reaction: Model, Content {
         self.lastUpdate = lastUpdate
         self.attributionText = attributionText
         self.attributionURL = attributionURL
+    }
+
+    static func == (lhs: Reaction, rhs: Reaction) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(title)
     }
 }
