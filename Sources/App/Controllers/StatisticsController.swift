@@ -441,7 +441,7 @@ extension StatisticsController {
 
             let today = todaysRows.compactMap { row in
                 TopChartReaction(
-                    id: UUID().uuidString,
+                    position: "1",
                     reaction: Reaction(
                         id: UUID(uuidString: row.column("id")?.string ?? ""),
                         title: row.column("title")?.string ?? "",
@@ -457,7 +457,7 @@ extension StatisticsController {
 
             let lastWeek = lastWeekRows.compactMap { row in
                 TopChartReaction(
-                    id: UUID().uuidString,
+                    position: "2",
                     reaction: Reaction(
                         id: UUID(uuidString: row.column("id")?.string ?? ""),
                         title: row.column("title")?.string ?? "",
@@ -473,7 +473,7 @@ extension StatisticsController {
 
             let allTime = allTimeRows.compactMap { row in
                 TopChartReaction(
-                    id: UUID().uuidString,
+                    position: "3",
                     reaction: Reaction(
                         id: UUID(uuidString: row.column("id")?.string ?? ""),
                         title: row.column("title")?.string ?? "",
