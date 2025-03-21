@@ -12,7 +12,7 @@ Prefer to do it in Reais? [Here you go](https://apoia.se/app-medo-delirio-ios).
 
 ## Features
 
-1. **Serving Sound Files:** Seamlessly supports a custom sync system built entirely on Apple-native technologies.
+1. **Serving New Content:** Seamlessly supports a custom content delivery system built entirely on Apple-native technologies.
 2. **Push Notifications:**
 - Stores user push notification tokens.
 - Sends push notifications to keep users updated.
