@@ -131,4 +131,7 @@ func routes(_ app: Application) throws {
     app.delete(api, v4, "delete-all-reaction-sounds", ":password", use: reactionsController.deleteAllReactionSoundsHandlerV4)
     app.delete(api, v4, "delete-reaction-sounds", ":id", ":password", use: reactionsController.deleteReactionSoundsHandlerV4)
     app.delete(api, v4, "delete-reaction", ":id", ":password", use: reactionsController.deleteReactionHandlerV4)
+
+    let housekeepingController = HousekeepingController()
+    app.post(api, v4, "replace-device-model-name", ":password", ":oldName", ":newName", use: housekeepingController.postReplaceDeviceModelNameHandlerV4)
 }
