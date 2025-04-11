@@ -134,4 +134,5 @@ func routes(_ app: Application) throws {
 
     let housekeepingController = HousekeepingController()
     app.post(api, v4, "replace-device-model-name", ":password", ":oldName", ":newName", use: housekeepingController.postReplaceDeviceModelNameHandlerV4)
+    app.post(api, v4, "fix-song-stats", use: housekeepingController.postFixSongStatsHandlerV4)
 }
