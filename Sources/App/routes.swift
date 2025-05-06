@@ -38,6 +38,7 @@ func routes(_ app: Application) throws {
 
     // Reactions
     app.get(api, v3, "reaction-popularity-stats", use: statisticsController.getReactionPopularityStatsHandlerV3)
+    app.get(api, v4, "top-3-reactions", use: statisticsController.getTop3ReactionsHandlerV4)
 
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
