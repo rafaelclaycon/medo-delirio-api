@@ -383,6 +383,41 @@ extension StatisticsController {
 
 extension StatisticsController {
 
+    func getTop3ReactionsHandlerV4(req: Request) throws -> EventLoopFuture<[Reaction]> {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+
+        let query = """
+            select
+                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
+                count(*) as reactionCount,
+                r.*
+            from UsageMetric um
+            left join Reaction r on r.title = reaction
+            where destinationScreen like 'didViewReaction%'
+                and destinationScreen != 'didViewReactionsTab'
+                and dateTime >= date('now')
+            group by reaction
+            order by reactionCount desc
+            limit 3
+        """
+
+        return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            req.eventLoop.makeSucceededFuture(
+                Reaction(
+                    id: UUID(uuidString: row.column("id")?.string ?? ""),
+                    title: row.column("title")?.string ?? "",
+                    position: row.column("position")?.integer ?? 0,
+                    image: row.column("image")?.string ?? "",
+                    lastUpdate: row.column("lastUpdate")?.string ?? "",
+                    attributionText: row.column("attributionText")?.string,
+                    attributionURL: row.column("attributionURL")?.string
+                )
+            )
+        }
+    }
+
     func getReactionPopularityStatsHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartReaction]> {
         guard let sqlite = req.db as? SQLiteDatabase else {
             return req.eventLoop.makeSucceededFuture([])
