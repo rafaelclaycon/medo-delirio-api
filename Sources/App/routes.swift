@@ -43,17 +43,17 @@ func routes(_ app: Application) throws {
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
+    app.get(api, v4, "money-info", use: askForMoneyController.getMoneyInfoHandlerV4)
     app.post(api, v1, "display-ask-for-money-view", use: askForMoneyController.postDisplayAskForMoneyViewHandlerV1)
     app.post(api, v2, "set-test-version", use: askForMoneyController.postSetTestVersionHandlerV2)
-    
+    app.post(api, v4, "money-info", ":password", use: askForMoneyController.postMoneyInfoHandlerV4)
+
     let donorsController = DonorsController()
-    app.get(api, v2, "donor-names", use: donorsController.getDonorNamesHandlerV2)
     app.get(api, v3, "donor-names", use: donorsController.getDonorNamesHandlerV3)
     app.get(api, v3, "display-recurring-donation-banner", use: donorsController.getDisplayRecurringDonationBannerHandlerV3)
-    app.post(api, v2, "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV2)
     app.post(api, v3, "set-donor-names", ":password", use: donorsController.postSetDonorNamesHandlerV3)
     app.post(api, v3, "display-recurring-donation-banner", use: donorsController.postSetDisplayRecurringDonationBannerHandlerV3)
-    
+
     let clientLoggingController = ClientLoggingController()
     app.post(api, v1, "client-device-info", use: clientLoggingController.postClientDeviceInfoHandlerV1)
     app.post(api, v1, "user-folder-logs", use: clientLoggingController.postUserFolderLogsHandlerV1)
@@ -138,8 +138,8 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "fix-song-stats", use: housekeepingController.postFixSongStatsHandlerV4)
 
     let dynamicBannerController = DynamicBannerController()
-    app.post(api, v4, "set-dynamic-banner-dont-show-version", use: dynamicBannerController.postSetBannerDontShowVersionHandlerV4)
-    app.post(api, v4, "dynamic-banner", ":password", use: dynamicBannerController.postSetBannerDataHandlerV4)
     app.get(api, v4, "dynamic-banner-dont-show-version", use: dynamicBannerController.getBannerDontShowVersionHandlerV4)
     app.get(api, v4, "dynamic-banner", use: dynamicBannerController.getBannerDataHandlerV4)
+    app.post(api, v4, "set-dynamic-banner-dont-show-version", use: dynamicBannerController.postSetBannerDontShowVersionHandlerV4)
+    app.post(api, v4, "dynamic-banner", ":password", use: dynamicBannerController.postSetBannerDataHandlerV4)
 }

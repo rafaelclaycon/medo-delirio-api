@@ -8,13 +8,7 @@
 import Vapor
 
 struct DonorsController {
-    func getDonorNamesHandlerV2(req: Request) throws -> String {
-        guard let value = UserDefaults.standard.object(forKey: "donor-names") else {
-            throw Abort(.notFound)
-        }
-        return String(value as! String)
-    }
-    
+
     func getDonorNamesHandlerV3(req: Request) throws -> [Donor] {
         guard let rawInputString = UserDefaults.standard.object(forKey: "donors") as? String else {
             throw Abort(.notFound)
@@ -35,22 +29,7 @@ struct DonorsController {
         }
         return String(value as! String)
     }
-    
-    func postSetDonorNamesHandlerV2(req: Request) throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
-            return .forbidden
-        }
-        let newValue = try req.content.decode(String.self)
-        guard newValue.isEmpty == false else {
-            return HTTPStatus.badRequest
-        }
-        UserDefaults.standard.set(newValue, forKey: "donor-names")
-        return .ok
-    }
-    
+
     func postSetDonorNamesHandlerV3(req: Request) throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
