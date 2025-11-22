@@ -254,6 +254,66 @@ struct StatisticsController {
         }
     }
 
+    func getActiveUsersCountFromHandlerV3(req: Request) throws -> EventLoopFuture<ActiveUsersResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                SELECT COUNT(DISTINCT installId) as activeUsersCount
+                FROM StillAliveSignal
+                WHERE dateTime >= '\(date)'
+            """
+
+            return sqlite.query(query).flatMapThrowing { rows in
+                guard let row = rows.first else {
+                    return ActiveUsersResponse(activeUsers: 0, date: date)
+                }
+                let count = row.column("activeUsersCount")?.integer ?? 0
+                return ActiveUsersResponse(activeUsers: count, date: date)
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture(ActiveUsersResponse(activeUsers: 0, date: date))
+        }
+    }
+
+    func getSessionsCountFromHandlerV3(req: Request) throws -> EventLoopFuture<SessionsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                SELECT COUNT(*) as sessionsCount
+                FROM StillAliveSignal
+                WHERE dateTime >= '\(date)'
+            """
+
+            return sqlite.query(query).flatMapThrowing { rows in
+                guard let row = rows.first else {
+                    return SessionsResponse(sessionsCount: 0, date: date)
+                }
+                let count = row.column("sessionsCount")?.integer ?? 0
+                return SessionsResponse(sessionsCount: count, date: date)
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture(SessionsResponse(sessionsCount: 0, date: date))
+        }
+    }
+
     // MARK: - POST
 
     func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
