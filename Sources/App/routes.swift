@@ -30,6 +30,7 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "sound-share-count-stats-for", ":soundId", use: statisticsController.getSoundShareCountStatsForSoundIdHandler)
     app.get(api, v3, "active-users-count-from", ":date", ":password", use: statisticsController.getActiveUsersCountFromHandlerV3)
     app.get(api, v3, "sessions-count-from", ":date", ":password", use: statisticsController.getSessionsCountFromHandlerV3)
+    app.get(api, v4, "retro2025-share-count", ":date", use: statisticsController.getRetro2025ShareCountHandlerV4)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
 
@@ -41,6 +42,20 @@ func routes(_ app: Application) throws {
     // Reactions
     app.get(api, v3, "reaction-popularity-stats", use: statisticsController.getReactionPopularityStatsHandlerV3)
     app.get(api, v4, "top-3-reactions", use: statisticsController.getTop3ReactionsHandlerV4)
+    
+    // Retro2025 Statistics - Daily
+    app.get(api, v4, "retro2025-dashboard", ":date", use: statisticsController.getRetro2025DashboardHandlerV4)
+    app.get(api, v4, "retro2025-top-sounds", ":date", use: statisticsController.getRetro2025TopSoundsHandlerV4)
+    app.get(api, v4, "retro2025-top-authors", ":date", use: statisticsController.getRetro2025TopAuthorsHandlerV4)
+    app.get(api, v4, "retro2025-day-patterns", ":date", use: statisticsController.getRetro2025DayPatternsHandlerV4)
+    app.get(api, v4, "retro2025-user-stats", ":date", use: statisticsController.getRetro2025UserStatsHandlerV4)
+    
+    // Retro2025 Statistics - Date Range
+    app.get(api, v4, "retro2025-dashboard-range", ":startDate", ":endDate", use: statisticsController.getRetro2025DashboardRangeHandlerV4)
+    app.get(api, v4, "retro2025-top-sounds-range", ":startDate", ":endDate", use: statisticsController.getRetro2025TopSoundsRangeHandlerV4)
+    app.get(api, v4, "retro2025-top-authors-range", ":startDate", ":endDate", use: statisticsController.getRetro2025TopAuthorsRangeHandlerV4)
+    app.get(api, v4, "retro2025-day-patterns-range", ":startDate", ":endDate", use: statisticsController.getRetro2025DayPatternsRangeHandlerV4)
+    app.get(api, v4, "retro2025-user-stats-range", ":startDate", ":endDate", use: statisticsController.getRetro2025UserStatsRangeHandlerV4)
 
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
