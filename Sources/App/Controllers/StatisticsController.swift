@@ -315,6 +315,65 @@ struct StatisticsController {
         }
     }
 
+    func getActiveUsersDailyLast30DaysHandlerV3(req: Request) throws -> EventLoopFuture<[DailyActiveUsersResponse]> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        // Generate array of last 30 dates (from 30 days ago to today, inclusive)
+        let calendar = Calendar.current
+        let today = Date()
+        var dates: [String] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+        
+        for i in 0..<30 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
+                dates.append(dateFormatter.string(from: date))
+            }
+        }
+        
+        // Reverse to get oldest first (chronological order)
+        dates.reverse()
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            // Return array with 0 counts for all dates if not SQLite
+            return req.eventLoop.makeSucceededFuture(
+                dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
+            )
+        }
+
+        // Query each date and collect results
+        var futures: [EventLoopFuture<DailyActiveUsersResponse>] = []
+        
+        for dateString in dates {
+            let query = """
+                SELECT COUNT(DISTINCT installId) as activeUsersCount
+                FROM StillAliveSignal
+                WHERE date(dateTime) = date('\(dateString)')
+            """
+            
+            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
+                guard let row = rows.first else {
+                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
+                }
+                let count = row.column("activeUsersCount")?.integer ?? 0
+                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
+            }
+            
+            futures.append(future)
+        }
+        
+        // Wait for all queries to complete, then sort by date to ensure chronological order
+        return EventLoopFuture.whenAllSucceed(futures, on: req.eventLoop).map { results in
+            results.sorted { $0.date < $1.date }
+        }
+    }
+
     func getRetro2025ShareCountHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025ShareCountResponse> {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
@@ -1038,3 +1097,4 @@ extension StatisticsController {
         }
     }
 }
+
