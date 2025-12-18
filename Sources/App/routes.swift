@@ -30,6 +30,8 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "sound-share-count-stats-for", ":soundId", use: statisticsController.getSoundShareCountStatsForSoundIdHandler)
     app.get(api, v3, "active-users-count-from", ":date", ":password", use: statisticsController.getActiveUsersCountFromHandlerV3)
     app.get(api, v3, "active-users-daily-last-30-days", ":password", use: statisticsController.getActiveUsersDailyLast30DaysHandlerV3)
+    app.get(api, v3, "device-analytics", ":password", use: statisticsController.getDeviceAnalyticsHandlerV3)
+    app.get(api, v3, "navigation-analytics", ":password", use: statisticsController.getNavigationAnalyticsHandlerV3)
     app.get(api, v3, "sessions-count-from", ":date", ":password", use: statisticsController.getSessionsCountFromHandlerV3)
     app.get(api, v4, "retro2025-share-count", ":date", use: statisticsController.getRetro2025ShareCountHandlerV4)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)

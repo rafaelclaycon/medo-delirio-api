@@ -374,6 +374,255 @@ struct StatisticsController {
         }
     }
 
+    func getDeviceAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<DeviceAnalyticsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                DeviceAnalyticsResponse(
+                    top_ios_versions: [],
+                    top_device_models: [],
+                    top_device_types: [],
+                    top_timezones: [],
+                    total_timezones_count: 0
+                )
+            )
+        }
+
+        // Date filter for last 30 days
+        let dateFilter = "dateTime >= datetime('now', '-30 days')"
+
+        // Query 1: Top iOS Versions
+        let iosVersionsQuery = """
+            SELECT 
+                CAST(SUBSTR(systemVersion, 1, CASE 
+                    WHEN INSTR(systemVersion || '.', '.') > 0 
+                    THEN INSTR(systemVersion || '.', '.') - 1 
+                    ELSE LENGTH(systemVersion) 
+                END) AS TEXT) AS major_version,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE systemVersion IS NOT NULL AND systemVersion != ''
+              AND \(dateFilter)
+            GROUP BY major_version
+            ORDER BY count DESC
+        """
+
+        // Query 2: Top Device Models
+        let deviceModelsQuery = """
+            SELECT 
+                modelName AS model_name,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE modelName IS NOT NULL AND modelName != ''
+              AND \(dateFilter)
+            GROUP BY modelName
+            ORDER BY count DESC
+            LIMIT 10
+        """
+
+        // Query 3: Top Device Types
+        let deviceTypesQuery = """
+            SELECT 
+                CASE 
+                    WHEN isiOSAppOnMac = 1 THEN 'Mac'
+                    WHEN systemName = 'iPadOS' THEN 'iPad'
+                    WHEN systemName = 'iOS' THEN 'iPhone'
+                    ELSE NULL
+                END AS device_type,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE (\(dateFilter))
+              AND ((isiOSAppOnMac = 1) 
+               OR (systemName = 'iPadOS')
+               OR (systemName = 'iOS'))
+            GROUP BY device_type
+            ORDER BY count DESC
+        """
+
+        // Query 4: Top Timezones
+        let timezonesQuery = """
+            SELECT 
+                currentTimeZone AS timezone,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE currentTimeZone IS NOT NULL 
+              AND currentTimeZone != ''
+              AND \(dateFilter)
+            GROUP BY currentTimeZone
+            ORDER BY count DESC
+            LIMIT 10
+        """
+
+        // Query 5: Total Timezones Count
+        let totalTimezonesQuery = """
+            SELECT COUNT(DISTINCT installId) AS total_timezones_count
+            FROM StillAliveSignal
+            WHERE currentTimeZone IS NOT NULL 
+              AND currentTimeZone != ''
+              AND \(dateFilter)
+        """
+
+        let iosVersionsFuture = sqlite.query(iosVersionsQuery).flatMapThrowing { rows -> [DeviceAnalyticsIOSVersion] in
+            rows.map { row in
+                let majorVersion = row.column("major_version")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                return DeviceAnalyticsIOSVersion(
+                    id: majorVersion,
+                    major_version: majorVersion,
+                    count: count
+                )
+            }
+        }
+
+        let deviceModelsFuture = sqlite.query(deviceModelsQuery).flatMapThrowing { rows -> [DeviceAnalyticsDeviceModel] in
+            rows.map { row in
+                let modelName = row.column("model_name")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                return DeviceAnalyticsDeviceModel(
+                    id: modelName,
+                    model_name: modelName,
+                    count: count
+                )
+            }
+        }
+
+        let deviceTypesFuture = sqlite.query(deviceTypesQuery).flatMapThrowing { rows -> [DeviceAnalyticsDeviceType] in
+            rows.map { row in
+                let deviceType = row.column("device_type")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                return DeviceAnalyticsDeviceType(
+                    id: deviceType,
+                    device_type: deviceType,
+                    count: count
+                )
+            }
+        }
+
+        let timezonesFuture = sqlite.query(timezonesQuery).flatMapThrowing { rows -> [DeviceAnalyticsTimezone] in
+            rows.map { row in
+                let timezone = row.column("timezone")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                return DeviceAnalyticsTimezone(
+                    id: timezone,
+                    timezone: timezone,
+                    count: count
+                )
+            }
+        }
+
+        let totalTimezonesFuture = sqlite.query(totalTimezonesQuery).flatMapThrowing { rows -> Int in
+            guard let row = rows.first else {
+                return 0
+            }
+            return row.column("total_timezones_count")?.integer ?? 0
+        }
+
+        // Execute all queries in parallel and combine results
+        return iosVersionsFuture.and(deviceModelsFuture).and(deviceTypesFuture).and(timezonesFuture).and(totalTimezonesFuture)
+            .flatMapThrowing { results in
+                let iosVersions = results.0.0.0.0
+                let deviceModels = results.0.0.0.1
+                let deviceTypes = results.0.0.1
+                let timezones = results.0.1
+                let totalTimezones = results.1
+                
+                return DeviceAnalyticsResponse(
+                    top_ios_versions: iosVersions,
+                    top_device_models: deviceModels,
+                    top_device_types: deviceTypes,
+                    top_timezones: timezones,
+                    total_timezones_count: totalTimezones
+                )
+            }
+    }
+
+    func getNavigationAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<NavigationAnalyticsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                NavigationAnalyticsResponse(
+                    top_screens: [],
+                    total_views: 0
+                )
+            )
+        }
+
+        // Date filter for last 30 days
+        let dateFilter = "dateTime >= datetime('now', '-30 days')"
+
+        // Query 1: Top Screens with Reactions grouping
+        let screensQuery = """
+            SELECT 
+                CASE 
+                    WHEN destinationScreen LIKE 'didViewReaction%' AND destinationScreen != 'didViewReactionsTab' THEN 'didViewSpecificReaction'
+                    WHEN destinationScreen LIKE 'didAddManySoundsToFavorites%' THEN 'didAddManySoundsToFavorites'
+                    WHEN destinationScreen LIKE 'didPlayRandomSound%' THEN 'didPlayRandomSound'
+                    WHEN destinationScreen LIKE 'pinnedReaction%' THEN 'pinnedReaction'
+                    ELSE destinationScreen
+                END AS screen_name,
+                COUNT(*) AS view_count
+            FROM UsageMetric
+            WHERE \(dateFilter)
+              AND destinationScreen IS NOT NULL
+              AND destinationScreen != ''
+              AND LOWER(originatingScreen) NOT LIKE '%retro%'
+            GROUP BY screen_name
+            ORDER BY view_count DESC
+        """
+
+        // Query 2: Total Views
+        let totalViewsQuery = """
+            SELECT COUNT(*) AS total_views
+            FROM UsageMetric
+            WHERE \(dateFilter)
+              AND destinationScreen IS NOT NULL
+              AND destinationScreen != ''
+              AND LOWER(originatingScreen) NOT LIKE '%retro%'
+        """
+
+        let screensFuture = sqlite.query(screensQuery).flatMapThrowing { rows -> [NavigationAnalyticsScreen] in
+            rows.map { row in
+                let screenName = row.column("screen_name")?.string ?? ""
+                let viewCount = row.column("view_count")?.integer ?? 0
+                return NavigationAnalyticsScreen(
+                    id: screenName,
+                    screen_name: screenName,
+                    view_count: viewCount
+                )
+            }
+        }
+
+        let totalViewsFuture = sqlite.query(totalViewsQuery).flatMapThrowing { rows -> Int in
+            guard let row = rows.first else {
+                return 0
+            }
+            return row.column("total_views")?.integer ?? 0
+        }
+
+        // Execute both queries in parallel and combine results
+        return screensFuture.and(totalViewsFuture)
+            .flatMapThrowing { results in
+                let (screens, totalViews) = results
+                
+                return NavigationAnalyticsResponse(
+                    top_screens: screens,
+                    total_views: totalViews
+                )
+            }
+    }
+
     func getRetro2025ShareCountHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025ShareCountResponse> {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
