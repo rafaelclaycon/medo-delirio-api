@@ -92,7 +92,17 @@ func routes(_ app: Application) throws {
 
         let devices = try await PushDevice.query(on: req.db).all()
         for device in devices {
-            _ = app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken)
+            do {
+                try await app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken).get()
+            } catch {
+                let errorDescription = String(describing: error).lowercased()
+                if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                    try? await device.delete(on: req.db)
+                    req.logger.info("Deleted invalid push token for device \(device.installId)")
+                } else {
+                    req.logger.error("Failed to send push to \(device.installId): \(error)")
+                }
+            }
             try await Task.sleep(nanoseconds: 500_000_000)
         }
         return .ok
