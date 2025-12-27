@@ -10,10 +10,19 @@ import APNS
 
 struct NotificationsController {
     
-    func postPushDeviceHandlerV1(req: Request) throws -> EventLoopFuture<PushDevice> {
-        let device = try req.content.decode(PushDevice.self)
-        return device.save(on: req.db).map {
-            device
+    func postPushDeviceHandlerV1(req: Request) async throws -> PushDevice {
+        let input = try req.content.decode(PushDevice.self)
+        
+        if let existingDevice = try await PushDevice.query(on: req.db)
+            .filter(\PushDevice.$installId, .equal, input.installId)
+            .first()
+        {
+            existingDevice.pushToken = input.pushToken
+            try await existingDevice.save(on: req.db)
+            return existingDevice
+        } else {
+            try await input.save(on: req.db)
+            return input
         }
     }
     

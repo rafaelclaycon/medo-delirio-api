@@ -43,6 +43,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateReaction())
     app.migrations.add(CreateReactionSound())
     app.migrations.add(AddImageAuthorAttributionToReaction())
+    app.migrations.add(AddUniqueConstraintToInstallId())
 //    app.migrations.add(CreatePushChannel())
 //    app.migrations.add(CreateDeviceChannel())
     
