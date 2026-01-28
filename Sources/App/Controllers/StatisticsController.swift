@@ -1347,3 +1347,238 @@ extension StatisticsController {
     }
 }
 
+// MARK: - Version Analytics
+
+extension StatisticsController {
+    
+    /// Validates that a date string is in YYYY-MM-DD format
+    private func isValidDateFormat(_ date: String) -> Bool {
+        let dateRegex = #"^\d{4}-\d{2}-\d{2}$"#
+        return date.range(of: dateRegex, options: .regularExpression) != nil
+    }
+    
+    /// Route 1: Hourly Version Data for a Day
+    /// GET /api/v4/version-signals-hourly/:date/:password
+    func getVersionSignalsHourlyHandlerV4(req: Request) throws -> EventLoopFuture<VersionSignalsHourlyResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+        guard isValidDateFormat(date) else {
+            throw Abort(.badRequest, reason: "Invalid date format. Use YYYY-MM-DD.")
+        }
+        
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                VersionSignalsHourlyResponse(date: date, hours: [], dayTotals: [])
+            )
+        }
+        
+        // Query for hourly breakdown (using parameterized date for safety)
+        let hourlyQuery = """
+            SELECT 
+                CAST(strftime('%H', "dateTime") AS INTEGER) as hour,
+                "appVersion",
+                COUNT(DISTINCT "installId") as unique_users,
+                COUNT(*) as signal_count
+            FROM "StillAliveSignal"
+            WHERE DATE("dateTime") = DATE('\(date)')
+            GROUP BY hour, "appVersion"
+            ORDER BY hour, unique_users DESC
+        """
+        
+        // Separate query for accurate day totals (true unique users per version)
+        let dayTotalsQuery = """
+            SELECT 
+                "appVersion",
+                COUNT(DISTINCT "installId") as unique_users
+            FROM "StillAliveSignal"
+            WHERE DATE("dateTime") = DATE('\(date)')
+            GROUP BY "appVersion"
+            ORDER BY unique_users DESC
+        """
+        
+        let hourlyFuture = sqlite.query(hourlyQuery)
+        let dayTotalsFuture = sqlite.query(dayTotalsQuery)
+        
+        return hourlyFuture.and(dayTotalsFuture).flatMapThrowing { hourlyRows, dayTotalsRows in
+            // Process hourly data
+            var hourlyData: [Int: [VersionSignal]] = [:]
+            
+            for row in hourlyRows {
+                let hour = row.column("hour")?.integer ?? 0
+                let appVersion = row.column("appVersion")?.string ?? ""
+                let uniqueUsers = row.column("unique_users")?.integer ?? 0
+                let signalCount = row.column("signal_count")?.integer ?? 0
+                
+                let versionSignal = VersionSignal(
+                    appVersion: appVersion,
+                    uniqueUsers: uniqueUsers,
+                    signalCount: signalCount
+                )
+                
+                hourlyData[hour, default: []].append(versionSignal)
+            }
+            
+            // Build hours array (0-23)
+            var hours: [HourlyVersionData] = []
+            for hour in 0...23 {
+                let versions = hourlyData[hour] ?? []
+                hours.append(HourlyVersionData(hour: hour, versions: versions))
+            }
+            
+            // Process day totals (true unique users per version for the entire day)
+            var versionUserCounts: [(String, Int)] = []
+            for row in dayTotalsRows {
+                let appVersion = row.column("appVersion")?.string ?? ""
+                let uniqueUsers = row.column("unique_users")?.integer ?? 0
+                versionUserCounts.append((appVersion, uniqueUsers))
+            }
+            
+            // Calculate percentages for day totals
+            let totalUsers = versionUserCounts.reduce(0) { $0 + $1.1 }
+            let dayTotals = versionUserCounts.map { version, users in
+                let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
+                return VersionTotal(
+                    appVersion: version,
+                    uniqueUsers: users,
+                    percentage: round(percentage * 10) / 10  // Round to 1 decimal
+                )
+            }
+            
+            return VersionSignalsHourlyResponse(
+                date: date,
+                hours: hours,
+                dayTotals: dayTotals
+            )
+        }
+    }
+    
+    /// Route 2: Daily Version Trend (last N days)
+    /// GET /api/v4/version-adoption-daily/:days/:password
+    func getVersionAdoptionDailyHandlerV4(req: Request) throws -> EventLoopFuture<VersionAdoptionDailyResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let daysString = req.parameters.get("days"), let days = Int(daysString) else {
+            throw Abort(.badRequest, reason: "Missing or invalid days parameter.")
+        }
+        guard days > 0 && days <= 365 else {
+            throw Abort(.badRequest, reason: "Days must be between 1 and 365.")
+        }
+        
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                VersionAdoptionDailyResponse(days: days, data: [])
+            )
+        }
+        
+        let query = """
+            SELECT 
+                DATE("dateTime") as date,
+                "appVersion",
+                COUNT(DISTINCT "installId") as unique_users
+            FROM "StillAliveSignal"
+            WHERE DATE("dateTime") >= DATE('now', 'utc', '-\(days) days')
+            GROUP BY date, "appVersion"
+            ORDER BY date, unique_users DESC
+        """
+        
+        return sqlite.query(query).flatMapThrowing { rows in
+            // Group by date
+            var dailyData: [String: [DailyVersionStat]] = [:]
+            
+            for row in rows {
+                let date = row.column("date")?.string ?? ""
+                let appVersion = row.column("appVersion")?.string ?? ""
+                let uniqueUsers = row.column("unique_users")?.integer ?? 0
+                
+                let stat = DailyVersionStat(
+                    appVersion: appVersion,
+                    uniqueUsers: uniqueUsers
+                )
+                
+                dailyData[date, default: []].append(stat)
+            }
+            
+            // Build sorted array of daily data
+            let data = dailyData.map { date, versions in
+                DailyVersionData(date: date, versions: versions)
+            }.sorted { $0.date < $1.date }
+            
+            return VersionAdoptionDailyResponse(days: days, data: data)
+        }
+    }
+    
+    /// Route 3: Current Version Distribution
+    /// GET /api/v4/version-distribution/:password
+    func getVersionDistributionHandlerV4(req: Request) throws -> EventLoopFuture<VersionDistributionResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(identifier: "UTC")
+            let today = dateFormatter.string(from: Date())
+            return req.eventLoop.makeSucceededFuture(
+                VersionDistributionResponse(date: today, versions: [], totalUsers: 0)
+            )
+        }
+        
+        let query = """
+            SELECT 
+                "appVersion",
+                COUNT(DISTINCT "installId") as unique_users
+            FROM "StillAliveSignal"
+            WHERE DATE("dateTime") = DATE('now', 'utc')
+            GROUP BY "appVersion"
+            ORDER BY unique_users DESC
+        """
+        
+        return sqlite.query(query).flatMapThrowing { rows in
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(identifier: "UTC")
+            let today = dateFormatter.string(from: Date())
+            
+            var versionCounts: [(String, Int)] = []
+            var totalUsers = 0
+            
+            for row in rows {
+                let appVersion = row.column("appVersion")?.string ?? ""
+                let uniqueUsers = row.column("unique_users")?.integer ?? 0
+                versionCounts.append((appVersion, uniqueUsers))
+                totalUsers += uniqueUsers
+            }
+            
+            let versions = versionCounts.map { version, users in
+                let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
+                return VersionDistributionStat(
+                    appVersion: version,
+                    uniqueUsers: users,
+                    percentage: round(percentage * 10) / 10  // Round to 1 decimal
+                )
+            }
+            
+            return VersionDistributionResponse(
+                date: today,
+                versions: versions,
+                totalUsers: totalUsers
+            )
+        }
+    }
+}
+
