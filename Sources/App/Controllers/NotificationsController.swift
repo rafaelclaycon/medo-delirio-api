@@ -26,11 +26,82 @@ struct NotificationsController {
         }
     }
     
-//    func postAddAllExistingDevicesToGeneralChannelHandlerV2(req: Request) throws -> HTTPStatus {
-//        PushDevice.query(on: req.db).all().flatMapEach(on: req.eventLoop) { device in
-//            let deviceChannel = try DeviceChannel(id: UUID(), device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(id: UUID(), channelId: "general"))
-//            try deviceChannel.save(on: req.db)
-//        }
-//        return HTTPStatus.ok
-//    }
+    struct ChannelSubscriptionRequest: Content {
+        let installId: String
+        let channelId: String
+    }
+
+    func postSubscribeChannelHandlerV4(req: Request) async throws -> HTTPStatus {
+        let input = try req.content.decode(ChannelSubscriptionRequest.self)
+
+        guard let device = try await PushDevice.query(on: req.db)
+            .filter(\PushDevice.$installId, .equal, input.installId)
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Device not found")
+        }
+
+        guard let channel = try await PushChannel.query(on: req.db)
+            .filter(\PushChannel.$channelId, .equal, input.channelId)
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Channel not found")
+        }
+
+        let existing = try await DeviceChannel.query(on: req.db)
+            .filter(\DeviceChannel.$device.$id, .equal, try device.requireID())
+            .filter(\DeviceChannel.$channel.$id, .equal, try channel.requireID())
+            .first()
+
+        if existing == nil {
+            let pivot = try DeviceChannel(device: device, channel: channel)
+            try await pivot.save(on: req.db)
+        }
+
+        return .ok
+    }
+
+    func postUnsubscribeChannelHandlerV4(req: Request) async throws -> HTTPStatus {
+        let input = try req.content.decode(ChannelSubscriptionRequest.self)
+
+        guard let device = try await PushDevice.query(on: req.db)
+            .filter(\PushDevice.$installId, .equal, input.installId)
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Device not found")
+        }
+
+        guard let channel = try await PushChannel.query(on: req.db)
+            .filter(\PushChannel.$channelId, .equal, input.channelId)
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Channel not found")
+        }
+
+        if let existing = try await DeviceChannel.query(on: req.db)
+            .filter(\DeviceChannel.$device.$id, .equal, try device.requireID())
+            .filter(\DeviceChannel.$channel.$id, .equal, try channel.requireID())
+            .first()
+        {
+            try await existing.delete(on: req.db)
+        }
+
+        return .ok
+    }
+
+    func getDeviceChannelsHandlerV4(req: Request) async throws -> [String] {
+        guard let installId = req.parameters.get("installId") else {
+            throw Abort(.badRequest, reason: "Missing installId")
+        }
+
+        guard let device = try await PushDevice.query(on: req.db)
+            .filter(\PushDevice.$installId, .equal, installId)
+            .with(\.$channels)
+            .first()
+        else {
+            throw Abort(.notFound, reason: "Device not found")
+        }
+
+        return device.channels.map { $0.channelId }
+    }
 }

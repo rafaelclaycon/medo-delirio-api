@@ -112,7 +112,9 @@ func routes(_ app: Application) throws {
         }
         return .ok
     }
-    //app.post(api, v2, "add-all-existing-devices-to-general-channel", use: notificationsController.postAddAllExistingDevicesToGeneralChannelHandlerV2)
+    app.post(api, v4, "subscribe-channel", use: notificationsController.postSubscribeChannelHandlerV4)
+    app.post(api, v4, "unsubscribe-channel", use: notificationsController.postUnsubscribeChannelHandlerV4)
+    app.get(api, v4, "device-channels", ":installId", use: notificationsController.getDeviceChannelsHandlerV4)
 
     let soundsController = SoundsController()
     app.post(api, v3, "import-sounds", ":password", use: soundsController.postImportSoundsHandlerV3)
