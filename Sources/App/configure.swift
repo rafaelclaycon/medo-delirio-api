@@ -44,6 +44,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateReactionSound())
     app.migrations.add(AddImageAuthorAttributionToReaction())
     app.migrations.add(AddUniqueConstraintToInstallId())
+    app.migrations.add(CreateLastKnownEpisode())
 //    app.migrations.add(CreatePushChannel())
 //    app.migrations.add(CreateDeviceChannel())
     
@@ -52,6 +53,8 @@ public func configure(_ app: Application) throws {
     try app.autoMigrate().wait()
     
     try routes(app)
+    
+    app.lifecycle.use(RSSPollingLifecycle())
     
     // Commented out just for development. Comment back in upon release.
     //try app.configurePush()

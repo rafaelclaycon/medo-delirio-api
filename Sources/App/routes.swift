@@ -172,6 +172,9 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "replace-device-model-name", ":password", ":oldName", ":newName", use: housekeepingController.postReplaceDeviceModelNameHandlerV4)
     app.post(api, v4, "fix-song-stats", use: housekeepingController.postFixSongStatsHandlerV4)
 
+    let rssStatusController = RSSStatusController()
+    app.get(api, v4, "rss-status", use: rssStatusController.getRSSStatusHandlerV4)
+
     let dynamicBannerController = DynamicBannerController()
     app.get(api, v4, "dynamic-banner-dont-show-version", use: dynamicBannerController.getBannerDontShowVersionHandlerV4)
     app.get(api, v4, "dynamic-banner", use: dynamicBannerController.getBannerDataHandlerV4)
