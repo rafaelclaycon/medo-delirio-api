@@ -13,6 +13,7 @@ struct CreatePushChannel: AsyncMigration {
         try await database.schema("PushChannel")
             .id()
             .field("channel_id", .string, .required)
+            .unique(on: "channel_id")
             .create()
         
         try await database.transaction { transaction in

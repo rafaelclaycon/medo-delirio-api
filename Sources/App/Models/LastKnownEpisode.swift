@@ -26,6 +26,15 @@ final class LastKnownEpisode: Model, Content {
     @OptionalField(key: "episodeChangedAt")
     var episodeChangedAt: Date?
 
+    @OptionalField(key: "lastNotificationSentCount")
+    var lastNotificationSentCount: Int?
+
+    @OptionalField(key: "lastNotifiedDeviceIds")
+    var lastNotifiedDeviceIds: String?
+
+    @OptionalField(key: "lastNotifiedAt")
+    var lastNotifiedAt: Date?
+
     init() { }
 
     init(
@@ -35,7 +44,10 @@ final class LastKnownEpisode: Model, Content {
         episodeTitle: String,
         checkCount: Int = 1,
         checkedAt: Date = Date(),
-        episodeChangedAt: Date? = nil
+        episodeChangedAt: Date? = nil,
+        lastNotificationSentCount: Int? = nil,
+        lastNotifiedDeviceIds: String? = nil,
+        lastNotifiedAt: Date? = nil
     ) {
         self.id = id
         self.feedURL = feedURL
@@ -44,5 +56,8 @@ final class LastKnownEpisode: Model, Content {
         self.checkCount = checkCount
         self.checkedAt = checkedAt
         self.episodeChangedAt = episodeChangedAt
+        self.lastNotificationSentCount = lastNotificationSentCount
+        self.lastNotifiedDeviceIds = lastNotifiedDeviceIds
+        self.lastNotifiedAt = lastNotifiedAt
     }
 }

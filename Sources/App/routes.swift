@@ -173,7 +173,8 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "fix-song-stats", use: housekeepingController.postFixSongStatsHandlerV4)
 
     let rssStatusController = RSSStatusController()
-    app.get(api, v4, "rss-status", use: rssStatusController.getRSSStatusHandlerV4)
+    app.get(api, v4, "rss-status", ":password", use: rssStatusController.getRSSStatusHandlerV4)
+    app.post(api, v4, "test-new-episode-push", ":password", use: rssStatusController.postTestNewEpisodePushHandlerV4)
 
     let dynamicBannerController = DynamicBannerController()
     app.get(api, v4, "dynamic-banner-dont-show-version", use: dynamicBannerController.getBannerDontShowVersionHandlerV4)

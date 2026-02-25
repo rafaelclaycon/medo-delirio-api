@@ -7,26 +7,33 @@
 
 import Foundation
 import JWTKit
+import Vapor
 
 struct ReleaseConfigs {
-    
-    struct Passwords {
-        
-        static let sendNotificationPassword = "total-real-password"
-        static let setDonorNamesPassword = "total-real-password-2"
-        static let assetOperationPassword = "total-real-password-3"
-        static let reactionsPassword = "total-real-password-5"
-        static let dynamicBannerPassword = "total-real-password-6"
-        static let analyticsPassword = "total-real-password-7"
+
+    private static func required(_ key: String) -> String {
+        guard let value = Environment.get(key) else {
+            fatalError("Missing required environment variable: \(key)")
+        }
+        return value
     }
-    
+
+    struct Passwords {
+        static let sendNotificationPassword = required("SEND_NOTIFICATION_PASSWORD")
+        static let setDonorNamesPassword = required("SET_DONOR_NAMES_PASSWORD")
+        static let assetOperationPassword = required("ASSET_OPERATION_PASSWORD")
+        static let reactionsPassword = required("REACTIONS_PASSWORD")
+        static let dynamicBannerPassword = required("DYNAMIC_BANNER_PASSWORD")
+        static let analyticsPassword = required("ANALYTICS_PASSWORD")
+    }
+
     struct Push {
-        
-        static let appleECP8PrivateKey =
-        """
-        // Insert here your private push notification key generated at developer.apple.com > Account > Certificates, Identifiers & Profiles > Keys
-        """
-        static let keyIdentifier: JWKIdentifier = "" // Here goes the Key ID, also provided at developer.apple.com when you generate the key
-        static let teamIdentifier = "" // Here goes the Team ID, which can be found below your account name on developer.apple.com (or just Google it)
+        static let appleECP8PrivateKey: String = {
+            let raw = required("APNS_PRIVATE_KEY")
+            return raw.replacingOccurrences(of: "\\n", with: "\n")
+        }()
+        static let keyIdentifier: JWKIdentifier = .init(string: required("APNS_KEY_IDENTIFIER"))
+        static let teamIdentifier = required("APNS_TEAM_IDENTIFIER")
+        static let topic = required("APNS_TOPIC")
     }
 }

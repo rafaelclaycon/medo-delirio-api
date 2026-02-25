@@ -1,4 +1,5 @@
 import Vapor
+import APNS
 import FeedKit
 
 struct RSSPollingService {
@@ -66,7 +67,10 @@ struct RSSPollingService {
                         existing.episodeGUID = guid
                         existing.episodeTitle = title
                         existing.episodeChangedAt = Date()
-                        // TODO: Send APNS notification here
+                        let result = await sendNewEpisodeNotifications(title: title)
+                        existing.lastNotificationSentCount = result.sentCount
+                        existing.lastNotifiedDeviceIds = result.deviceIds.joined(separator: ",")
+                        existing.lastNotifiedAt = Date()
                     }
                 } else {
                     app.logger.info("RSS poll: no new episode (latest: \"\(existing.episodeTitle)\")")
@@ -84,6 +88,57 @@ struct RSSPollingService {
             }
         } catch {
             app.logger.error("RSS poll: database error - \(error)")
+        }
+    }
+
+    func sendNewEpisodeNotifications(title: String) async -> (sentCount: Int, deviceIds: [String]) {
+        let db = app.db
+
+        do {
+            guard let channel = try await PushChannel.query(on: db)
+                .filter(\PushChannel.$channelId, .equal, "new_episodes")
+                .with(\.$devices)
+                .first()
+            else {
+                app.logger.warning("RSS poll: 'new_episodes' channel not found — skipping notifications")
+                return (0, [])
+            }
+
+            let devices = channel.devices
+            guard !devices.isEmpty else {
+                app.logger.info("RSS poll: no devices subscribed to 'new_episodes' — skipping notifications")
+                return (0, [])
+            }
+
+            let notification = TypedNotification(
+                aps: .init(alert: .init(title: "Novo Episódio", body: "\"\(title)\" já disponível.")),
+                type: "new_episode"
+            )
+
+            var sentCount = 0
+            var sentDeviceIds: [String] = []
+            for device in devices {
+                do {
+                    try await app.apns.send(notification, to: device.pushToken).get()
+                    sentCount += 1
+                    sentDeviceIds.append(device.installId)
+                } catch {
+                    let errorDescription = String(describing: error).lowercased()
+                    if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                        try? await device.delete(on: db)
+                        app.logger.info("RSS poll: deleted invalid push token for device \(device.installId)")
+                    } else {
+                        app.logger.error("RSS poll: failed to send push to \(device.installId): \(error)")
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+
+            app.logger.info("RSS poll: sent \(sentCount)/\(devices.count) new episode notifications")
+            return (sentCount, sentDeviceIds)
+        } catch {
+            app.logger.error("RSS poll: failed to query new_episodes channel - \(error)")
+            return (0, [])
         }
     }
 }

@@ -1,10 +1,3 @@
-//
-//  CreateDeviceChannel.swift
-//  medo-delirio-api
-//
-//  Created by Rafael Claycon Schmitt on 19/12/22.
-//
-
 import Fluent
 
 struct CreateDeviceChannel: AsyncMigration {
@@ -12,20 +5,13 @@ struct CreateDeviceChannel: AsyncMigration {
     func prepare(on database: Database) async throws {
         try await database.schema("PushDevice+PushChannel")
             .id()
-            .field("installId", .string, .required)
-            .field("channel_id", .string, .required)
-            .unique(on: "installId", "channel_id")
+            .field("deviceId", .uuid, .required, .references("PushDevice", "id", onDelete: .cascade))
+            .field("channelId", .uuid, .required, .references("PushChannel", "id", onDelete: .cascade))
+            .unique(on: "deviceId", "channelId")
             .create()
-        
-        //try await PushDevice.query(on: database).all().compactMap { device in
-//            let deviceChannel = try DeviceChannel(device: PushDevice(installId: device.installId, pushToken: device.pushToken), channel: PushChannel(channelId: "general"))
-//            deviceChannel.save(on: database)
-            //print(device.installId)
-        //}
     }
-    
+
     func revert(on database: Database) async throws {
         try await database.schema("PushDevice+PushChannel").delete()
     }
-
 }

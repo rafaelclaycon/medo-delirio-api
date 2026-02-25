@@ -45,8 +45,9 @@ public func configure(_ app: Application) throws {
     app.migrations.add(AddImageAuthorAttributionToReaction())
     app.migrations.add(AddUniqueConstraintToInstallId())
     app.migrations.add(CreateLastKnownEpisode())
-//    app.migrations.add(CreatePushChannel())
-//    app.migrations.add(CreateDeviceChannel())
+    app.migrations.add(CreatePushChannel())
+    app.migrations.add(CreateDeviceChannel())
+    app.migrations.add(AddNotificationTrackingToLastKnownEpisode())
     
     app.logger.logLevel = .debug
     
@@ -56,6 +57,5 @@ public func configure(_ app: Application) throws {
     
     app.lifecycle.use(RSSPollingLifecycle())
     
-    // Commented out just for development. Comment back in upon release.
-    //try app.configurePush()
+    try app.configurePush()
 }
