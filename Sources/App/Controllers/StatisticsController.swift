@@ -1580,5 +1580,117 @@ extension StatisticsController {
             )
         }
     }
+
+    // MARK: - Episode Analytics
+
+    func getEpisodeAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<EpisodeAnalyticsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        var dates: [String] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        for i in 0..<30 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
+                dates.append(dateFormatter.string(from: date))
+            }
+        }
+
+        dates.reverse()
+
+        let episodeFilter = """
+            (destinationScreen LIKE 'didPlayEpisode%'
+             OR destinationScreen = 'didViewEpisodesScreen'
+             OR destinationScreen LIKE 'didAddBookmarkToEpisode%')
+            """
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            let emptyDaily = dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
+            return req.eventLoop.makeSucceededFuture(
+                EpisodeAnalyticsResponse(
+                    dailyUniqueUsers: emptyDaily,
+                    totalUniqueUsers: 0,
+                    usersWhoPlayed: 0,
+                    usersWhoBookmarked: 0,
+                    averagePlaysPerUser: 0,
+                    averageBookmarksPerUser: 0
+                )
+            )
+        }
+
+        var dailyFutures: [EventLoopFuture<DailyActiveUsersResponse>] = []
+
+        for dateString in dates {
+            let query = """
+                SELECT COUNT(DISTINCT customInstallId) as activeUsersCount
+                FROM UsageMetric
+                WHERE date(dateTime) = date('\(dateString)')
+                  AND \(episodeFilter)
+                """
+
+            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
+                guard let row = rows.first else {
+                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
+                }
+                let count = row.column("activeUsersCount")?.integer ?? 0
+                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
+            }
+
+            dailyFutures.append(future)
+        }
+
+        let aggregateQuery = """
+            SELECT
+              COUNT(DISTINCT customInstallId) as totalUniqueUsers,
+              COUNT(DISTINCT CASE WHEN destinationScreen LIKE 'didPlayEpisode%' THEN customInstallId END) as usersWhoPlayed,
+              COUNT(DISTINCT CASE WHEN destinationScreen LIKE 'didAddBookmarkToEpisode%' THEN customInstallId END) as usersWhoBookmarked,
+              SUM(CASE WHEN destinationScreen LIKE 'didPlayEpisode%' THEN 1 ELSE 0 END) as totalPlays,
+              SUM(CASE WHEN destinationScreen LIKE 'didAddBookmarkToEpisode%' THEN 1 ELSE 0 END) as totalBookmarks
+            FROM UsageMetric
+            WHERE dateTime >= datetime('now', '-30 days')
+              AND \(episodeFilter)
+            """
+
+        let aggregateFuture = sqlite.query(aggregateQuery)
+
+        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
+            results.sorted { $0.date < $1.date }
+        }
+
+        return dailyResultsFuture.and(aggregateFuture).flatMapThrowing { dailyResults, aggregateRows in
+            let row = aggregateRows.first
+
+            let totalUniqueUsers = row?.column("totalUniqueUsers")?.integer ?? 0
+            let usersWhoPlayed = row?.column("usersWhoPlayed")?.integer ?? 0
+            let usersWhoBookmarked = row?.column("usersWhoBookmarked")?.integer ?? 0
+            let totalPlays = row?.column("totalPlays")?.integer ?? 0
+            let totalBookmarks = row?.column("totalBookmarks")?.integer ?? 0
+
+            let averagePlaysPerUser = usersWhoPlayed > 0
+                ? Double(totalPlays) / Double(usersWhoPlayed)
+                : 0.0
+
+            let averageBookmarksPerUser = usersWhoBookmarked > 0
+                ? Double(totalBookmarks) / Double(usersWhoBookmarked)
+                : 0.0
+
+            return EpisodeAnalyticsResponse(
+                dailyUniqueUsers: dailyResults,
+                totalUniqueUsers: totalUniqueUsers,
+                usersWhoPlayed: usersWhoPlayed,
+                usersWhoBookmarked: usersWhoBookmarked,
+                averagePlaysPerUser: averagePlaysPerUser,
+                averageBookmarksPerUser: averageBookmarksPerUser
+            )
+        }
+    }
 }
 

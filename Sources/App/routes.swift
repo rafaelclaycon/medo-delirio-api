@@ -65,6 +65,9 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "version-adoption-daily", ":days", ":password", use: statisticsController.getVersionAdoptionDailyHandlerV4)
     app.get(api, v4, "version-distribution", ":password", use: statisticsController.getVersionDistributionHandlerV4)
 
+    // Episode Analytics
+    app.get(api, v4, "episode-analytics", ":password", use: statisticsController.getEpisodeAnalyticsHandlerV4)
+
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
