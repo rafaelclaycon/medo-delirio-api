@@ -41,7 +41,7 @@ This is an API built for the [Medo e Delírio iOS app](https://github.com/rafael
 
 ## 🚧 Work in Progress 🚧
 
-This project does not use random access tokens or any other client-server communication security measure. This is a small project coded by just me (a mostly front-end person) and no personal life-threatening information is sent back and forth. I do plan on adding HTTPS support in the near future.
+This project does not use random access tokens. This is a small project coded by just me (a mostly front-end person) and no personal life-threatening information is sent back and forth. Since February 2026, nginx is used as a reverse proxy to handle HTTPS.
 
 That said, if you want to help make this better, you're more than welcome to do so by opening a pull request (let's see some code!).
 
