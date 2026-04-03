@@ -11,6 +11,25 @@ import Foundation
 
 struct StatisticsController {
 
+    // MARK: - Shared SQL Fragments
+
+    private static let majorVersionExpr = """
+        CAST(SUBSTR(systemVersion, 1, CASE
+            WHEN INSTR(systemVersion || '.', '.') > 0
+            THEN INSTR(systemVersion || '.', '.') - 1
+            ELSE LENGTH(systemVersion)
+        END) AS TEXT)
+    """
+
+    private static let totalUniqueInstallsByMonthQuery = """
+        SELECT
+            SUBSTR(dateTime, 1, 7) AS month,
+            COUNT(DISTINCT installId) AS total
+        FROM StillAliveSignal
+        GROUP BY month
+        ORDER BY month ASC
+    """
+
     // MARK: - GET
 
     func getAllClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
@@ -400,11 +419,7 @@ struct StatisticsController {
         // Query 1: Top iOS Versions
         let iosVersionsQuery = """
             SELECT 
-                CAST(SUBSTR(systemVersion, 1, CASE 
-                    WHEN INSTR(systemVersion || '.', '.') > 0 
-                    THEN INSTR(systemVersion || '.', '.') - 1 
-                    ELSE LENGTH(systemVersion) 
-                END) AS TEXT) AS major_version,
+                \(Self.majorVersionExpr) AS major_version,
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
             WHERE systemVersion IS NOT NULL AND systemVersion != ''
@@ -540,6 +555,238 @@ struct StatisticsController {
                     total_timezones_count: totalTimezones
                 )
             }
+    }
+
+    func getDeviceModelHistoryHandlerV3(req: Request) throws -> EventLoopFuture<DeviceModelHistoryResponse> {
+        guard let modelName = req.parameters.get("modelName") else {
+            throw Abort(.internalServerError)
+        }
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                DeviceModelHistoryResponse(model_name: modelName, history: [])
+            )
+        }
+
+        let modelCountsQuery = """
+            SELECT
+                SUBSTR(dateTime, 1, 7) AS month,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE modelName = ?
+            GROUP BY month
+            ORDER BY month ASC
+        """
+
+        let modelCountsFuture = sqlite.query(modelCountsQuery, [SQLiteData.text(modelName)]).flatMapThrowing { rows -> [String: Int] in
+            var dict: [String: Int] = [:]
+            for row in rows {
+                let month = row.column("month")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                dict[month] = count
+            }
+            return dict
+        }
+
+        let totalsFuture = sqlite.query(Self.totalUniqueInstallsByMonthQuery).flatMapThrowing { rows -> [(String, Int)] in
+            rows.compactMap { row -> (String, Int)? in
+                guard let month = row.column("month")?.string else { return nil }
+                let total = row.column("total")?.integer ?? 0
+                return (month, total)
+            }
+        }
+
+        return modelCountsFuture.and(totalsFuture).flatMapThrowing { countsByMonth, totalsByMonth in
+            let history = totalsByMonth.map { month, total in
+                DeviceModelMonthlyCount(
+                    month: month,
+                    count: countsByMonth[month] ?? 0,
+                    total: total
+                )
+            }
+            return DeviceModelHistoryResponse(model_name: modelName, history: history)
+        }
+    }
+
+    func getAllDeviceModelNamesHandlerV3(req: Request) throws -> EventLoopFuture<[String]> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+
+        let query = """
+            SELECT DISTINCT modelName
+            FROM StillAliveSignal
+            WHERE modelName IS NOT NULL AND modelName != ''
+            ORDER BY modelName ASC
+        """
+
+        return sqlite.query(query).flatMapThrowing { rows -> [String] in
+            rows.compactMap { $0.column("modelName")?.string }
+        }
+    }
+
+    func getIOSVersionHistoryHandlerV3(req: Request) throws -> EventLoopFuture<IOSVersionHistoryResponse> {
+        guard let majorVersion = req.parameters.get("majorVersion") else {
+            throw Abort(.internalServerError)
+        }
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                IOSVersionHistoryResponse(major_version: majorVersion, history: [])
+            )
+        }
+
+        let versionCountsQuery = """
+            SELECT
+                SUBSTR(dateTime, 1, 7) AS month,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE \(Self.majorVersionExpr) = ?
+            GROUP BY month
+            ORDER BY month ASC
+        """
+
+        let versionCountsFuture = sqlite.query(versionCountsQuery, [SQLiteData.text(majorVersion)]).flatMapThrowing { rows -> [String: Int] in
+            var dict: [String: Int] = [:]
+            for row in rows {
+                let month = row.column("month")?.string ?? ""
+                let count = row.column("count")?.integer ?? 0
+                dict[month] = count
+            }
+            return dict
+        }
+
+        let totalsFuture = sqlite.query(Self.totalUniqueInstallsByMonthQuery).flatMapThrowing { rows -> [(String, Int)] in
+            rows.compactMap { row -> (String, Int)? in
+                guard let month = row.column("month")?.string else { return nil }
+                let total = row.column("total")?.integer ?? 0
+                return (month, total)
+            }
+        }
+
+        return versionCountsFuture.and(totalsFuture).flatMapThrowing { countsByMonth, totalsByMonth in
+            let history = totalsByMonth.map { month, total in
+                IOSVersionMonthlyCount(
+                    month: month,
+                    count: countsByMonth[month] ?? 0,
+                    total: total
+                )
+            }
+            return IOSVersionHistoryResponse(major_version: majorVersion, history: history)
+        }
+    }
+
+    func getAllIOSVersionsHandlerV3(req: Request) throws -> EventLoopFuture<[String]> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+
+        let query = """
+            SELECT DISTINCT \(Self.majorVersionExpr) AS major_version
+            FROM StillAliveSignal
+            WHERE systemVersion IS NOT NULL AND systemVersion != ''
+            ORDER BY CAST(major_version AS INTEGER) ASC
+        """
+
+        return sqlite.query(query).flatMapThrowing { rows -> [String] in
+            rows.compactMap { $0.column("major_version")?.string }
+        }
+    }
+
+    func getIOSVersionDeviceBreakdownHandlerV3(req: Request) throws -> EventLoopFuture<IOSVersionDeviceBreakdownResponse> {
+        guard let majorVersion = req.parameters.get("majorVersion") else {
+            throw Abort(.internalServerError)
+        }
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture(
+                IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: [])
+            )
+        }
+
+        let allMonthsQuery = """
+            SELECT DISTINCT SUBSTR(dateTime, 1, 7) AS month
+            FROM StillAliveSignal
+            ORDER BY month ASC
+        """
+
+        let deviceCountsQuery = """
+            SELECT
+                modelName AS model_name,
+                SUBSTR(dateTime, 1, 7) AS month,
+                COUNT(DISTINCT installId) AS count
+            FROM StillAliveSignal
+            WHERE \(Self.majorVersionExpr) = ?
+            GROUP BY model_name, month
+            ORDER BY model_name, month ASC
+        """
+
+        let allMonthsFuture = sqlite.query(allMonthsQuery).flatMapThrowing { rows -> [String] in
+            rows.compactMap { $0.column("month")?.string }
+        }
+
+        let deviceCountsFuture = sqlite.query(deviceCountsQuery, [SQLiteData.text(majorVersion)]).flatMapThrowing { rows -> [(String, String, Int)] in
+            rows.compactMap { row -> (String, String, Int)? in
+                guard let modelName = row.column("model_name")?.string,
+                      let month = row.column("month")?.string else { return nil }
+                let count = row.column("count")?.integer ?? 0
+                return (modelName, month, count)
+            }
+        }
+
+        return allMonthsFuture.and(deviceCountsFuture).flatMapThrowing { allMonths, deviceRows in
+            var modelData: [String: [String: Int]] = [:]
+            var modelTotals: [String: Int] = [:]
+
+            for (modelName, month, count) in deviceRows {
+                modelData[modelName, default: [:]][month] = count
+                modelTotals[modelName, default: 0] += count
+            }
+
+            let sortedModels = modelTotals.sorted { $0.value > $1.value }.map { $0.key }
+
+            let devices = sortedModels.map { modelName -> IOSVersionDeviceHistory in
+                let monthCounts = modelData[modelName] ?? [:]
+                let history = allMonths.map { month in
+                    IOSVersionDeviceMonthlyCount(month: month, count: monthCounts[month] ?? 0)
+                }
+                return IOSVersionDeviceHistory(model_name: modelName, history: history)
+            }
+
+            return IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: devices)
+        }
     }
 
     func getNavigationAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<NavigationAnalyticsResponse> {
