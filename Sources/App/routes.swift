@@ -105,8 +105,11 @@ func routes(_ app: Application) throws {
 
         let devices = try await PushDevice.query(on: req.db).all()
         for device in devices {
+            guard let token = device.pushToken, !token.isEmpty else {
+                continue
+            }
             do {
-                try await app.apns.send(.init(title: notif.title, body: notif.description), to: device.pushToken).get()
+                try await app.apns.send(.init(title: notif.title, body: notif.description), to: token).get()
             } catch {
                 let errorDescription = String(describing: error).lowercased()
                 if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {

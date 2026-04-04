@@ -18,15 +18,15 @@ final class PushDevice: Model, Content {
     @Field(key: "installId")
     var installId: String
     
-    @Field(key: "pushToken")
-    var pushToken: String
+    @OptionalField(key: "pushToken")
+    var pushToken: String?
     
     @Siblings(through: DeviceChannel.self, from: \.$device, to: \.$channel)
     public var channels: [PushChannel]
     
     init() { }
     
-    init(id: UUID? = nil, installId: String, pushToken: String) {
+    init(id: UUID? = nil, installId: String, pushToken: String? = nil) {
         self.id = id
         self.installId = installId
         self.pushToken = pushToken

@@ -48,6 +48,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreatePushChannel())
     app.migrations.add(CreateDeviceChannel())
     app.migrations.add(AddNotificationTrackingToLastKnownEpisode())
+    app.migrations.add(MakePushTokenOptional())
     
     app.logger.logLevel = .debug
     

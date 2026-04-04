@@ -118,8 +118,11 @@ struct RSSPollingService {
             var sentCount = 0
             var sentDeviceIds: [String] = []
             for device in devices {
+                guard let token = device.pushToken, !token.isEmpty else {
+                    continue
+                }
                 do {
-                    try await app.apns.send(notification, to: device.pushToken).get()
+                    try await app.apns.send(notification, to: token).get()
                     sentCount += 1
                     sentDeviceIds.append(device.installId)
                 } catch {

@@ -34,11 +34,16 @@ struct NotificationsController {
     func postSubscribeChannelHandlerV4(req: Request) async throws -> HTTPStatus {
         let input = try req.content.decode(ChannelSubscriptionRequest.self)
 
-        guard let device = try await PushDevice.query(on: req.db)
+        let device: PushDevice
+        if let existing = try await PushDevice.query(on: req.db)
             .filter(\PushDevice.$installId, .equal, input.installId)
             .first()
-        else {
-            throw Abort(.notFound, reason: "Device not found")
+        {
+            device = existing
+        } else {
+            let newDevice = PushDevice(installId: input.installId)
+            try await newDevice.save(on: req.db)
+            device = newDevice
         }
 
         guard let channel = try await PushChannel.query(on: req.db)
@@ -48,12 +53,12 @@ struct NotificationsController {
             throw Abort(.notFound, reason: "Channel not found")
         }
 
-        let existing = try await DeviceChannel.query(on: req.db)
+        let existingPivot = try await DeviceChannel.query(on: req.db)
             .filter(\DeviceChannel.$device.$id, .equal, try device.requireID())
             .filter(\DeviceChannel.$channel.$id, .equal, try channel.requireID())
             .first()
 
-        if existing == nil {
+        if existingPivot == nil {
             let pivot = try DeviceChannel(device: device, channel: channel)
             try await pivot.save(on: req.db)
         }
