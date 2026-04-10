@@ -56,7 +56,11 @@ public func configure(_ app: Application) throws {
     
     try routes(app)
     
-    app.lifecycle.use(RSSPollingLifecycle())
+    if Environment.get("RSS_POLLING_ENABLED")?.lowercased() == "true" {
+        app.lifecycle.use(RSSPollingLifecycle())
+    } else {
+        app.logger.info("RSS polling is disabled (RSS_POLLING_ENABLED != true)")
+    }
     
     try app.configurePush()
 }
