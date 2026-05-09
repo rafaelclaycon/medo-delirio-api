@@ -6,7 +6,8 @@
 //
 
 import Vapor
-import SQLiteNIO
+import Fluent
+import SQLKit
 
 struct HousekeepingController {
 
@@ -38,26 +39,51 @@ struct HousekeepingController {
         return .ok
     }
 
-    func postFixSongStatsHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let sqlite = req.db as? SQLiteDatabase else {
+    /// Idempotent repair: align `ShareCountStat.contentType` with `MedoContent` while preserving regular vs video shares.
+    func postRepairShareCountStatContentTypesHandlerV4(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.badRequest)
+        }
+        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let sql = req.db as? SQLDatabase else {
             throw Abort(.internalServerError, reason: "Database does not support raw SQL.")
         }
 
-        try await sqlite.sql().raw("""
-            update ShareCountStat
-            set contentType =
-                case
-                    when contentType = 0 then 1
-                    when contentType = 2 then 4
-                    else contentType
-                end
-            where contentType in (0, 2)
-            and contentId in (
-                select id
-                from MedoContent
-                where contentType = 1
+        try await sql.raw("""
+            UPDATE ShareCountStat
+            SET contentType = CASE
+                WHEN (
+                    SELECT c.contentType
+                    FROM MedoContent c
+                    WHERE c.id = ShareCountStat.contentId
+                ) = 0 THEN
+                    CASE WHEN ShareCountStat.contentType IN (2, 3, 4) THEN 2 ELSE 0 END
+                WHEN (
+                    SELECT c.contentType
+                    FROM MedoContent c
+                    WHERE c.id = ShareCountStat.contentId
+                ) = 1 THEN
+                    CASE WHEN ShareCountStat.contentType IN (2, 3, 4) THEN 3 ELSE 1 END
+                ELSE ShareCountStat.contentType
+            END
+            WHERE (
+                (
+                    SELECT c.contentType
+                    FROM MedoContent c
+                    WHERE c.id = ShareCountStat.contentId
+                ) = 0
+                AND ShareCountStat.contentType IN (1, 3, 4)
+            ) OR (
+                (
+                    SELECT c.contentType
+                    FROM MedoContent c
+                    WHERE c.id = ShareCountStat.contentId
+                ) = 1
+                AND ShareCountStat.contentType IN (0, 2, 4)
             )
-        """).run()
+            """).run()
 
         return .ok
     }

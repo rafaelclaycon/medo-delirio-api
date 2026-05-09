@@ -6,6 +6,7 @@
 //
 
 import Vapor
+import Fluent
 import SQLiteNIO
 import Foundation
 
@@ -30,6 +31,29 @@ struct StatisticsController {
         ORDER BY month ASC
     """
 
+    private static func normalizedShareCountStatContentType(
+        reportedContentType: Int,
+        medoContentType: ContentType
+    ) -> Int? {
+        let isVideoShare: Bool
+
+        switch reportedContentType {
+        case 0, 1:
+            isVideoShare = false
+        case 2, 3:
+            isVideoShare = true
+        default:
+            return nil
+        }
+
+        switch medoContentType {
+        case .sound:
+            return isVideoShare ? 2 : 0
+        case .song:
+            return isVideoShare ? 3 : 1
+        }
+    }
+
     // MARK: - GET
 
     func getAllClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
@@ -37,7 +61,27 @@ struct StatisticsController {
     }
 
     func getAllSoundShareCountStatsHandlerV1(req: Request) -> EventLoopFuture<[ShareCountStat]> {
-        return ShareCountStat.query(on: req.db).all()
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+        let query = """
+            SELECT s.id, s.installId, s.contentId, s.contentType, s.shareCount, s.dateTime
+            FROM ShareCountStat s
+            INNER JOIN MedoContent c ON c.id = s.contentId
+            WHERE c.contentType = 0
+            """
+        return sqlite.query(query).flatMapThrowing { rows in
+            rows.map { row in
+                ShareCountStat(
+                    id: UUID(uuidString: row.column("id")?.string ?? ""),
+                    installId: row.column("installId")?.string ?? "",
+                    contentId: row.column("contentId")?.string ?? "",
+                    contentType: row.column("contentType")?.integer ?? 0,
+                    shareCount: row.column("shareCount")?.integer ?? 0,
+                    dateTime: row.column("dateTime")?.string ?? Date().iso8601withFractionalSeconds
+                )
+            }
+        }
     }
 
     func getInstallIdCountHandlerV1(req: Request) -> EventLoopFuture<[Int]> {
@@ -62,7 +106,8 @@ struct StatisticsController {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
                 from ShareCountStat s
-                where s.contentType in (0,2)
+                inner join MedoContent c on c.id = s.contentId
+                where c.contentType = 0
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
@@ -85,7 +130,8 @@ struct StatisticsController {
             let query = """
                 select s.contentId, sum(s.shareCount) totalShareCount
                 from ShareCountStat s
-                where s.contentType in (0,2)
+                inner join MedoContent c on c.id = s.contentId
+                where c.contentType = 0
                 and s.dateTime > '\(date)'
                 group by s.contentId
                 order by totalShareCount desc
@@ -115,7 +161,7 @@ struct StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join Author a on c.authorId = a.id
-                where s.contentType in (0,2)
+                where c.contentType = 0
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
@@ -149,7 +195,7 @@ struct StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join Author a on c.authorId = a.id
-                where s.contentType in (0,2)
+                where c.contentType = 0
                 and s.dateTime > '\(date)'
                 group by s.contentId
                 order by totalShareCount desc
@@ -187,7 +233,7 @@ struct StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join Author a on c.authorId = a.id
-                where s.contentType in (0,2)
+                where c.contentType = 0
                 and s.dateTime between '\(firstDate)' and '\(secondDate)'
                 group by s.contentId
                 order by totalShareCount desc
@@ -222,7 +268,8 @@ struct StatisticsController {
                     SUM(CASE WHEN s.dateTime >= date('now', '-7 days') THEN s.shareCount ELSE 0 END) AS lastWeekShareCount,
                     SUM(s.shareCount) AS totalShareCount
                 FROM ShareCountStat s
-                WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
+                INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
+                WHERE s.contentId = '\(soundId)'
             """
 
             let monthYearQuery = """
@@ -231,7 +278,8 @@ struct StatisticsController {
                     strftime('%m', s.dateTime) AS month,
                     SUM(s.shareCount) AS totalShareCount
                 FROM ShareCountStat s
-                WHERE s.contentId = '\(soundId)' AND s.contentType IN (0, 2)
+                INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
+                WHERE s.contentId = '\(soundId)'
                 GROUP BY year, month
                 ORDER BY totalShareCount DESC
                 LIMIT 1
@@ -899,9 +947,25 @@ struct StatisticsController {
 
     func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
         let stat = try req.content.decode(ShareCountStat.self)
-        return stat.save(on: req.db).map {
-            stat
+        guard let contentUUID = UUID(uuidString: stat.contentId) else {
+            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Invalid contentId."))
         }
+        return MedoContent.query(on: req.db)
+            .filter(\.$id == contentUUID)
+            .first()
+            .flatMap { content in
+                guard let content = content else {
+                    return req.eventLoop.makeFailedFuture(Abort(.notFound, reason: "Unknown contentId."))
+                }
+                guard let normalizedContentType = Self.normalizedShareCountStatContentType(
+                    reportedContentType: stat.contentType,
+                    medoContentType: content.contentType
+                ) else {
+                    return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Invalid contentType."))
+                }
+                stat.contentType = normalizedContentType
+                return stat.save(on: req.db).map { stat }
+            }
     }
 
     func postSharedToBundleIdHandlerV1(req: Request) throws -> EventLoopFuture<ShareBundleIdLog> {
@@ -923,7 +987,7 @@ extension StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join MusicGenre mg on mg.id = c.musicGenre
-                where s.contentType in (1,3)
+                where c.contentType = 1
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
@@ -957,7 +1021,7 @@ extension StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join MusicGenre mg on mg.id = c.musicGenre
-                where s.contentType in (1,3)
+                where c.contentType = 1
                 and s.dateTime > '\(date)'
                 group by s.contentId
                 order by totalShareCount desc
@@ -995,7 +1059,7 @@ extension StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 inner join MusicGenre mg on mg.id = c.musicGenre
-                where s.contentType in (1,3)
+                where c.contentType = 1
                 and s.dateTime between '\(firstDate)' and '\(secondDate)'
                 group by s.contentId
                 order by totalShareCount desc
@@ -1940,4 +2004,3 @@ extension StatisticsController {
         }
     }
 }
-
