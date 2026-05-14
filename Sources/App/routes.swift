@@ -192,6 +192,8 @@ func routes(_ app: Application) throws {
     let dynamicBannerController = DynamicBannerController()
     app.get(api, v4, "dynamic-banner-dont-show-version", use: dynamicBannerController.getBannerDontShowVersionHandlerV4)
     app.get(api, v4, "dynamic-banner", use: dynamicBannerController.getBannerDataHandlerV4)
+    app.get(api, v4, "anniversary-banner", use: dynamicBannerController.getAnniversaryBannerDataHandlerV4)
     app.post(api, v4, "set-dynamic-banner-dont-show-version", use: dynamicBannerController.postSetBannerDontShowVersionHandlerV4)
     app.post(api, v4, "dynamic-banner", ":password", use: dynamicBannerController.postSetBannerDataHandlerV4)
+    app.post(api, v4, "anniversary-banner", ":password", use: dynamicBannerController.postSetAnniversaryBannerDataHandlerV4)
 }

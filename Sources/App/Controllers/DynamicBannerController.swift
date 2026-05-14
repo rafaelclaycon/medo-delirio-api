@@ -36,6 +36,22 @@ struct DynamicBannerController {
         return .ok
     }
 
+    func postSetAnniversaryBannerDataHandlerV4(req: Request) throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let newValue = try req.content.decode(String.self)
+        guard newValue.isEmpty == false else {
+            return HTTPStatus.badRequest
+        }
+        UserDefaults.standard.set(newValue, forKey: "anniversary-banner")
+        return .ok
+    }
+
     // MARK: - Getters
 
     func getBannerDontShowVersionHandlerV4(req: Request) throws -> String {
@@ -47,6 +63,13 @@ struct DynamicBannerController {
 
     func getBannerDataHandlerV4(req: Request) throws -> String {
         guard let value = UserDefaults.standard.object(forKey: "dynamic-banner") else {
+            throw Abort(.notFound)
+        }
+        return String(value as! String)
+    }
+
+    func getAnniversaryBannerDataHandlerV4(req: Request) throws -> String {
+        guard let value = UserDefaults.standard.object(forKey: "anniversary-banner") else {
             throw Abort(.notFound)
         }
         return String(value as! String)
