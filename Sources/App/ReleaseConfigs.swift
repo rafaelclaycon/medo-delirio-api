@@ -20,6 +20,7 @@ struct ReleaseConfigs {
 
     struct UniversalLinks {
         static let appleAppID = required("APPLE_APP_ID")
+        static let appDownloadURL = required("APP_DOWNLOAD_URL")
     }
 
     struct Passwords {

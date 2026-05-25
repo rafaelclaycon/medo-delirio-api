@@ -38,6 +38,10 @@ func routes(_ app: Application) throws {
         return Response(status: .ok, headers: headers, body: .init(string: aasa))
     }
 
+    // MARK: - Share Pages (Universal Link fallbacks)
+    let shareController = ShareController()
+    app.get("reaction", ":id", use: shareController.getReactionPageHandler)
+
     let statusCheckController = StatusCheckController()
     app.get(api, v1, "status-check", use: statusCheckController.getStatusCheckHandlerV1)
     app.get(api, v2, "status-check", use: statusCheckController.getStatusCheckHandlerV2)
