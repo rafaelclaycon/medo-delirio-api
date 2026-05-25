@@ -18,6 +18,10 @@ struct ReleaseConfigs {
         return value
     }
 
+    struct UniversalLinks {
+        static let appleAppID = required("APPLE_APP_ID")
+    }
+
     struct Passwords {
         static let sendNotificationPassword = required("SEND_NOTIFICATION_PASSWORD")
         static let setDonorNamesPassword = required("SET_DONOR_NAMES_PASSWORD")

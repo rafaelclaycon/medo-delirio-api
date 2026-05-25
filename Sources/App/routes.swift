@@ -14,6 +14,30 @@ let v3: PathComponent = "v3"
 let v4: PathComponent = "v4"
 
 func routes(_ app: Application) throws {
+
+    // MARK: - Apple App Site Association (Universal Links)
+    // Must be served with Content-Type: application/json — don't rely on FileMiddleware for this.
+    app.get(".well-known", "apple-app-site-association") { req -> Response in
+        let aasa = """
+        {
+          "applinks": {
+            "details": [
+              {
+                "appIDs": ["\(ReleaseConfigs.UniversalLinks.appleAppID)"],
+                "components": [
+                  { "/": "/reaction/*", "comment": "Reaction share pages" },
+                  { "/": "/episode/*",  "comment": "Episode share pages"  }
+                ]
+              }
+            ]
+          }
+        }
+        """
+        var headers = HTTPHeaders()
+        headers.add(name: .contentType, value: "application/json")
+        return Response(status: .ok, headers: headers, body: .init(string: aasa))
+    }
+
     let statusCheckController = StatusCheckController()
     app.get(api, v1, "status-check", use: statusCheckController.getStatusCheckHandlerV1)
     app.get(api, v2, "status-check", use: statusCheckController.getStatusCheckHandlerV2)
