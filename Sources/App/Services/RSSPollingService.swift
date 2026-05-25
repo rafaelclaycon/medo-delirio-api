@@ -39,6 +39,7 @@ struct RSSPollingService {
             let title = latestItem.title ?? "Unknown"
             Task {
                 await self.processEpisode(guid: guid, title: title)
+                await self.syncEpisodes(items: items)
             }
 
         case .failure(let error):
@@ -88,6 +89,78 @@ struct RSSPollingService {
             }
         } catch {
             app.logger.error("RSS poll: database error - \(error)")
+        }
+    }
+
+    // MARK: - Episode ID Parsing (mirrors parseEpisodeId in the iOS app)
+
+    static func parseEpisodeId(from guid: String) -> String {
+        guard let url = URL(string: guid), url.scheme != nil else {
+            return guid // not a URL, use as-is
+        }
+
+        let lastComponent = url.lastPathComponent
+        if !lastComponent.isEmpty && lastComponent != "/" {
+            return lastComponent // Spreaker-style: .../episode/69980761
+        }
+
+        // WordPress-style: .../?p=40097
+        if let queryItems = URLComponents(string: guid)?.queryItems,
+           let p = queryItems.first(where: { $0.name == "p" })?.value,
+           !p.isEmpty {
+            return p
+        }
+
+        return guid // fallback: use full GUID string
+    }
+
+    // MARK: - Episode Sync
+
+    private func syncEpisodes(items: [RSSFeedItem]) async {
+        let db = app.db
+
+        // Early exit: if the most recent episode is already stored, the rest are too.
+        if let firstGuid = items.first?.guid?.value {
+            let latestId = Self.parseEpisodeId(from: firstGuid)
+            if (try? await Episode.find(latestId, on: db)) != nil {
+                app.logger.info("RSS poll: episode sync skipped — no new episodes")
+                return
+            }
+        }
+
+        var newCount = 0
+        var updatedCount = 0
+
+        for item in items {
+            guard let guid = item.guid?.value else { continue }
+
+            let episodeId = Self.parseEpisodeId(from: guid)
+            let title = item.title ?? "Unknown"
+            let imageURL = item.iTunes?.iTunesImage?.attributes?.href
+            let pubDate = item.pubDate
+
+            do {
+                if let existing = try await Episode.find(episodeId, on: db) {
+                    var changed = false
+                    if existing.title != title { existing.title = title; changed = true }
+                    if let imageURL, existing.imageURL != imageURL { existing.imageURL = imageURL; changed = true }
+                    if let pubDate, existing.pubDate != pubDate { existing.pubDate = pubDate; changed = true }
+                    if changed {
+                        try await existing.save(on: db)
+                        updatedCount += 1
+                    }
+                } else {
+                    let episode = Episode(id: episodeId, title: title, imageURL: imageURL, pubDate: pubDate)
+                    try await episode.save(on: db)
+                    newCount += 1
+                }
+            } catch {
+                app.logger.error("RSS poll: failed to sync episode \(episodeId) - \(error)")
+            }
+        }
+
+        if newCount > 0 || updatedCount > 0 {
+            app.logger.info("RSS poll: synced episodes — \(newCount) new, \(updatedCount) updated")
         }
     }
 

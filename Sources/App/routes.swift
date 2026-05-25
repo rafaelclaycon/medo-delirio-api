@@ -41,6 +41,7 @@ func routes(_ app: Application) throws {
     // MARK: - Share Pages (Universal Link fallbacks)
     let shareController = ShareController()
     app.get("reaction", ":id", use: shareController.getReactionPageHandler)
+    app.get("episode", ":id", use: shareController.getEpisodePageHandler)
 
     let statusCheckController = StatusCheckController()
     app.get(api, v1, "status-check", use: statusCheckController.getStatusCheckHandlerV1)

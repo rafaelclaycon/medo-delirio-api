@@ -50,6 +50,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(AddNotificationTrackingToLastKnownEpisode())
     app.migrations.add(MakePushTokenOptional())
     app.migrations.add(RepairShareCountStatContentTypes())
+    app.migrations.add(CreateEpisode())
     
     app.logger.logLevel = .debug
     
