@@ -15,14 +15,14 @@ struct ShareController {
             let rawId = req.parameters.get("id"),
             let reactionId = UUID(uuidString: rawId)
         else {
-            throw Abort(.badRequest)
+            return notFoundResponse()
         }
 
         guard let reaction = try await Reaction.query(on: req.db)
             .filter(\.$id == reactionId)
             .first()
         else {
-            throw Abort(.notFound)
+            return notFoundResponse()
         }
 
         let soundCount = try await ReactionSound.query(on: req.db)
@@ -40,11 +40,11 @@ struct ShareController {
 
     func getEpisodePageHandler(req: Request) async throws -> Response {
         guard let episodeId = req.parameters.get("id") else {
-            throw Abort(.badRequest)
+            return notFoundResponse()
         }
 
         guard let episode = try await Episode.find(episodeId, on: req.db) else {
-            throw Abort(.notFound)
+            return notFoundResponse()
         }
 
         let html = episodeHTML(episode: episode)
@@ -52,6 +52,15 @@ struct ShareController {
         var headers = HTTPHeaders()
         headers.add(name: .contentType, value: "text/html; charset=utf-8")
         return Response(status: .ok, headers: headers, body: .init(string: html))
+    }
+
+    // MARK: - Shared Head Tags
+
+    private var sharedHeadTags: String {
+        """
+        <link rel="icon" type="image/png" href="/images/favicon.png">
+        <link rel="apple-touch-icon" href="/images/webpage_logo.png">
+        """
     }
 
     // MARK: - Shared CSS
@@ -196,9 +205,9 @@ struct ShareController {
         let soundLabel = soundCount == 1 ? "1 som" : "\(soundCount) sons"
         let appDownloadURL = ReleaseConfigs.UniversalLinks.appDownloadURL
         let baseURL = ReleaseConfigs.UniversalLinks.serverBaseURL
-        let attributionHTML = reaction.attributionText.map { text in
-            "<p class=\"attribution\">Imagem: \(text)</p>"
-        } ?? ""
+        let attributionHTML = reaction.attributionText
+            .flatMap { $0.isEmpty ? nil : $0 }
+            .map { "<p class=\"attribution\">Imagem: \($0)</p>" } ?? ""
 
         return """
         <!DOCTYPE html>
@@ -207,12 +216,13 @@ struct ShareController {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>\(title) · Medo e Delírio</title>
+            \(sharedHeadTags)
 
             <meta property="og:site_name" content="Medo e Delírio" />
             <meta property="og:title" content="\(title)" />
             <meta property="og:description" content="\(soundLabel) nesta reação" />
             <meta property="og:image" content="\(imageURL)" />
-            <meta property="og:url" content="\(baseURL)/reaction/\(id)" />
+            <meta property="og:url" content="\(baseURL)/reacao/\(id)" />
             <meta property="og:type" content="website" />
             <meta name="twitter:card" content="summary_large_image" />
             <meta name="twitter:title" content="\(title)" />
@@ -231,8 +241,45 @@ struct ShareController {
                     <span class="badge">Reação</span>
                     <h1 class="title">\(title)</h1>
                     <p class="meta">\(soundLabel)</p>
-                    <a class="cta" href="\(appDownloadURL)">Abrir no Medo e Delírio iOS</a>
+                    <a class="cta" href="\(appDownloadURL)">Ver no Medo e Delírio iOS</a>
                     \(attributionHTML)
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+    }
+
+    // MARK: - Not Found
+
+    private func notFoundResponse() -> Response {
+        var headers = HTTPHeaders()
+        headers.add(name: .contentType, value: "text/html; charset=utf-8")
+        return Response(status: .notFound, headers: headers, body: .init(string: notFoundHTML()))
+    }
+
+    private func notFoundHTML() -> String {
+        let appDownloadURL = ReleaseConfigs.UniversalLinks.appDownloadURL
+        return """
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Não encontrado · Medo e Delírio</title>
+            \(sharedHeadTags)
+            \(sharedCSS())
+        </head>
+        <body>
+            <div class="branding">
+                <img src="/images/webpage_logo.png" alt="Medo e Delírio">
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <span class="badge">Erro 404</span>
+                    <h1 class="title">Conteúdo não encontrado</h1>
+                    <p class="meta">Este link pode estar incorreto ou o conteúdo foi removido.</p>
+                    <a class="cta" href="\(appDownloadURL)">Abrir o Medo e Delírio iOS</a>
                 </div>
             </div>
         </body>
@@ -272,11 +319,12 @@ struct ShareController {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>\(title) · Medo e Delírio</title>
+            \(sharedHeadTags)
 
             <meta property="og:site_name" content="Medo e Delírio" />
             <meta property="og:title" content="\(title)" />
             <meta property="og:description" content="Ouça este episódio no app Medo e Delírio iOS" />
-            <meta property="og:url" content="\(baseURL)/episode/\(id)" />
+            <meta property="og:url" content="\(baseURL)/episodio/\(id)" />
             <meta property="og:type" content="website" />
             \(ogImage)
             <meta name="twitter:card" content="summary_large_image" />
@@ -295,7 +343,7 @@ struct ShareController {
                     <span class="badge">Episódio</span>
                     <h1 class="title">\(title)</h1>
                     \(dateHTML)
-                    <a class="cta" href="\(appDownloadURL)">Abrir no Medo e Delírio iOS</a>
+                    <a class="cta" href="\(appDownloadURL)">Ouvir no Medo e Delírio iOS</a>
                 </div>
             </div>
         </body>
