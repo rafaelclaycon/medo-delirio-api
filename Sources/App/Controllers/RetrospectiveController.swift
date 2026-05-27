@@ -9,19 +9,19 @@ import Vapor
 
 struct RetrospectiveController {
 
-    func getRetroStartingVersionHandlerV3(req: Request) throws -> String {
-        guard let value = UserDefaults.standard.object(forKey: "show-classic-retro-starting-with-version") else {
+    func getRetroStartingVersionHandlerV3(req: Request) async throws -> String {
+        guard let value = try await ServerSettingRepository.get(key: "show-classic-retro-starting-with-version", db: req.db) else {
             throw Abort(.notFound)
         }
-        return String(value as! String)
+        return value
     }
 
-    func postSetRetroStartingVersionHandlerV3(req: Request) throws -> HTTPStatus {
+    func postSetRetroStartingVersionHandlerV3(req: Request) async throws -> HTTPStatus {
         let newValue = try req.content.decode(String.self)
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
         }
-        UserDefaults.standard.set(newValue, forKey: "show-classic-retro-starting-with-version")
+        try await ServerSettingRepository.set(key: "show-classic-retro-starting-with-version", value: newValue, db: req.db)
         return .ok
     }
 }

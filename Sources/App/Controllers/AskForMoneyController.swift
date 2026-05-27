@@ -11,51 +11,43 @@ struct AskForMoneyController {
 
     // MARK: - Getters
 
-    func getDisplayAskForMoneyViewHandlerV1(req: Request) -> String {
-        let userDefaults = UserDefaults.standard
-        guard let value = userDefaults.object(forKey: "display-ask-for-money-view") else {
-            return "0"
-        }
-        return String(value as! String)
-    }
-    
-    func getCurrentTestVersionHandlerV2(req: Request) throws -> String {
-        guard let value = UserDefaults.standard.object(forKey: "current-test-version") else {
-            throw Abort(.notFound)
-        }
-        return String(value as! String)
+    func getDisplayAskForMoneyViewHandlerV1(req: Request) async throws -> String {
+        return try await ServerSettingRepository.get(key: "display-ask-for-money-view", db: req.db) ?? "0"
     }
 
-    func getMoneyInfoHandlerV4(req: Request) throws -> String {
-        guard let value = UserDefaults.standard.object(forKey: "money-info") else {
+    func getCurrentTestVersionHandlerV2(req: Request) async throws -> String {
+        guard let value = try await ServerSettingRepository.get(key: "current-test-version", db: req.db) else {
             throw Abort(.notFound)
         }
-        return String(value as! String)
+        return value
+    }
+
+    func getMoneyInfoHandlerV4(req: Request) async throws -> String {
+        guard let value = try await ServerSettingRepository.get(key: "money-info", db: req.db) else {
+            throw Abort(.notFound)
+        }
+        return value
     }
 
     // MARK: - Setters
 
-    func postDisplayAskForMoneyViewHandlerV1(req: Request) throws -> String {
+    func postDisplayAskForMoneyViewHandlerV1(req: Request) async throws -> String {
         let newValue = try req.content.decode(String.self)
-        let userDefaults = UserDefaults.standard
-        if newValue.contains("1") {
-            userDefaults.set("1", forKey: "display-ask-for-money-view")
-        } else {
-            userDefaults.set("0", forKey: "display-ask-for-money-view")
-        }
+        let sanitized = newValue.contains("1") ? "1" : "0"
+        try await ServerSettingRepository.set(key: "display-ask-for-money-view", value: sanitized, db: req.db)
         return "Novo valor setado."
     }
-    
-    func postSetTestVersionHandlerV2(req: Request) throws -> HTTPStatus {
+
+    func postSetTestVersionHandlerV2(req: Request) async throws -> HTTPStatus {
         let newValue = try req.content.decode(String.self)
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
         }
-        UserDefaults.standard.set(newValue, forKey: "current-test-version")
+        try await ServerSettingRepository.set(key: "current-test-version", value: newValue, db: req.db)
         return .ok
     }
 
-    func postMoneyInfoHandlerV4(req: Request) throws -> HTTPStatus {
+    func postMoneyInfoHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -67,7 +59,7 @@ struct AskForMoneyController {
         guard newValue.isEmpty == false else {
             return HTTPStatus.badRequest
         }
-        UserDefaults.standard.set(newValue, forKey: "money-info")
+        try await ServerSettingRepository.set(key: "money-info", value: newValue, db: req.db)
         return .ok
     }
 }

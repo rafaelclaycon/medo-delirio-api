@@ -51,7 +51,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(MakePushTokenOptional())
     app.migrations.add(RepairShareCountStatContentTypes())
     app.migrations.add(CreateEpisode())
-    
+    app.migrations.add(CreateServerSetting())
+
     app.logger.logLevel = .debug
     
     try app.autoMigrate().wait()
