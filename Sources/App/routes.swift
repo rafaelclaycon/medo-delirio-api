@@ -101,6 +101,9 @@ func routes(_ app: Application) throws {
 
     // Episode Analytics
     app.get(api, v4, "episode-analytics", ":password", use: statisticsController.getEpisodeAnalyticsHandlerV4)
+    app.get(api, v4, "episode-play-count-stats-all-time", use: statisticsController.getEpisodePlayCountStatsAllTimeHandlerV4)
+    app.get(api, v4, "episode-play-count-stats-from", ":date", use: statisticsController.getEpisodePlayCountStatsFromHandlerV4)
+    app.get(api, v4, "episode-play-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getEpisodePlayCountStatsFromToHandlerV4)
 
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)

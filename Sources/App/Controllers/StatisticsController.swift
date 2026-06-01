@@ -2003,4 +2003,113 @@ extension StatisticsController {
             )
         }
     }
+
+    func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) -> EventLoopFuture<[TopEpisodeItem]> {
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                SELECT
+                    e.id AS episodeId,
+                    e.title AS episodeName,
+                    COUNT(*) AS playCount,
+                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+                FROM UsageMetric um
+                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+                GROUP BY e.id
+                ORDER BY playCount DESC
+                LIMIT 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopEpisodeItem(
+                        rankNumber: "",
+                        episodeId: row.column("episodeId")?.string ?? "",
+                        episodeName: row.column("episodeName")?.string ?? "",
+                        playCount: row.column("playCount")?.integer ?? 0,
+                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getEpisodePlayCountStatsFromHandlerV4(req: Request) throws -> EventLoopFuture<[TopEpisodeItem]> {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                SELECT
+                    e.id AS episodeId,
+                    e.title AS episodeName,
+                    COUNT(*) AS playCount,
+                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+                FROM UsageMetric um
+                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+                  AND um.dateTime >= '\(date)'
+                GROUP BY e.id
+                ORDER BY playCount DESC
+                LIMIT 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopEpisodeItem(
+                        rankNumber: "",
+                        episodeId: row.column("episodeId")?.string ?? "",
+                        episodeName: row.column("episodeName")?.string ?? "",
+                        playCount: row.column("playCount")?.integer ?? 0,
+                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
+
+    func getEpisodePlayCountStatsFromToHandlerV4(req: Request) throws -> EventLoopFuture<[TopEpisodeItem]> {
+        guard
+            let firstDate = req.parameters.get("firstDate"),
+            let secondDate = req.parameters.get("secondDate")
+        else {
+            throw Abort(.badRequest, reason: "Missing date parameters.")
+        }
+
+        if let sqlite = req.db as? SQLiteDatabase {
+            let query = """
+                SELECT
+                    e.id AS episodeId,
+                    e.title AS episodeName,
+                    COUNT(*) AS playCount,
+                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+                FROM UsageMetric um
+                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+                  AND um.dateTime BETWEEN '\(firstDate)' AND '\(secondDate)'
+                GROUP BY e.id
+                ORDER BY playCount DESC
+                LIMIT 10
+            """
+
+            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+                req.eventLoop.makeSucceededFuture(
+                    TopEpisodeItem(
+                        rankNumber: "",
+                        episodeId: row.column("episodeId")?.string ?? "",
+                        episodeName: row.column("episodeName")?.string ?? "",
+                        playCount: row.column("playCount")?.integer ?? 0,
+                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+                    )
+                )
+            }
+        } else {
+            return req.eventLoop.makeSucceededFuture([])
+        }
+    }
 }
