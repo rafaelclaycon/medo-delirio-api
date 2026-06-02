@@ -221,6 +221,16 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "rss-status", ":password", use: rssStatusController.getRSSStatusHandlerV4)
     app.post(api, v4, "test-new-episode-push", ":password", use: rssStatusController.postTestNewEpisodePushHandlerV4)
 
+    app.post(api, v4, "test-weekly-highlights-push", ":password") { req async throws -> HTTPStatus in
+        guard let password = req.parameters.get("password"),
+              password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        let service = WeeklyHighlightsService(app: req.application)
+        await service.sendWeeklyHighlights(force: true)
+        return .ok
+    }
+
     let dynamicBannerController = DynamicBannerController()
     app.get(api, v4, "dynamic-banner-dont-show-version", use: dynamicBannerController.getBannerDontShowVersionHandlerV4)
     app.get(api, v4, "dynamic-banner", use: dynamicBannerController.getBannerDataHandlerV4)

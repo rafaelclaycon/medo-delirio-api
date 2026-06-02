@@ -52,6 +52,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(RepairShareCountStatContentTypes())
     app.migrations.add(CreateEpisode())
     app.migrations.add(CreateServerSetting())
+    app.migrations.add(AddWeeklyHighlightsChannel())
 
     app.logger.logLevel = .debug
     
@@ -63,6 +64,12 @@ public func configure(_ app: Application) throws {
         app.lifecycle.use(RSSPollingLifecycle())
     } else {
         app.logger.info("RSS polling is disabled (RSS_POLLING_ENABLED != true)")
+    }
+
+    if Environment.get("WEEKLY_HIGHLIGHTS_ENABLED")?.lowercased() == "true" {
+        app.lifecycle.use(WeeklyHighlightsLifecycle())
+    } else {
+        app.logger.info("Weekly highlights is disabled (WEEKLY_HIGHLIGHTS_ENABLED != true)")
     }
     
     try app.configurePush()
