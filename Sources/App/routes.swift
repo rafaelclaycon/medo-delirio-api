@@ -221,14 +221,16 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "rss-status", ":password", use: rssStatusController.getRSSStatusHandlerV4)
     app.post(api, v4, "test-new-episode-push", ":password", use: rssStatusController.postTestNewEpisodePushHandlerV4)
 
-    app.post(api, v4, "test-weekly-highlights-push", ":password") { req async throws -> HTTPStatus in
+    app.post(api, v4, "test-weekly-highlights-push", ":password") { req async throws -> WeeklyHighlightsSendResult in
         guard let password = req.parameters.get("password"),
               password == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         let service = WeeklyHighlightsService(app: req.application)
-        await service.sendWeeklyHighlights(force: true)
-        return .ok
+        guard let result = await service.sendWeeklyHighlights(force: true) else {
+            throw Abort(.internalServerError, reason: "No highlight data found for the past 7 days")
+        }
+        return result
     }
 
     let dynamicBannerController = DynamicBannerController()

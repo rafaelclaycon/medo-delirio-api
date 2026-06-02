@@ -2,6 +2,15 @@ import Vapor
 import APNS
 import SQLiteNIO
 
+struct WeeklyHighlightsSendResult: Content {
+    let notificationType: String
+    let topContentName: String
+    let weekNumber: Int
+    let sentCount: Int
+    let deviceIds: [String]
+    let errors: [String]
+}
+
 struct WeeklyHighlightsService {
 
     let app: Application
@@ -15,7 +24,7 @@ struct WeeklyHighlightsService {
         return f
     }()
 
-    func sendWeeklyHighlights(force: Bool = false) async {
+    func sendWeeklyHighlights(force: Bool = false) async -> WeeklyHighlightsSendResult? {
         let db = app.db
         let today = Self.brtDateFormatter.string(from: Date())
 
@@ -23,7 +32,7 @@ struct WeeklyHighlightsService {
             let lastSent = try? await ServerSettingRepository.get(key: Self.lastSentKey, db: db)
             if lastSent == today {
                 app.logger.info("Weekly highlights: already sent today (\(today)), skipping")
-                return
+                return nil
             }
             // Record before sending — prevents double-fire if the server restarts mid-window
             try? await ServerSettingRepository.set(key: Self.lastSentKey, value: today, db: db)
@@ -36,19 +45,20 @@ struct WeeklyHighlightsService {
 
         do {
             if isSoundsWeek {
-                try await sendTopSoundsNotification()
+                return try await sendTopSoundsNotification(weekNumber: weekOfYear)
             } else {
-                try await sendTopReactionsNotification()
+                return try await sendTopReactionsNotification(weekNumber: weekOfYear)
             }
         } catch {
             app.logger.error("Weekly highlights: error - \(error)")
+            return nil
         }
     }
 
-    private func sendTopSoundsNotification() async throws {
+    private func sendTopSoundsNotification(weekNumber: Int) async throws -> WeeklyHighlightsSendResult? {
         guard let sqlite = app.db as? SQLiteDatabase else {
             app.logger.error("Weekly highlights: database is not SQLite")
-            return
+            return nil
         }
 
         let query = """
@@ -66,7 +76,7 @@ struct WeeklyHighlightsService {
 
         guard let topName = rows.first?.column("contentName")?.string else {
             app.logger.warning("Weekly highlights: no sound data for the past 7 days, skipping")
-            return
+            return nil
         }
 
         let notification = TypedNotification(
@@ -77,13 +87,22 @@ struct WeeklyHighlightsService {
             type: "weekly_top_sounds"
         )
 
-        await broadcast(notification: notification)
+        let result = await broadcast(notification: notification)
+
+        return WeeklyHighlightsSendResult(
+            notificationType: "weekly_top_sounds",
+            topContentName: topName,
+            weekNumber: weekNumber,
+            sentCount: result.sentCount,
+            deviceIds: result.deviceIds,
+            errors: result.errors
+        )
     }
 
-    private func sendTopReactionsNotification() async throws {
+    private func sendTopReactionsNotification(weekNumber: Int) async throws -> WeeklyHighlightsSendResult? {
         guard let sqlite = app.db as? SQLiteDatabase else {
             app.logger.error("Weekly highlights: database is not SQLite")
-            return
+            return nil
         }
 
         let query = """
@@ -103,7 +122,7 @@ struct WeeklyHighlightsService {
 
         guard let topName = rows.first?.column("reaction")?.string else {
             app.logger.warning("Weekly highlights: no reaction data for the past 7 days, skipping")
-            return
+            return nil
         }
 
         let notification = TypedNotification(
@@ -114,11 +133,23 @@ struct WeeklyHighlightsService {
             type: "weekly_top_reactions"
         )
 
-        await broadcast(notification: notification)
+        let result = await broadcast(notification: notification)
+
+        return WeeklyHighlightsSendResult(
+            notificationType: "weekly_top_reactions",
+            topContentName: topName,
+            weekNumber: weekNumber,
+            sentCount: result.sentCount,
+            deviceIds: result.deviceIds,
+            errors: result.errors
+        )
     }
 
-    private func broadcast(notification: TypedNotification) async {
+    private func broadcast(notification: TypedNotification) async -> (sentCount: Int, deviceIds: [String], errors: [String]) {
         let db = app.db
+        var sentCount = 0
+        var sentDeviceIds: [String] = []
+        var errors: [String] = []
 
         do {
             guard let channel = try await PushChannel.query(on: db)
@@ -127,28 +158,32 @@ struct WeeklyHighlightsService {
                 .first()
             else {
                 app.logger.warning("Weekly highlights: 'weekly_highlights' channel not found")
-                return
+                return (0, [], ["'weekly_highlights' channel not found"])
             }
 
             let devices = channel.devices
             guard !devices.isEmpty else {
                 app.logger.info("Weekly highlights: no devices subscribed to 'weekly_highlights'")
-                return
+                return (0, [], [])
             }
 
-            var sentCount = 0
             for device in devices {
                 guard let token = device.pushToken, !token.isEmpty else { continue }
                 do {
                     try await app.apns.send(notification, to: token).get()
                     sentCount += 1
+                    sentDeviceIds.append(device.installId)
                 } catch {
                     let desc = String(describing: error).lowercased()
                     if desc.contains("baddevicetoken") || desc.contains("unregistered") {
                         try? await device.delete(on: db)
-                        app.logger.info("Weekly highlights: deleted invalid token for device \(device.installId)")
+                        let msg = "Deleted invalid token for device \(device.installId)"
+                        app.logger.info("Weekly highlights: \(msg)")
+                        errors.append(msg)
                     } else {
-                        app.logger.error("Weekly highlights: failed to send push to \(device.installId): \(error)")
+                        let msg = "Failed to send to \(device.installId): \(error)"
+                        app.logger.error("Weekly highlights: \(msg)")
+                        errors.append(msg)
                     }
                 }
                 try? await Task.sleep(nanoseconds: 500_000_000)
@@ -156,7 +191,11 @@ struct WeeklyHighlightsService {
 
             app.logger.info("Weekly highlights: sent \(sentCount)/\(devices.count) notifications")
         } catch {
-            app.logger.error("Weekly highlights: failed to query channel - \(error)")
+            let msg = "Failed to query channel: \(error)"
+            app.logger.error("Weekly highlights: \(msg)")
+            errors.append(msg)
         }
+
+        return (sentCount, sentDeviceIds, errors)
     }
 }
