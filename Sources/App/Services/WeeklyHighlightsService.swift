@@ -1,4 +1,5 @@
 import Vapor
+import Fluent
 import APNS
 import SQLiteNIO
 
@@ -44,14 +45,36 @@ struct WeeklyHighlightsService {
         app.logger.info("Weekly highlights: week \(weekOfYear) → sending \(isSoundsWeek ? "sounds" : "reactions")")
 
         do {
+            let result: WeeklyHighlightsSendResult?
             if isSoundsWeek {
-                return try await sendTopSoundsNotification(weekNumber: weekOfYear)
+                result = try await sendTopSoundsNotification(weekNumber: weekOfYear)
             } else {
-                return try await sendTopReactionsNotification(weekNumber: weekOfYear)
+                result = try await sendTopReactionsNotification(weekNumber: weekOfYear)
             }
+            if let result {
+                await persistLog(result, db: db)
+            }
+            return result
         } catch {
             app.logger.error("Weekly highlights: error - \(error)")
             return nil
+        }
+    }
+
+    /// Records a row for this send so `/weekly-highlights-stats` can report how
+    /// many highlights went out each week. Best-effort: a logging failure must
+    /// not fail the broadcast that already happened.
+    private func persistLog(_ result: WeeklyHighlightsSendResult, db: Database) async {
+        do {
+            try await WeeklyHighlightLog(
+                weekNumber: result.weekNumber,
+                notificationType: result.notificationType,
+                topContentName: result.topContentName,
+                sentCount: result.sentCount,
+                dateTime: Date().iso8601withFractionalSeconds
+            ).save(on: db)
+        } catch {
+            app.logger.error("Weekly highlights: failed to persist send log - \(error)")
         }
     }
 

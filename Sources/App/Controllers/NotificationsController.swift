@@ -61,6 +61,15 @@ struct NotificationsController {
         if existingPivot == nil {
             let pivot = try DeviceChannel(device: device, channel: channel)
             try await pivot.save(on: req.db)
+
+            // Only log genuine new subscriptions, so subscribe/unsubscribe counts
+            // reflect actual state transitions rather than idempotent re-subscribes.
+            try await ChannelSubscriptionEvent(
+                installId: input.installId,
+                channelId: input.channelId,
+                action: ChannelSubscriptionEvent.Action.subscribe,
+                dateTime: Date().iso8601withFractionalSeconds
+            ).save(on: req.db)
         }
 
         return .ok
@@ -89,6 +98,14 @@ struct NotificationsController {
             .first()
         {
             try await existing.delete(on: req.db)
+
+            // Log only real unsubscribes (a pivot actually existed and was removed).
+            try await ChannelSubscriptionEvent(
+                installId: input.installId,
+                channelId: input.channelId,
+                action: ChannelSubscriptionEvent.Action.unsubscribe,
+                dateTime: Date().iso8601withFractionalSeconds
+            ).save(on: req.db)
         }
 
         return .ok

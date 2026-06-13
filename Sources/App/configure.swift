@@ -53,6 +53,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateEpisode())
     app.migrations.add(CreateServerSetting())
     app.migrations.add(AddWeeklyHighlightsChannel())
+    app.migrations.add(CreateWeeklyHighlightLog())
+    app.migrations.add(CreateChannelSubscriptionEvent())
 
     app.logger.logLevel = .debug
     

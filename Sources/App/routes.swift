@@ -68,6 +68,7 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "navigation-analytics", ":password", use: statisticsController.getNavigationAnalyticsHandlerV3)
     app.get(api, v3, "sessions-count-from", ":date", ":password", use: statisticsController.getSessionsCountFromHandlerV3)
     app.get(api, v4, "retro2025-share-count", ":date", use: statisticsController.getRetro2025ShareCountHandlerV4)
+    app.get(api, v4, "weekly-highlights-stats", ":password", use: statisticsController.getWeeklyHighlightsStatsHandlerV4)
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
 
