@@ -22,11 +22,17 @@ struct StatisticsController {
         END) AS TEXT)
     """
 
+    /// Excludes signals coming from iOS Simulators. These are only generated while
+    /// testing the app on a development Mac and would otherwise pollute the analytics
+    /// we provide to MedoHelper.
+    private static let excludeSimulatorsClause = "modelName NOT LIKE '%Simulator%'"
+
     private static let totalUniqueInstallsByMonthQuery = """
         SELECT
             SUBSTR(dateTime, 1, 7) AS month,
             COUNT(DISTINCT installId) AS total
         FROM StillAliveSignal
+        WHERE \(excludeSimulatorsClause)
         GROUP BY month
         ORDER BY month ASC
     """
@@ -472,6 +478,7 @@ struct StatisticsController {
             FROM StillAliveSignal
             WHERE systemVersion IS NOT NULL AND systemVersion != ''
               AND \(dateFilter)
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY major_version
             ORDER BY count DESC
         """
@@ -484,6 +491,7 @@ struct StatisticsController {
             FROM StillAliveSignal
             WHERE modelName IS NOT NULL AND modelName != ''
               AND \(dateFilter)
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY modelName
             ORDER BY count DESC
             LIMIT 10
@@ -501,7 +509,8 @@ struct StatisticsController {
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
             WHERE (\(dateFilter))
-              AND ((isiOSAppOnMac = 1) 
+              AND \(Self.excludeSimulatorsClause)
+              AND ((isiOSAppOnMac = 1)
                OR (systemName = 'iPadOS')
                OR (systemName = 'iOS'))
             GROUP BY device_type
@@ -514,9 +523,10 @@ struct StatisticsController {
                 currentTimeZone AS timezone,
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
-            WHERE currentTimeZone IS NOT NULL 
+            WHERE currentTimeZone IS NOT NULL
               AND currentTimeZone != ''
               AND \(dateFilter)
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY currentTimeZone
             ORDER BY count DESC
             LIMIT 10
@@ -526,9 +536,10 @@ struct StatisticsController {
         let totalTimezonesQuery = """
             SELECT COUNT(DISTINCT installId) AS total_timezones_count
             FROM StillAliveSignal
-            WHERE currentTimeZone IS NOT NULL 
+            WHERE currentTimeZone IS NOT NULL
               AND currentTimeZone != ''
               AND \(dateFilter)
+              AND \(Self.excludeSimulatorsClause)
         """
 
         let iosVersionsFuture = sqlite.query(iosVersionsQuery).flatMapThrowing { rows -> [DeviceAnalyticsIOSVersion] in
@@ -628,6 +639,7 @@ struct StatisticsController {
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
             WHERE modelName = ?
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY month
             ORDER BY month ASC
         """
@@ -678,6 +690,7 @@ struct StatisticsController {
             SELECT DISTINCT modelName
             FROM StillAliveSignal
             WHERE modelName IS NOT NULL AND modelName != ''
+              AND \(Self.excludeSimulatorsClause)
             ORDER BY modelName ASC
         """
 
@@ -709,6 +722,7 @@ struct StatisticsController {
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
             WHERE \(Self.majorVersionExpr) = ?
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY month
             ORDER BY month ASC
         """
@@ -759,6 +773,7 @@ struct StatisticsController {
             SELECT DISTINCT \(Self.majorVersionExpr) AS major_version
             FROM StillAliveSignal
             WHERE systemVersion IS NOT NULL AND systemVersion != ''
+              AND \(Self.excludeSimulatorsClause)
             ORDER BY CAST(major_version AS INTEGER) ASC
         """
 
@@ -787,6 +802,7 @@ struct StatisticsController {
         let allMonthsQuery = """
             SELECT DISTINCT SUBSTR(dateTime, 1, 7) AS month
             FROM StillAliveSignal
+            WHERE \(Self.excludeSimulatorsClause)
             ORDER BY month ASC
         """
 
@@ -797,6 +813,7 @@ struct StatisticsController {
                 COUNT(DISTINCT installId) AS count
             FROM StillAliveSignal
             WHERE \(Self.majorVersionExpr) = ?
+              AND \(Self.excludeSimulatorsClause)
             GROUP BY model_name, month
             ORDER BY model_name, month ASC
         """
@@ -973,6 +990,64 @@ struct StatisticsController {
         return log.save(on: req.db).map {
             log
         }
+    }
+}
+
+// MARK: - Weekly Highlights
+
+extension StatisticsController {
+
+    func getWeeklyHighlightsStatsHandlerV4(req: Request) async throws -> WeeklyHighlightsStatsResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let channelId = "weekly_highlights"
+
+        let currentSubscriberCount: Int
+        if let channel = try await PushChannel.query(on: req.db)
+            .filter(\.$channelId == channelId)
+            .with(\.$devices)
+            .first()
+        {
+            currentSubscriberCount = channel.devices.count
+        } else {
+            currentSubscriberCount = 0
+        }
+
+        let totalSubscribes = try await ChannelSubscriptionEvent.query(on: req.db)
+            .filter(\.$channelId == channelId)
+            .filter(\.$action == ChannelSubscriptionEvent.Action.subscribe)
+            .count()
+
+        let totalUnsubscribes = try await ChannelSubscriptionEvent.query(on: req.db)
+            .filter(\.$channelId == channelId)
+            .filter(\.$action == ChannelSubscriptionEvent.Action.unsubscribe)
+            .count()
+
+        let logs = try await WeeklyHighlightLog.query(on: req.db)
+            .sort(\.$dateTime, .descending)
+            .all()
+
+        let sends = logs.map {
+            WeeklyHighlightsSendStat(
+                weekNumber: $0.weekNumber,
+                notificationType: $0.notificationType,
+                topContentName: $0.topContentName,
+                sentCount: $0.sentCount,
+                dateTime: $0.dateTime
+            )
+        }
+
+        return WeeklyHighlightsStatsResponse(
+            currentSubscriberCount: currentSubscriberCount,
+            totalSubscribes: totalSubscribes,
+            totalUnsubscribes: totalUnsubscribes,
+            sends: sends
+        )
     }
 }
 
