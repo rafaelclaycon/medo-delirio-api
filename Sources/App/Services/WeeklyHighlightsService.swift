@@ -104,8 +104,8 @@ struct WeeklyHighlightsService {
 
         let notification = TypedNotification(
             aps: .init(alert: .init(
-                title: "Top da semana 🏆",
-                body: "'\(topName)' foi o mais compartilhado. Veja o top 3"
+                title: "Top da Semana 🏆",
+                body: "\"\(topName)\" foi o mais compartilhado. Veja o top 3."
             )),
             type: "weekly_top_sounds"
         )
@@ -150,8 +150,8 @@ struct WeeklyHighlightsService {
 
         let notification = TypedNotification(
             aps: .init(alert: .init(
-                title: "Reações da semana ⚡",
-                body: "'\(topName)' foi a reação mais usada. Veja o top 3"
+                title: "Reação da Semana 🎭",
+                body: "\"\(topName)\" foi a reação mais usada. Veja o top 3."
             )),
             type: "weekly_top_reactions"
         )
