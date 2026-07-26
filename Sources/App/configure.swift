@@ -76,5 +76,7 @@ public func configure(_ app: Application) async throws {
         app.logger.info("Weekly highlights is disabled (WEEKLY_HIGHLIGHTS_ENABLED != true)")
     }
     
-    try app.configurePush()
+    if app.environment != .testing {
+        try app.configurePush()
+    }
 }
