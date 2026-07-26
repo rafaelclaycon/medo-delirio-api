@@ -10,7 +10,7 @@ import FluentSQLiteDriver
 import Vapor
 
 // configures your application
-public func configure(_ app: Application) throws {
+public func configure(_ app: Application) async throws {
     // uncomment to serve files from /Public folder
     app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
     
@@ -22,7 +22,11 @@ public func configure(_ app: Application) throws {
     let cors = CORSMiddleware(configuration: corsConfiguration)
     app.middleware.use(cors, at: .beginning)
 
-    app.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
+    if app.environment == .testing {
+        app.databases.use(.sqlite(.memory), as: .sqlite)
+    } else {
+        app.databases.use(.sqlite(.file("db.sqlite")), as: .sqlite)
+    }
 
     app.migrations.add(CreateShareCountStat())
     app.migrations.add(CreateClientDeviceInfo())
@@ -56,10 +60,8 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateWeeklyHighlightLog())
     app.migrations.add(CreateChannelSubscriptionEvent())
 
-    app.logger.logLevel = .debug
-    
-    try app.autoMigrate().wait()
-    
+    try await app.autoMigrate()
+
     try routes(app)
     
     if Environment.get("RSS_POLLING_ENABLED")?.lowercased() == "true" {
