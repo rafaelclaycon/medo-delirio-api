@@ -41,5 +41,10 @@ struct ReleaseConfigs {
         static let keyIdentifier: JWKIdentifier = .init(string: required("APNS_KEY_IDENTIFIER"))
         static let teamIdentifier = required("APNS_TEAM_IDENTIFIER")
         static let topic = required("APNS_TOPIC")
+
+        /// "sandbox" routes pushes through APNs' development environment, which is
+        /// where devices land when the app is installed directly from Xcode.
+        /// TestFlight and App Store installs always use production.
+        static let useSandbox = Environment.get("APNS_ENVIRONMENT")?.lowercased() == "sandbox"
     }
 }

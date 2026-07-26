@@ -12,7 +12,7 @@ extension Application {
                 teamIdentifier: ReleaseConfigs.Push.teamIdentifier
             ),
             topic: ReleaseConfigs.Push.topic,
-            environment: .production,
+            environment: ReleaseConfigs.Push.useSandbox ? .sandbox : .production,
             timeout: TimeAmount.seconds(5)
         )
     }

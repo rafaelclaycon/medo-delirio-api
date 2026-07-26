@@ -78,5 +78,6 @@ public func configure(_ app: Application) async throws {
     
     if app.environment != .testing {
         try app.configurePush()
+        app.databases.middleware.use(UpdateEventPushMiddleware(app: app), on: .sqlite)
     }
 }
