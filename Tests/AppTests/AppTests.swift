@@ -6,7 +6,7 @@ final class AppTests: XCTestCase {
         let app = try await Application.make(.testing)
         do {
             try await configure(app)
-            try await app.test(.GET, "api/v1/status-check", afterResponse: { res in
+            try await app.test(.GET, "api/v1/status-check", afterResponse: { res async in
                 XCTAssertEqual(res.status, .ok)
                 XCTAssertEqual(res.body.string, "Conexão com o servidor OK.")
             })
@@ -21,7 +21,7 @@ final class AppTests: XCTestCase {
         let app = try await Application.make(.testing)
         do {
             try await configure(app)
-            try await app.test(.GET, "api/v2/status-check", afterResponse: { res in
+            try await app.test(.GET, "api/v2/status-check", afterResponse: { res async in
                 XCTAssertEqual(res.status, .ok)
             })
         } catch {
