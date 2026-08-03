@@ -1,4 +1,5 @@
 {
+  "originHash" : "a98d3bdf8f144f21aae7a3eda4ce7e492b8893f70fa6cf8182243f2ebdcd3d1f",
   "pins" : [
     {
       "identity" : "apns",
@@ -131,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/sqlite-nio.git",
       "state" : {
-        "revision" : "f038d1e8fd858634bab5f1ffed7b6f418de833c8",
-        "version" : "1.12.10"
+        "revision" : "553a6be0e228085b4d5e7c7ecb6a590186c31136",
+        "version" : "1.13.0"
       }
     },
     {
@@ -176,8 +177,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-certificates.git",
       "state" : {
-        "revision" : "89fbc3714264cce8db8e4ec51b64e01c3e28c6c5",
-        "version" : "1.19.3"
+        "revision" : "449dbbecd0f31e82b510ada227ca152caa8b5e98",
+        "version" : "1.19.4"
       }
     },
     {
@@ -352,5 +353,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
