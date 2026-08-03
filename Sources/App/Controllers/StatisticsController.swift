@@ -2079,6 +2079,126 @@ extension StatisticsController {
         }
     }
 
+    func getShareClipAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<ShareClipAnalyticsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        var dates: [String] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        for i in 0..<30 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
+                dates.append(dateFormatter.string(from: date))
+            }
+        }
+
+        dates.reverse()
+
+        // `destinationScreen` bakes attributes into the action string itself
+        // (e.g. "clip_shared(transcript=true)"), there is no structured column
+        // to filter on, hence the LIKE-prefix matching below.
+        let sharedFilter = "originatingScreen = 'ShareClip' AND destinationScreen LIKE 'clip_shared(%'"
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            let emptyDaily = dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
+            return req.eventLoop.makeSucceededFuture(
+                ShareClipAnalyticsResponse(
+                    dailySharesLast30Days: emptyDaily,
+                    tapCount: 0,
+                    sharedCount: 0,
+                    sharedWithTranscriptCount: 0,
+                    sharedWithoutTranscriptCount: 0,
+                    generationFailedCount: 0,
+                    supportPromptShownCount: 0,
+                    whatsNewDismissedCount: 0,
+                    conversionRate: 0
+                )
+            )
+        }
+
+        var dailyFutures: [EventLoopFuture<DailyActiveUsersResponse>] = []
+
+        for dateString in dates {
+            let query = """
+                SELECT COUNT(*) as sharesCount
+                FROM UsageMetric
+                WHERE date(dateTime) = date('\(dateString)')
+                  AND \(sharedFilter)
+                """
+
+            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
+                guard let row = rows.first else {
+                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
+                }
+                let count = row.column("sharesCount")?.integer ?? 0
+                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
+            }
+
+            dailyFutures.append(future)
+        }
+
+        let aggregateQuery = """
+            SELECT
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen = 'didTapShareClip' THEN 1 ELSE 0 END) as tapCount,
+              SUM(CASE WHEN originatingScreen = 'ShareClip' AND destinationScreen LIKE 'clip_shared(%' THEN 1 ELSE 0 END) as sharedCount,
+              SUM(CASE WHEN originatingScreen = 'ShareClip' AND destinationScreen LIKE 'clip_shared(transcript=true%' THEN 1 ELSE 0 END) as sharedWithTranscriptCount,
+              SUM(CASE WHEN originatingScreen = 'ShareClip' AND destinationScreen LIKE 'clip_shared(transcript=false%' THEN 1 ELSE 0 END) as sharedWithoutTranscriptCount,
+              SUM(CASE WHEN originatingScreen = 'ShareClip' AND destinationScreen LIKE 'clip_generation_failed(%' THEN 1 ELSE 0 END) as generationFailedCount,
+              SUM(CASE WHEN originatingScreen = 'SupportPrompt' AND destinationScreen = 'support_sheet_shown(trigger=share_clip)' THEN 1 ELSE 0 END) as supportPromptShownCount,
+              SUM(CASE WHEN originatingScreen = 'ShareClipWhatsNew' AND destinationScreen = 'dismissed' THEN 1 ELSE 0 END) as whatsNewDismissedCount
+            FROM UsageMetric
+            WHERE dateTime >= datetime('now', '-30 days')
+              AND (
+                (originatingScreen = 'NowPlaying' AND destinationScreen = 'didTapShareClip')
+                OR (originatingScreen = 'ShareClip' AND (destinationScreen LIKE 'clip_shared(%' OR destinationScreen LIKE 'clip_generation_failed(%'))
+                OR (originatingScreen = 'SupportPrompt' AND destinationScreen = 'support_sheet_shown(trigger=share_clip)')
+                OR (originatingScreen = 'ShareClipWhatsNew' AND destinationScreen = 'dismissed')
+              )
+            """
+
+        let aggregateFuture = sqlite.query(aggregateQuery)
+
+        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
+            results.sorted { $0.date < $1.date }
+        }
+
+        return dailyResultsFuture.and(aggregateFuture).flatMapThrowing { dailyResults, aggregateRows in
+            let row = aggregateRows.first
+
+            let tapCount = row?.column("tapCount")?.integer ?? 0
+            let sharedCount = row?.column("sharedCount")?.integer ?? 0
+            let sharedWithTranscriptCount = row?.column("sharedWithTranscriptCount")?.integer ?? 0
+            let sharedWithoutTranscriptCount = row?.column("sharedWithoutTranscriptCount")?.integer ?? 0
+            let generationFailedCount = row?.column("generationFailedCount")?.integer ?? 0
+            let supportPromptShownCount = row?.column("supportPromptShownCount")?.integer ?? 0
+            let whatsNewDismissedCount = row?.column("whatsNewDismissedCount")?.integer ?? 0
+
+            let conversionRate = tapCount > 0
+                ? Double(sharedCount) / Double(tapCount)
+                : 0.0
+
+            return ShareClipAnalyticsResponse(
+                dailySharesLast30Days: dailyResults,
+                tapCount: tapCount,
+                sharedCount: sharedCount,
+                sharedWithTranscriptCount: sharedWithTranscriptCount,
+                sharedWithoutTranscriptCount: sharedWithoutTranscriptCount,
+                generationFailedCount: generationFailedCount,
+                supportPromptShownCount: supportPromptShownCount,
+                whatsNewDismissedCount: whatsNewDismissedCount,
+                conversionRate: conversionRate
+            )
+        }
+    }
+
     func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) -> EventLoopFuture<[TopEpisodeItem]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """

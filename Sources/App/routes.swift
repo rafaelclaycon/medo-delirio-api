@@ -106,6 +106,9 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "episode-play-count-stats-from", ":date", use: statisticsController.getEpisodePlayCountStatsFromHandlerV4)
     app.get(api, v4, "episode-play-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getEpisodePlayCountStatsFromToHandlerV4)
 
+    // Share Clip Analytics
+    app.get(api, v4, "share-clip-analytics", ":password", use: statisticsController.getShareClipAnalyticsHandlerV4)
+
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
