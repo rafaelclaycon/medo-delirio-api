@@ -2199,6 +2199,167 @@ extension StatisticsController {
         }
     }
 
+    func getChaptersUsageAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<ChaptersUsageAnalyticsResponse> {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let calendar = Calendar.current
+        let today = Date()
+        var dates: [String] = []
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        for i in 0..<30 {
+            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
+                dates.append(dateFormatter.string(from: date))
+            }
+        }
+
+        dates.reverse()
+
+        // `destinationScreen` bakes the chapter id/title into the action string itself
+        // (e.g. "didTapChapter(184, Abertura)"), there is no structured column to filter
+        // on, hence the LIKE-prefix matching below.
+        let tapFilter = "destinationScreen LIKE 'didTapChapter(%' AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying')"
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            let emptyDaily = dates.map { DailyChapterTapsResponse(date: $0, tapCount: 0) }
+            return req.eventLoop.makeSucceededFuture(
+                ChaptersUsageAnalyticsResponse(
+                    dailyChapterTapsLast30Days: emptyDaily,
+                    tapCountEpisodeDetail: 0,
+                    tapCountNowPlaying: 0,
+                    previousCount: 0,
+                    nextCount: 0,
+                    loadedCount: 0,
+                    loadFailedCount: 0,
+                    loadFailedFileMissingCount: 0,
+                    loadFailedDecodeFailedCount: 0,
+                    loadFailedNoEntryCount: 0,
+                    loadFailedEmptyListCount: 0,
+                    hiddenCount: 0,
+                    issueReportedCount: 0,
+                    topChapters: []
+                )
+            )
+        }
+
+        var dailyFutures: [EventLoopFuture<DailyChapterTapsResponse>] = []
+
+        for dateString in dates {
+            let query = """
+                SELECT COUNT(*) as tapsCount
+                FROM UsageMetric
+                WHERE date(dateTime) = date('\(dateString)')
+                  AND \(tapFilter)
+                """
+
+            let future = sqlite.query(query).flatMapThrowing { rows -> DailyChapterTapsResponse in
+                guard let row = rows.first else {
+                    return DailyChapterTapsResponse(date: dateString, tapCount: 0)
+                }
+                let count = row.column("tapsCount")?.integer ?? 0
+                return DailyChapterTapsResponse(date: dateString, tapCount: count)
+            }
+
+            dailyFutures.append(future)
+        }
+
+        let aggregateQuery = """
+            SELECT
+              SUM(CASE WHEN originatingScreen = 'EpisodeDetail' AND destinationScreen LIKE 'didTapChapter(%' THEN 1 ELSE 0 END) as tapCountEpisodeDetail,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'didTapChapter(%' THEN 1 ELSE 0 END) as tapCountNowPlaying,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen = 'chapter_previous' THEN 1 ELSE 0 END) as previousCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen = 'chapter_next' THEN 1 ELSE 0 END) as nextCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_loaded(%' THEN 1 ELSE 0 END) as loadedCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_load_failed(%' THEN 1 ELSE 0 END) as loadFailedCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_load_failed(%, file_missing)' THEN 1 ELSE 0 END) as loadFailedFileMissingCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_load_failed(%, decode_failed)' THEN 1 ELSE 0 END) as loadFailedDecodeFailedCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_load_failed(%, no_entry)' THEN 1 ELSE 0 END) as loadFailedNoEntryCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen LIKE 'chapters_load_failed(%, empty_list)' THEN 1 ELSE 0 END) as loadFailedEmptyListCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen = 'chapters_hidden' THEN 1 ELSE 0 END) as hiddenCount,
+              SUM(CASE WHEN originatingScreen = 'NowPlaying' AND destinationScreen = 'chapter_issue_reported' THEN 1 ELSE 0 END) as issueReportedCount
+            FROM UsageMetric
+            WHERE dateTime >= datetime('now', '-30 days')
+              AND (
+                (destinationScreen LIKE 'didTapChapter(%' AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying'))
+                OR (originatingScreen = 'NowPlaying' AND destinationScreen IN ('chapter_previous', 'chapter_next', 'chapters_hidden', 'chapter_issue_reported'))
+                OR (originatingScreen = 'NowPlaying' AND (destinationScreen LIKE 'chapters_loaded(%' OR destinationScreen LIKE 'chapters_load_failed(%'))
+              )
+            """
+
+        // Chapter ids/titles live packed together in the same action string
+        // ("didTapChapter(<id>, <title>)"); split on the first ", " after
+        // stripping the "didTapChapter(" prefix (14 chars) and trailing ")".
+        // Ordering the parsed rows by dateTime before GROUP BY makes SQLite's
+        // "bare column" selection return the most recently seen title per id.
+        let topChaptersQuery = """
+            WITH taps AS (
+              SELECT
+                dateTime,
+                substr(destinationScreen, 15, length(destinationScreen) - 15) AS payload
+              FROM UsageMetric
+              WHERE destinationScreen LIKE 'didTapChapter(%'
+                AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying')
+            ),
+            parsed AS (
+              SELECT
+                dateTime,
+                CAST(substr(payload, 1, instr(payload, ', ') - 1) AS INTEGER) AS chapterId,
+                substr(payload, instr(payload, ', ') + 2) AS chapterTitle
+              FROM taps
+              WHERE instr(payload, ', ') > 0
+            )
+            SELECT chapterId as id, chapterTitle as title, COUNT(*) as tapCount
+            FROM (SELECT * FROM parsed ORDER BY dateTime ASC)
+            GROUP BY chapterId
+            ORDER BY tapCount DESC
+            LIMIT 15
+            """
+
+        let aggregateFuture = sqlite.query(aggregateQuery)
+        let topChaptersFuture = sqlite.query(topChaptersQuery)
+
+        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
+            results.sorted { $0.date < $1.date }
+        }
+
+        return dailyResultsFuture.and(aggregateFuture).and(topChaptersFuture).flatMapThrowing { partial, topChaptersRows in
+            let (dailyResults, aggregateRows) = partial
+            let row = aggregateRows.first
+
+            let topChapters = topChaptersRows.map { row in
+                TopChapterItem(
+                    id: row.column("id")?.integer ?? 0,
+                    title: row.column("title")?.string ?? "",
+                    tapCount: row.column("tapCount")?.integer ?? 0
+                )
+            }
+
+            return ChaptersUsageAnalyticsResponse(
+                dailyChapterTapsLast30Days: dailyResults,
+                tapCountEpisodeDetail: row?.column("tapCountEpisodeDetail")?.integer ?? 0,
+                tapCountNowPlaying: row?.column("tapCountNowPlaying")?.integer ?? 0,
+                previousCount: row?.column("previousCount")?.integer ?? 0,
+                nextCount: row?.column("nextCount")?.integer ?? 0,
+                loadedCount: row?.column("loadedCount")?.integer ?? 0,
+                loadFailedCount: row?.column("loadFailedCount")?.integer ?? 0,
+                loadFailedFileMissingCount: row?.column("loadFailedFileMissingCount")?.integer ?? 0,
+                loadFailedDecodeFailedCount: row?.column("loadFailedDecodeFailedCount")?.integer ?? 0,
+                loadFailedNoEntryCount: row?.column("loadFailedNoEntryCount")?.integer ?? 0,
+                loadFailedEmptyListCount: row?.column("loadFailedEmptyListCount")?.integer ?? 0,
+                hiddenCount: row?.column("hiddenCount")?.integer ?? 0,
+                issueReportedCount: row?.column("issueReportedCount")?.integer ?? 0,
+                topChapters: topChapters
+            )
+        }
+    }
+
     func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) -> EventLoopFuture<[TopEpisodeItem]> {
         if let sqlite = req.db as? SQLiteDatabase {
             let query = """
