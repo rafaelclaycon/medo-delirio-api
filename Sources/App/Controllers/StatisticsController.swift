@@ -27,6 +27,20 @@ struct StatisticsController {
     /// we provide to MedoHelper.
     private static let excludeSimulatorsClause = "modelName NOT LIKE '%Simulator%'"
 
+    /// Internal/test devices used during development. Excluded from analytics
+    /// so they don't pollute the data we show in MedoHelper.
+    private static let testInstallIds: Set<String> = [
+        "0A4D4541-BC16-4C15-842E-DA6ACF957027", "0F1DF136-BECC-4216-ABF5-BC05C91FBB5B",
+        "A93E5354-41F9-5170-AFD9-817FAE37D037", "F60AF930-0CBA-41FF-A80E-1E6007ED6AE8",
+        "F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4", "FC2ADC6B-B70E-4B69-BC69-CCCADB64903F",
+        "F32538E4-6422-4D6F-9490-0984C17B7D80", "285EAE4D-FBDE-482B-B8F2-705A68A67FDC",
+        "C78A6C1E-4EE0-521F-9C9E-F9AD9CA6C51D", "04BCE1A6-5885-47D7-AD61-A14D6D6B61B7",
+        "C0821365-0003-4986-91EE-F9F79CDF4E7A", "7CC49574-5275-4490-864B-65551784131F",
+        "DFD4128B-65C3-4251-9948-DC85D6E83FBE", "E8120B41-E486-4170-95E0-5F13737A85AB",
+        "173BF7C0-CDF9-4A8D-A1B9-F91611AA12FF", "93AC7BAB-9E30-4219-A0E8-04B4AD8F009C",
+        "AE87DEEA-23BD-4FFD-B918-63B572CD165C"
+    ]
+
     private static let totalUniqueInstallsByMonthQuery = """
         SELECT
             SUBSTR(dateTime, 1, 7) AS month,
@@ -2467,5 +2481,198 @@ extension StatisticsController {
         } else {
             return req.eventLoop.makeSucceededFuture([])
         }
+    }
+}
+
+// MARK: - Folder Research
+
+extension StatisticsController {
+
+    func getFolderResearchAnalyticsHandlerV4(req: Request) async throws -> FolderResearchAnalyticsResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let allLogs = try await UserFolderLog.query(on: req.db).all()
+            .filter { !Self.testInstallIds.contains($0.installId) }
+
+        guard !allLogs.isEmpty else {
+            return FolderResearchAnalyticsResponse(
+                totalUsers: 0,
+                totalFolders: 0,
+                totalContentItems: 0,
+                topFolderNames: [],
+                topEmojis: [],
+                topBackgroundColors: [],
+                users: []
+            )
+        }
+
+        // A folder gets re-logged every time its contents change, so multiple
+        // UserFolderLog rows can share the same (installId, folderId) pair.
+        // Keep only the most recent snapshot per folder to reflect its current state.
+        var latestByFolder: [String: UserFolderLog] = [:]
+        for log in allLogs {
+            let key = "\(log.installId)|\(log.folderId)"
+            if let existing = latestByFolder[key] {
+                if (log.logDateTime ?? "") > (existing.logDateTime ?? "") {
+                    latestByFolder[key] = log
+                }
+            } else {
+                latestByFolder[key] = log
+            }
+        }
+        let canonicalLogs = Array(latestByFolder.values)
+        let canonicalLogIds = canonicalLogs.compactMap { $0.id?.uuidString }
+
+        // Every re-log of a folder is a snapshot in time, so the full set of
+        // logDateTime values per (installId, folderId) doubles as that folder's
+        // change history: first entry is when it was created, the rest are edits.
+        var historyByFolder: [String: [String]] = [:]
+        for log in allLogs {
+            guard let dateTime = log.logDateTime else { continue }
+            let key = "\(log.installId)|\(log.folderId)"
+            historyByFolder[key, default: []].append(dateTime)
+        }
+        for key in historyByFolder.keys {
+            historyByFolder[key]?.sort()
+        }
+
+        let installIds = Set(allLogs.map { $0.installId })
+        let deviceSignals = try await StillAliveSignal.query(on: req.db)
+            .filter(\.$installId ~~ installIds)
+            .all()
+            .filter { !$0.modelName.contains("Simulator") }
+
+        var devicesByUser: [String: [String: (first: String, last: String)]] = [:]
+        for signal in deviceSignals {
+            var models = devicesByUser[signal.installId] ?? [:]
+            if var existing = models[signal.modelName] {
+                if signal.dateTime < existing.first { existing.first = signal.dateTime }
+                if signal.dateTime > existing.last { existing.last = signal.dateTime }
+                models[signal.modelName] = existing
+            } else {
+                models[signal.modelName] = (first: signal.dateTime, last: signal.dateTime)
+            }
+            devicesByUser[signal.installId] = models
+        }
+
+        let contentLogs = try await UserFolderContentLog.query(on: req.db).all()
+            .filter { canonicalLogIds.contains($0.userFolderLogId) }
+
+        let contentIds = Set(contentLogs.compactMap { UUID(uuidString: $0.contentId) })
+
+        let contents = try await MedoContent.query(on: req.db)
+            .filter(\.$id ~~ contentIds)
+            .all()
+
+        let authorIds = Set(contents.map { $0.authorId }).compactMap { UUID(uuidString: $0) }
+        let authors = try await Author.query(on: req.db)
+            .filter(\.$id ~~ Set(authorIds))
+            .all()
+        let authorNameById = Dictionary(uniqueKeysWithValues: authors.compactMap { author -> (String, String)? in
+            guard let id = author.id else { return nil }
+            return (id.uuidString, author.name)
+        })
+
+        let contentById = Dictionary(uniqueKeysWithValues: contents.compactMap { content -> (String, MedoContent)? in
+            guard let id = content.id else { return nil }
+            return (id.uuidString, content)
+        })
+
+        // Group content logs by the folder snapshot they belong to, deduping repeated
+        // content entries within the same folder.
+        var contentIdsByLogId: [String: [String]] = [:]
+        for contentLog in contentLogs {
+            guard let logId = UUID(uuidString: contentLog.userFolderLogId)?.uuidString else { continue }
+            var ids = contentIdsByLogId[logId] ?? []
+            if !ids.contains(contentLog.contentId) {
+                ids.append(contentLog.contentId)
+            }
+            contentIdsByLogId[logId] = ids
+        }
+
+        var folderNameCounts: [String: Int] = [:]
+        var emojiCounts: [String: Int] = [:]
+        var colorCounts: [String: Int] = [:]
+
+        var foldersByUser: [String: [FolderResearchFolder]] = [:]
+
+        for log in canonicalLogs {
+            guard let logId = log.id?.uuidString else { continue }
+
+            folderNameCounts[log.folderName, default: 0] += 1
+            emojiCounts[log.folderSymbol, default: 0] += 1
+            colorCounts[log.backgroundColor, default: 0] += 1
+
+            let itemIds = contentIdsByLogId[logId] ?? []
+            let items = itemIds.compactMap { contentId -> FolderResearchContentItem? in
+                guard let content = contentById[contentId] else { return nil }
+                let authorName = content.contentType == .sound
+                    ? authorNameById[content.authorId]
+                    : nil
+                return FolderResearchContentItem(
+                    contentId: contentId,
+                    title: content.title,
+                    contentType: content.contentType == .sound ? "sound" : "song",
+                    authorName: authorName
+                )
+            }.sorted { $0.title < $1.title }
+
+            let history = historyByFolder["\(log.installId)|\(log.folderId)"] ?? []
+
+            let folder = FolderResearchFolder(
+                folderId: log.folderId,
+                name: log.folderName,
+                symbol: log.folderSymbol,
+                backgroundColor: log.backgroundColor,
+                contentCount: itemIds.count,
+                createdAt: history.first ?? log.logDateTime ?? "",
+                lastUpdated: log.logDateTime ?? "",
+                changeCount: history.count,
+                history: history,
+                contents: items
+            )
+
+            foldersByUser[log.installId, default: []].append(folder)
+        }
+
+        let users: [FolderResearchUser] = foldersByUser.map { installId, folders in
+            let sortedFolders = folders.sorted { $0.contentCount > $1.contentCount }
+            let lastActivity = folders.map { $0.lastUpdated }.max() ?? ""
+            let devices = (devicesByUser[installId] ?? [:])
+                .map { modelName, seen in
+                    FolderResearchDevice(modelName: modelName, firstSeen: seen.first, lastSeen: seen.last)
+                }
+                .sorted { $0.firstSeen < $1.firstSeen }
+            return FolderResearchUser(
+                installId: installId,
+                folderCount: folders.count,
+                contentCount: folders.reduce(0) { $0 + $1.contentCount },
+                lastActivity: lastActivity,
+                devices: devices,
+                folders: sortedFolders
+            )
+        }.sorted { $0.folderCount > $1.folderCount }
+
+        func topCounts(_ dict: [String: Int], limit: Int = 10) -> [FolderResearchNameCount] {
+            dict.map { FolderResearchNameCount(name: $0.key, count: $0.value) }
+                .sorted { $0.count > $1.count }
+                .prefix(limit)
+                .map { $0 }
+        }
+
+        return FolderResearchAnalyticsResponse(
+            totalUsers: users.count,
+            totalFolders: canonicalLogs.count,
+            totalContentItems: contentLogs.count,
+            topFolderNames: topCounts(folderNameCounts),
+            topEmojis: topCounts(emojiCounts),
+            topBackgroundColors: topCounts(colorCounts),
+            users: users
+        )
     }
 }
