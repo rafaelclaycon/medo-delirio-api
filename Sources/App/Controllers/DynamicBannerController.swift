@@ -52,6 +52,22 @@ struct DynamicBannerController {
         return .ok
     }
 
+    func postSetPromoBannerDataHandlerV4(req: Request) async throws -> HTTPStatus {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let newValue = try req.content.decode(String.self)
+        guard newValue.isEmpty == false else {
+            return HTTPStatus.badRequest
+        }
+        try await ServerSettingRepository.set(key: "promo-banner", value: newValue, db: req.db)
+        return .ok
+    }
+
     // MARK: - Getters
 
     func getBannerDontShowVersionHandlerV4(req: Request) async throws -> String {
@@ -70,6 +86,13 @@ struct DynamicBannerController {
 
     func getAnniversaryBannerDataHandlerV4(req: Request) async throws -> String {
         guard let value = try await ServerSettingRepository.get(key: "anniversary-banner", db: req.db) else {
+            throw Abort(.notFound)
+        }
+        return value
+    }
+
+    func getPromoBannerDataHandlerV4(req: Request) async throws -> String {
+        guard let value = try await ServerSettingRepository.get(key: "promo-banner", db: req.db) else {
             throw Abort(.notFound)
         }
         return value
