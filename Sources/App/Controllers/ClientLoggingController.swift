@@ -9,11 +9,30 @@ import Vapor
 
 struct ClientLoggingController {
     
-    func postClientDeviceInfoHandlerV1(req: Request) throws -> EventLoopFuture<ClientDeviceInfo> {
-        let info = try req.content.decode(ClientDeviceInfo.self)
-        return info.save(on: req.db).map {
-            info
+    func postClientDeviceInfoHandlerV1(req: Request) async throws -> ClientDeviceInfo {
+        let incoming = try req.content.decode(ClientDeviceInfo.self)
+
+        // This endpoint receives two independent one-shot pings per install: the device
+        // model name, and the Apple Watch pairing status. They can arrive in any order,
+        // and the model ping omits `isWatchPaired`. Upsert by installId so the two pings
+        // land on a single row, and never let a missing `isWatchPaired` clear a value
+        // that was already reported.
+        guard let existing = try await ClientDeviceInfo.query(on: req.db)
+            .filter(\ClientDeviceInfo.$installId, .equal, incoming.installId)
+            .first()
+        else {
+            try await incoming.save(on: req.db)
+            return incoming
         }
+
+        if !incoming.modelName.isEmpty {
+            existing.modelName = incoming.modelName
+        }
+        if let incomingIsWatchPaired = incoming.isWatchPaired {
+            existing.isWatchPaired = incomingIsWatchPaired
+        }
+        try await existing.save(on: req.db)
+        return existing
     }
     
     func postUserFolderLogsHandlerV1(req: Request) async throws -> HTTPStatus {

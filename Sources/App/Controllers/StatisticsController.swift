@@ -2675,4 +2675,81 @@ extension StatisticsController {
             users: users
         )
     }
+
+    // MARK: - Watch Pairing
+
+    /// Share of active users whose iPhone has an Apple Watch paired.
+    ///
+    /// `?activeDays=N` (default 30) sets the still-alive activity window. Only installs
+    /// that have reported a pairing status count toward the percentage; see
+    /// `WatchPairingRateResponse` for the field semantics.
+    func getWatchPairingRateHandlerV4(req: Request) async throws -> WatchPairingRateResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let activeDays = max((try? req.query.get(Int.self, at: "activeDays")) ?? 30, 1)
+        let cutoff = (Calendar.current.date(byAdding: .day, value: -activeDays, to: Date()) ?? Date())
+            .iso8601withFractionalSeconds
+        let generatedAt = Date().iso8601withFractionalSeconds
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return WatchPairingRateResponse(
+                activeDays: activeDays,
+                activeUsers: 0,
+                eligibleUsers: 0,
+                watchPairedUsers: 0,
+                percentage: 0,
+                generatedAt: generatedAt
+            )
+        }
+
+        let testIdList = Self.testInstallIds.map { "'\($0)'" }.joined(separator: ",")
+        let query = """
+            WITH active AS (
+                SELECT DISTINCT installId
+                FROM StillAliveSignal
+                WHERE dateTime >= '\(cutoff)'
+                  AND \(Self.excludeSimulatorsClause)
+                  AND installId NOT IN (\(testIdList))
+            ),
+            eligible AS (
+                SELECT c.installId,
+                       MAX(CASE WHEN c.isWatchPaired = 1 THEN 1 ELSE 0 END) AS paired
+                FROM ClientDeviceInfo c
+                JOIN active a ON a.installId = c.installId
+                WHERE c.isWatchPaired IS NOT NULL
+                GROUP BY c.installId
+            )
+            SELECT
+                (SELECT COUNT(*) FROM active) AS activeUsers,
+                (SELECT COUNT(*) FROM eligible) AS eligibleUsers,
+                (SELECT COUNT(*) FROM eligible WHERE paired = 1) AS watchPairedUsers
+        """
+
+        let rows = try await sqlite.query(query).get()
+        let row = rows.first
+        let activeUsers = row?.column("activeUsers")?.integer ?? 0
+        let eligibleUsers = row?.column("eligibleUsers")?.integer ?? 0
+        let watchPairedUsers = row?.column("watchPairedUsers")?.integer ?? 0
+
+        let percentage: Double
+        if eligibleUsers > 0 {
+            percentage = ((Double(watchPairedUsers) / Double(eligibleUsers) * 100) * 100).rounded() / 100
+        } else {
+            percentage = 0
+        }
+
+        return WatchPairingRateResponse(
+            activeDays: activeDays,
+            activeUsers: activeUsers,
+            eligibleUsers: eligibleUsers,
+            watchPairedUsers: watchPairedUsers,
+            percentage: percentage,
+            generatedAt: generatedAt
+        )
+    }
 }

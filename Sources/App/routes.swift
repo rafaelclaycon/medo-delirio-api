@@ -115,6 +115,9 @@ func routes(_ app: Application) throws {
     // Folder Research Analytics
     app.get(api, v4, "folder-research-analytics", ":password", use: statisticsController.getFolderResearchAnalyticsHandlerV4)
 
+    // Watch Pairing Analytics
+    app.get(api, v4, "watch-pairing-rate", ":password", use: statisticsController.getWatchPairingRateHandlerV4)
+
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)
     app.get(api, v2, "current-test-version", use: askForMoneyController.getCurrentTestVersionHandlerV2)
