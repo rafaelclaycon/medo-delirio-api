@@ -31,9 +31,14 @@ let package = Package(
             ]
         ),
         .executableTarget(name: "Run", dependencies: [.target(name: "App")]),
-        .testTarget(name: "AppTests", dependencies: [
-            .target(name: "App"),
-            .product(name: "XCTVapor", package: "vapor"),
-        ])
+        .testTarget(
+            name: "AppTests",
+            dependencies: [
+                .target(name: "App"),
+                .product(name: "XCTVapor", package: "vapor"),
+            ],
+            // Read straight from disk via #filePath, see ElectionFixtures.
+            exclude: ["Fixtures"]
+        )
     ]
 )
