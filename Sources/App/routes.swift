@@ -255,4 +255,9 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "dynamic-banner", ":password", use: dynamicBannerController.postSetBannerDataHandlerV4)
     app.post(api, v4, "anniversary-banner", ":password", use: dynamicBannerController.postSetAnniversaryBannerDataHandlerV4)
     app.post(api, v4, "promo-banner", ":password", use: dynamicBannerController.postSetPromoBannerDataHandlerV4)
+
+    let electionController = ElectionController()
+    app.get(api, v4, "election", "live", use: electionController.getLiveHandlerV4)
+    app.get(api, v4, "election", "status", ":password", use: electionController.getStatusHandlerV4)
+    app.post(api, v4, "election", "settings", ":password", use: electionController.postSettingsHandlerV4)
 }

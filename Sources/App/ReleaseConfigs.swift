@@ -31,6 +31,7 @@ struct ReleaseConfigs {
         static let reactionsPassword = required("REACTIONS_PASSWORD")
         static let dynamicBannerPassword = required("DYNAMIC_BANNER_PASSWORD")
         static let analyticsPassword = required("ANALYTICS_PASSWORD")
+        static let electionPassword = required("ELECTION_PASSWORD")
     }
 
     struct Push {

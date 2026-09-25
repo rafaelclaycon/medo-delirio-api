@@ -14,7 +14,8 @@ enum TestEnvironment {
             "ASSET_OPERATION_PASSWORD",
             "REACTIONS_PASSWORD",
             "DYNAMIC_BANNER_PASSWORD",
-            "ANALYTICS_PASSWORD"
+            "ANALYTICS_PASSWORD",
+            "ELECTION_PASSWORD"
         ] {
             setenv(key, testPassword, 1)
         }

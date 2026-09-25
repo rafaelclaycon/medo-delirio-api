@@ -112,7 +112,8 @@ extension ElectionSnapshot {
     private static let brasiliaFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo")
+        // Fixed UTC-3 fallback for Linux boxes without tzdata. Brazil dropped DST in 2019.
+        formatter.timeZone = TimeZone(identifier: "America/Sao_Paulo") ?? TimeZone(secondsFromGMT: -3 * 60 * 60)
         formatter.dateFormat = "dd/MM/yyyy HH:mm:ss"
         return formatter
     }()

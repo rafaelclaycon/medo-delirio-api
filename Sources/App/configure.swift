@@ -63,6 +63,8 @@ public func configure(_ app: Application) async throws {
 
     try await app.autoMigrate()
 
+    app.electionLiveStore = ElectionLiveStore()
+
     try routes(app)
     
     if Environment.get("RSS_POLLING_ENABLED")?.lowercased() == "true" {
@@ -75,6 +77,12 @@ public func configure(_ app: Application) async throws {
         app.lifecycle.use(WeeklyHighlightsLifecycle())
     } else {
         app.logger.info("Weekly highlights is disabled (WEEKLY_HIGHLIGHTS_ENABLED != true)")
+    }
+
+    if Environment.get("ELECTION_POLLING_ENABLED")?.lowercased() == "true" {
+        app.lifecycle.use(ElectionPollingLifecycle())
+    } else {
+        app.logger.info("Election polling is disabled (ELECTION_POLLING_ENABLED != true)")
     }
     
     if app.environment != .testing {
