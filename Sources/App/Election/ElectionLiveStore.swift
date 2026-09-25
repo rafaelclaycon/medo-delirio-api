@@ -25,6 +25,10 @@ actor ElectionLiveStore {
     private(set) var lastError: String?
     /// Final simulation result the replay counts towards.
     private(set) var replayFinal: ElectionSnapshot?
+    /// Last Live Activity push (or dry run), what the next one is compared against.
+    private(set) var lastBroadcast: ElectionBroadcastPlanner.Sent?
+    private(set) var lastBroadcastDecision: ElectionBroadcastPlanner.Decision?
+    private(set) var lastBroadcastError: String?
 
     /// Returns true when the target changed and the state was reset.
     @discardableResult
@@ -36,6 +40,9 @@ actor ElectionLiveStore {
         etag = nil
         lastConfigCheckAt = nil
         lastError = nil
+        lastBroadcast = nil
+        lastBroadcastDecision = nil
+        lastBroadcastError = nil
         return true
     }
 
@@ -75,5 +82,15 @@ actor ElectionLiveStore {
 
     func setReplayFinal(_ snapshot: ElectionSnapshot) {
         replayFinal = snapshot
+    }
+
+    func recordBroadcast(_ sent: ElectionBroadcastPlanner.Sent, decision: ElectionBroadcastPlanner.Decision, error: String?) {
+        lastBroadcast = sent
+        lastBroadcastDecision = decision
+        lastBroadcastError = error
+    }
+
+    func markBroadcastError(_ error: String) {
+        lastBroadcastError = error
     }
 }

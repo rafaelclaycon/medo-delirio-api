@@ -33,8 +33,17 @@ struct ElectionPollingService {
 
     /// Returns how long to wait before the next tick.
     func tick(now: Date = .now) async -> TimeInterval {
+        let settings: ElectionSettings
         do {
-            let settings = try await ElectionSettingsRepository.load(db: app.db)
+            settings = try await ElectionSettingsRepository.load(db: app.db)
+        } catch {
+            app.logger.error("Election poll: \(error)")
+            await store.markError(String(describing: error))
+            return Self.errorBackoff
+        }
+
+        var delay = Self.pollingInterval
+        do {
             if await store.prepare(for: .init(source: settings.source, round: settings.round)) {
                 app.logger.info("Election poll: following \(settings.source.rawValue), round \(settings.round)")
             }
@@ -45,12 +54,16 @@ struct ElectionPollingService {
             case .replay:
                 try await pollReplay(settings: settings, now: now)
             }
-            return Self.pollingInterval
         } catch {
             app.logger.error("Election poll: \(error)")
             await store.markError(String(describing: error))
-            return Self.errorBackoff
+            delay = Self.errorBackoff
         }
+
+        // Every tick, not only on new data: an update held back by the throttle goes out
+        // as soon as the interval has passed.
+        await broadcast(settings: settings, now: now)
+        return delay
     }
 
     // MARK: - TSE
@@ -134,12 +147,69 @@ struct ElectionPollingService {
         }
     }
 
+    // MARK: - Live Activity
+
+    private func broadcast(settings: ElectionSettings, now: Date) async {
+        guard settings.broadcastMode != .off, let snapshot = await store.snapshot else { return }
+
+        let state = ElectionLiveContentState(snapshot: snapshot, candidateColors: settings.candidateColors)
+        let planner = ElectionBroadcastPlanner(minInterval: settings.minPushIntervalSeconds)
+        guard let decision = planner.decide(state, lastSent: await store.lastBroadcast, now: now) else { return }
+
+        let payload = ElectionBroadcastPlanner.payload(for: state, decision: decision, now: now)
+        let sent = ElectionBroadcastPlanner.Sent(state: state, at: now)
+        let summary = "\(decision.event.rawValue), priority \(decision.priority), \(decision.reason)"
+
+        if settings.broadcastMode == .dryRun {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let json = (try? encoder.encode(payload)).map { String(decoding: $0, as: UTF8.self) } ?? "?"
+            app.logger.info("Election push (dry run): \(summary): \(json)")
+            await store.recordBroadcast(sent, decision: decision, error: nil)
+            return
+        }
+
+        let channels = settings.channelIds.sorted { $0.key < $1.key }
+        guard !channels.isEmpty else {
+            await reportBroadcastError("no channels, create them with POST election/channels")
+            return
+        }
+
+        let client = APNsBroadcastClient(app: app)
+        let expiration = ElectionBroadcastPlanner.expiration(for: decision, now: now)
+        var failures: [String] = []
+        for (bundleId, channelId) in channels {
+            do {
+                try await client.send(payload, bundleId: bundleId, channelId: channelId, priority: decision.priority, expiration: expiration)
+            } catch {
+                failures.append("\(bundleId): \(error)")
+            }
+        }
+
+        // When every channel failed, nothing is recorded and the next tick tries again.
+        // When only some did, retrying would repeat the push to the others.
+        guard failures.count < channels.count else {
+            await reportBroadcastError(failures.joined(separator: "; "))
+            return
+        }
+        let error = failures.isEmpty ? nil : failures.joined(separator: "; ")
+        await store.recordBroadcast(sent, decision: decision, error: error)
+        app.logger.info("Election push: \(summary) to \(channels.count - failures.count) channel(s)\(error.map { ", failed: \($0)" } ?? "")")
+    }
+
+    /// Logs only when the error changes, since a broken channel would fail every 10 seconds.
+    private func reportBroadcastError(_ error: String) async {
+        if await store.lastBroadcastError != error {
+            app.logger.error("Election push: \(error)")
+        }
+        await store.markBroadcastError(error)
+    }
+
     // MARK: - Helpers
 
     private func didReceive(_ snapshot: ElectionSnapshot) {
         let leader = snapshot.leader.map { "\($0.name) \(String(format: "%.2f", $0.percent))%" } ?? "none"
         app.logger.info("Election poll: generation \(snapshot.generationId), \(String(format: "%.2f", snapshot.sectionsCountedPercent))% counted, leader \(leader)\(snapshot.isFinal ? ", FINAL" : "")")
-        // Next step: hand the snapshot to the Live Activity broadcaster.
     }
 
     /// The TSE CDN drops idle keep-alive connections and the client only finds out when it

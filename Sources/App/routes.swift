@@ -260,4 +260,6 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "election", "live", use: electionController.getLiveHandlerV4)
     app.get(api, v4, "election", "status", ":password", use: electionController.getStatusHandlerV4)
     app.post(api, v4, "election", "settings", ":password", use: electionController.postSettingsHandlerV4)
+    app.get(api, v4, "election", "channels", ":password", use: electionController.getChannelsHandlerV4)
+    app.post(api, v4, "election", "channels", ":password", use: electionController.postChannelsHandlerV4)
 }

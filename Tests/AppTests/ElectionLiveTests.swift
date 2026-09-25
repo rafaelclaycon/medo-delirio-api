@@ -55,18 +55,45 @@ final class ElectionLiveTests: XCTestCase {
     }
 
     func testSettingsPartialUpdateKeepsOtherFields() {
-        let settings = ElectionSettings(enabled: true, channelId: "abc", candidateColors: ["13": "#FF0000"])
+        let settings = ElectionSettings(enabled: true, channelIds: ["app": "abc"], candidateColors: ["13": "#FF0000"])
         let updated = settings.applying(.init(source: .official))
         XCTAssertEqual(updated.source, .official)
         XCTAssertEqual(updated.endpoint, .official)
         XCTAssertTrue(updated.enabled)
-        XCTAssertEqual(updated.channelId, "abc")
+        XCTAssertEqual(updated.channelIds, ["app": "abc"])
         XCTAssertEqual(updated.candidateColors, ["13": "#FF0000"])
     }
 
-    func testEmptyChannelIdClearsIt() {
-        let settings = ElectionSettings(channelId: "abc")
-        XCTAssertNil(settings.applying(.init(channelId: "")).channelId)
+    func testChannelIdsMergeByBundleAndEmptyClears() {
+        let settings = ElectionSettings(channelIds: ["prod": "abc", "beta": "def"])
+        XCTAssertEqual(settings.applying(.init(channelIds: ["beta": "xyz"])).channelIds, ["prod": "abc", "beta": "xyz"])
+        XCTAssertEqual(settings.applying(.init(channelIds: ["prod": ""])).channelIds, ["beta": "def"])
+    }
+
+    func testChannelLookupHasNoFallbackBetweenApps() {
+        let settings = ElectionSettings(channelIds: [ElectionSettings.productionBundleId: "prod-channel"])
+        XCTAssertEqual(settings.channelId(forBundleId: ElectionSettings.productionBundleId), "prod-channel")
+        XCTAssertEqual(settings.channelId(forBundleId: nil), "prod-channel")
+        // The beta app can't subscribe to production's channel.
+        XCTAssertNil(settings.channelId(forBundleId: ElectionSettings.betaBundleId))
+    }
+
+    /// Settings saved before a field existed must still load, or the poller stops.
+    func testSettingsDecodeWithMissingKeys() throws {
+        let json = #"{"enabled":true,"source":"official","round":1,"candidateColors":{}}"#
+        let settings = try JSONDecoder().decode(ElectionSettings.self, from: Data(json.utf8))
+        XCTAssertTrue(settings.enabled)
+        XCTAssertEqual(settings.source, .official)
+        XCTAssertEqual(settings.channelIds, [:])
+        XCTAssertEqual(settings.broadcastMode, .dryRun)
+        XCTAssertEqual(settings.minPushIntervalSeconds, 30)
+        XCTAssertEqual(settings.replayDurationMinutes, 20)
+    }
+
+    func testBroadcastSettingsUpdate() {
+        let updated = ElectionSettings().applying(.init(broadcastMode: .live, minPushIntervalSeconds: 60))
+        XCTAssertEqual(updated.broadcastMode, .live)
+        XCTAssertEqual(updated.minPushIntervalSeconds, 60)
     }
 
     func testSwitchingToReplayStartsIt() {
@@ -87,7 +114,7 @@ final class ElectionLiveTests: XCTestCase {
     }
 
     func testSettingsRoundTripThroughJSON() throws {
-        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelId: "abc", candidateColors: ["13": "#FF0000"], replayStartedAt: 5)
+        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelIds: ["app": "abc"], broadcastMode: .live, minPushIntervalSeconds: 45, candidateColors: ["13": "#FF0000"], replayStartedAt: 5)
         let decoded = try JSONDecoder().decode(ElectionSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertEqual(decoded, settings)
     }
