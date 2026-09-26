@@ -11,6 +11,33 @@ struct ElectionReplay {
     /// How far off the final share candidates start, e.g. 0.3 = ±30%.
     var skew: Double = 0.3
 
+    /// Share of sections counted after `timeProgress` of the replay. Electronic voting makes
+    /// real counts fast at first and slow at the end, when the remote sections come in:
+    /// half the count takes a quarter of the time.
+    static func countedFraction(at timeProgress: Double) -> Double {
+        let timeProgress = min(max(timeProgress, 0), 1)
+        return 1 - (1 - timeProgress) * (1 - timeProgress)
+    }
+
+    /// The replay as the TSE would publish it at `position`: counted along
+    /// `countedFraction(at:)`, with the step time as the totalization time.
+    func snapshot(at position: ElectionSettings.ReplayPosition) -> ElectionSnapshot {
+        let snapshot = snapshot(at: Self.countedFraction(at: position.progress))
+        return ElectionSnapshot(
+            electionCode: snapshot.electionCode,
+            round: snapshot.round,
+            generationId: snapshot.generationId,
+            totalizedAt: position.publishedAt,
+            isFinal: snapshot.isFinal,
+            sectionsTotal: snapshot.sectionsTotal,
+            sectionsCounted: snapshot.sectionsCounted,
+            sectionsCountedPercent: snapshot.sectionsCountedPercent,
+            validVotes: snapshot.validVotes,
+            candidates: snapshot.candidates
+        )
+    }
+
+    /// - Parameter progress: share of sections counted, 0 to 1.
     func snapshot(at progress: Double) -> ElectionSnapshot {
         let progress = min(max(progress, 0), 1)
         guard progress < 1 else { return final }

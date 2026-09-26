@@ -118,6 +118,38 @@ final class ElectionSnapshotTests: XCTestCase {
 
     // MARK: - Replay
 
+    func testReplayCountsFastAtFirst() {
+        XCTAssertEqual(ElectionReplay.countedFraction(at: 0), 0)
+        XCTAssertEqual(ElectionReplay.countedFraction(at: 0.5), 0.75)
+        XCTAssertEqual(ElectionReplay.countedFraction(at: 1), 1)
+        XCTAssertEqual(ElectionReplay.countedFraction(at: 2), 1)
+        let curve = stride(from: 0.0, through: 1, by: 0.05).map(ElectionReplay.countedFraction(at:))
+        XCTAssertEqual(curve, curve.sorted())
+    }
+
+    func testReplayUsesStepTimeAsTotalizationTime() throws {
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        let replay = ElectionReplay(final: final)
+        let publishedAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+        let halfway = replay.snapshot(at: .init(progress: 0.5, publishedAt: publishedAt))
+        XCTAssertEqual(halfway.totalizedAt, publishedAt)
+        XCTAssertFalse(halfway.isFinal)
+        XCTAssertEqual(halfway.sectionsCountedPercent, 75, accuracy: 0.1)
+
+        let end = replay.snapshot(at: .init(progress: 1, publishedAt: publishedAt))
+        XCTAssertTrue(end.isFinal)
+        XCTAssertEqual(end.totalizedAt, publishedAt)
+        XCTAssertEqual(end.candidates, final.candidates)
+    }
+
+    /// The offline replay must count towards the same result the tests use.
+    func testBuiltInReplayResultMatchesFixture() throws {
+        let fixture = String(decoding: try ElectionFixtures.data("br-c0001-e021270-u.json"), as: UTF8.self)
+        XCTAssertEqual(ElectionReplayFixture.json.trimmingCharacters(in: .whitespacesAndNewlines), fixture.trimmingCharacters(in: .whitespacesAndNewlines))
+        XCTAssertEqual(try ElectionReplayFixture.finalSnapshot(), try ElectionFixtures.finalPresidentSnapshot())
+    }
+
     func testReplayStartsEmpty() throws {
         let snapshot = ElectionReplay(final: try ElectionFixtures.finalPresidentSnapshot()).snapshot(at: 0)
         XCTAssertEqual(snapshot.sectionsCounted, 0)

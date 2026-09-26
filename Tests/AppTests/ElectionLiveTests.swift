@@ -88,6 +88,8 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.broadcastMode, .dryRun)
         XCTAssertEqual(settings.minPushIntervalSeconds, 30)
         XCTAssertEqual(settings.replayDurationMinutes, 20)
+        XCTAssertEqual(settings.replayStepSeconds, 60)
+        XCTAssertFalse(settings.replayOffline)
     }
 
     func testBroadcastSettingsUpdate() {
@@ -105,16 +107,43 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.applying(.init(restartReplay: true), now: Date(timeIntervalSince1970: 2000)).replayStartedAt, 2000)
     }
 
-    func testReplayProgress() {
-        let settings = ElectionSettings(replayStartedAt: 1000, replayDurationMinutes: 10)
-        XCTAssertEqual(settings.replayProgress(at: Date(timeIntervalSince1970: 500)), 0)
-        XCTAssertEqual(settings.replayProgress(at: Date(timeIntervalSince1970: 1300)), 0.5)
-        XCTAssertEqual(settings.replayProgress(at: Date(timeIntervalSince1970: 9999)), 1)
-        XCTAssertEqual(ElectionSettings().replayProgress(at: .now), 0)
+    func testReplayMovesInSteps() {
+        let settings = ElectionSettings(replayStartedAt: 1000, replayDurationMinutes: 10, replayStepSeconds: 60)
+        func position(_ seconds: Double) -> ElectionSettings.ReplayPosition {
+            settings.replayPosition(at: Date(timeIntervalSince1970: seconds))
+        }
+        XCTAssertEqual(position(500), .init(progress: 0, publishedAt: Date(timeIntervalSince1970: 1000)))
+        XCTAssertEqual(position(1059), .init(progress: 0, publishedAt: Date(timeIntervalSince1970: 1000)))
+        XCTAssertEqual(position(1061), .init(progress: 0.1, publishedAt: Date(timeIntervalSince1970: 1060)))
+        XCTAssertEqual(position(1300), .init(progress: 0.5, publishedAt: Date(timeIntervalSince1970: 1300)))
+        XCTAssertEqual(position(9999), .init(progress: 1, publishedAt: Date(timeIntervalSince1970: 1600)))
+    }
+
+    func testReplayLastStepLandsOnTheEnd() {
+        // 10 minutes in steps of 7 minutes: 0, 7, then straight to 10.
+        let settings = ElectionSettings(replayStartedAt: 0, replayDurationMinutes: 10, replayStepSeconds: 420)
+        XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 599)).progress, 0.7)
+        XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 600)).progress, 1)
+    }
+
+    func testReplayWithoutStepsMovesEveryPoll() {
+        let settings = ElectionSettings(replayStartedAt: 1000, replayDurationMinutes: 10, replayStepSeconds: 0)
+        XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 1030)).progress, 0.05)
+    }
+
+    func testReplayNotStarted() {
+        let now = Date(timeIntervalSince1970: 42)
+        XCTAssertEqual(ElectionSettings().replayPosition(at: now), .init(progress: 0, publishedAt: now))
+    }
+
+    func testReplaySettingsUpdate() {
+        let updated = ElectionSettings().applying(.init(replayStepSeconds: 90, replayOffline: true))
+        XCTAssertEqual(updated.replayStepSeconds, 90)
+        XCTAssertTrue(updated.replayOffline)
     }
 
     func testSettingsRoundTripThroughJSON() throws {
-        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelIds: ["app": "abc"], broadcastMode: .live, minPushIntervalSeconds: 45, candidateColors: ["13": "#FF0000"], replayStartedAt: 5)
+        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelIds: ["app": "abc"], broadcastMode: .live, minPushIntervalSeconds: 45, candidateColors: ["13": "#FF0000"], replayStartedAt: 5, replayStepSeconds: 30, replayOffline: true)
         let decoded = try JSONDecoder().decode(ElectionSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertEqual(decoded, settings)
     }

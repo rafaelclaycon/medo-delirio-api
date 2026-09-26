@@ -123,28 +123,48 @@ struct ElectionPollingService {
 
     // MARK: - Replay
 
-    /// Counts towards the final result of the TSE simulation, fetched once.
+    /// Counts towards the final result of the TSE simulation, fetched once. The result built
+    /// into the server stands in when `replayOffline` is on or the TSE doesn't answer.
     private func pollReplay(settings: ElectionSettings, now: Date) async throws {
         let final: ElectionSnapshot
         if let cached = await store.replayFinal {
             final = cached
+        } else if settings.replayOffline {
+            final = try ElectionReplayFixture.finalSnapshot()
+            await store.setReplayFinal(final)
+            app.logger.info("Election poll: replaying the built-in simulation result")
         } else {
-            guard let election = try await resolveElection(endpoint: .simulation, round: 1, now: now) else {
-                return
+            do {
+                if let fetched = try await fetchSimulationFinal(now: now) {
+                    final = fetched
+                } else {
+                    app.logger.warning("Election poll: simulation not listed by the TSE, using the built-in simulation result")
+                    final = try ElectionReplayFixture.finalSnapshot()
+                }
+            } catch {
+                app.logger.warning("Election poll: TSE unavailable for the replay (\(error)), using the built-in simulation result")
+                final = try ElectionReplayFixture.finalSnapshot()
             }
-            let url = TSEEndpoint.simulation.presidentResultURL(cycle: election.cycle, electionCode: election.electionCode)
-            let response = try await get(url, etag: nil)
-            guard response.status == .ok else {
-                throw Abort(.badGateway, reason: "TSE answered \(response.status.code) for \(url)")
-            }
-            final = try ElectionSnapshot(from: response.content.decode(TSEResultFile.self, using: JSONDecoder()))
             await store.setReplayFinal(final)
         }
 
-        let snapshot = ElectionReplay(final: final).snapshot(at: settings.replayProgress(at: now))
+        let snapshot = ElectionReplay(final: final).snapshot(at: settings.replayPosition(at: now))
         if await store.update(snapshot: snapshot, etag: nil, at: now) {
             didReceive(snapshot)
         }
+    }
+
+    /// Nil when `ele-c.json` doesn't list the simulation.
+    private func fetchSimulationFinal(now: Date) async throws -> ElectionSnapshot? {
+        guard let election = try await resolveElection(endpoint: .simulation, round: 1, now: now) else {
+            return nil
+        }
+        let url = TSEEndpoint.simulation.presidentResultURL(cycle: election.cycle, electionCode: election.electionCode)
+        let response = try await get(url, etag: nil)
+        guard response.status == .ok else {
+            throw Abort(.badGateway, reason: "TSE answered \(response.status.code) for \(url)")
+        }
+        return try ElectionSnapshot(from: response.content.decode(TSEResultFile.self, using: JSONDecoder()))
     }
 
     // MARK: - Live Activity

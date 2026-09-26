@@ -106,13 +106,20 @@ struct ElectionController {
     }
 
     /// Creates the broadcast channel of each app that doesn't have one yet, in the current
-    /// APNs environment, and saves it in the settings. To replace a channel, clear it first
-    /// with `{"channelIds": {"<bundle ID>": ""}}`.
+    /// APNs environment, and saves it in the settings. `?bundleId=` limits it to one app.
+    /// To replace a channel, clear it first with `{"channelIds": {"<bundle ID>": ""}}`.
     func postChannelsHandlerV4(req: Request) async throws -> ElectionSettings {
         try checkPassword(req)
+        var bundleIds = ElectionSettings.appBundleIds
+        if let bundleId = req.query[String.self, at: "bundleId"] {
+            guard bundleIds.contains(bundleId) else {
+                throw Abort(.badRequest, reason: "bundleId must be one of \(bundleIds.joined(separator: ", "))")
+            }
+            bundleIds = [bundleId]
+        }
         var settings = try await ElectionSettingsRepository.load(db: req.db)
         let client = APNsBroadcastClient(app: req.application)
-        for bundleId in ElectionSettings.appBundleIds where settings.channelIds[bundleId] == nil {
+        for bundleId in bundleIds where settings.channelIds[bundleId] == nil {
             let channelId = try await client.createChannel(bundleId: bundleId)
             settings.channelIds[bundleId] = channelId
             // Saved one by one so a failure on the second app doesn't lose the first channel.

@@ -44,6 +44,10 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     /// Seconds since 1970. Replay progress is measured from here.
     var replayStartedAt: Double?
     var replayDurationMinutes: Double = 20
+    /// The replay moves in jumps this far apart, like new TSE files. 0 moves every poll.
+    var replayStepSeconds: Double = 60
+    /// Uses the simulation result built into the server instead of fetching it from the TSE.
+    var replayOffline: Bool = false
 
     static let settingKey = "election-settings"
 
@@ -56,7 +60,9 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         minPushIntervalSeconds: Double = 30,
         candidateColors: [String: String] = [:],
         replayStartedAt: Double? = nil,
-        replayDurationMinutes: Double = 20
+        replayDurationMinutes: Double = 20,
+        replayStepSeconds: Double = 60,
+        replayOffline: Bool = false
     ) {
         self.enabled = enabled
         self.source = source
@@ -67,6 +73,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         self.candidateColors = candidateColors
         self.replayStartedAt = replayStartedAt
         self.replayDurationMinutes = replayDurationMinutes
+        self.replayStepSeconds = replayStepSeconds
+        self.replayOffline = replayOffline
     }
 
     /// Missing keys fall back to the defaults, so adding a field doesn't break the JSON
@@ -83,6 +91,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         candidateColors = try container.decodeIfPresent([String: String].self, forKey: .candidateColors) ?? defaults.candidateColors
         replayStartedAt = try container.decodeIfPresent(Double.self, forKey: .replayStartedAt)
         replayDurationMinutes = try container.decodeIfPresent(Double.self, forKey: .replayDurationMinutes) ?? defaults.replayDurationMinutes
+        replayStepSeconds = try container.decodeIfPresent(Double.self, forKey: .replayStepSeconds) ?? defaults.replayStepSeconds
+        replayOffline = try container.decodeIfPresent(Bool.self, forKey: .replayOffline) ?? defaults.replayOffline
     }
 
     /// A channel only works for the app it was created for, so there's no fallback between
@@ -95,10 +105,28 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         source == .official ? .official : .simulation
     }
 
-    func replayProgress(at date: Date) -> Double {
-        guard let replayStartedAt, replayDurationMinutes > 0 else { return 0 }
-        let elapsed = date.timeIntervalSince1970 - replayStartedAt
-        return min(max(elapsed / (replayDurationMinutes * 60), 0), 1)
+    struct ReplayPosition: Equatable {
+        /// Share of the replay duration elapsed at the current step, 0 to 1.
+        let progress: Double
+        /// When the current step was "published", shown as the TSE totalization time.
+        let publishedAt: Date
+    }
+
+    /// Where the replay is at `date`. Only moves at every `replayStepSeconds`, and the last
+    /// step always lands on the end of the duration.
+    func replayPosition(at date: Date) -> ReplayPosition {
+        guard let replayStartedAt, replayDurationMinutes > 0 else {
+            return ReplayPosition(progress: 0, publishedAt: date)
+        }
+        let duration = replayDurationMinutes * 60
+        let elapsed = min(max(date.timeIntervalSince1970 - replayStartedAt, 0), duration)
+        let stepped = elapsed < duration && replayStepSeconds > 0
+            ? (elapsed / replayStepSeconds).rounded(.down) * replayStepSeconds
+            : elapsed
+        return ReplayPosition(
+            progress: stepped / duration,
+            publishedAt: Date(timeIntervalSince1970: replayStartedAt + stepped)
+        )
     }
 
     /// Fields left nil keep their current value.
@@ -112,6 +140,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         var minPushIntervalSeconds: Double?
         var candidateColors: [String: String]?
         var replayDurationMinutes: Double?
+        var replayStepSeconds: Double?
+        var replayOffline: Bool?
         /// Starts (or restarts) the replay from 0%.
         var restartReplay: Bool?
     }
@@ -128,6 +158,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         if let minPushIntervalSeconds = update.minPushIntervalSeconds { settings.minPushIntervalSeconds = minPushIntervalSeconds }
         if let candidateColors = update.candidateColors { settings.candidateColors = candidateColors }
         if let replayDurationMinutes = update.replayDurationMinutes { settings.replayDurationMinutes = replayDurationMinutes }
+        if let replayStepSeconds = update.replayStepSeconds { settings.replayStepSeconds = replayStepSeconds }
+        if let replayOffline = update.replayOffline { settings.replayOffline = replayOffline }
         if update.restartReplay == true || (update.source == .replay && source != .replay) {
             settings.replayStartedAt = now.timeIntervalSince1970
         }
