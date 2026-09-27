@@ -90,6 +90,7 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.replayDurationMinutes, 20)
         XCTAssertEqual(settings.replayStepSeconds, 60)
         XCTAssertFalse(settings.replayOffline)
+        XCTAssertEqual(settings.finalMessages, [:])
     }
 
     func testBroadcastSettingsUpdate() {
@@ -143,9 +144,75 @@ final class ElectionLiveTests: XCTestCase {
     }
 
     func testSettingsRoundTripThroughJSON() throws {
-        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelIds: ["app": "abc"], broadcastMode: .live, minPushIntervalSeconds: 45, candidateColors: ["13": "#FF0000"], replayStartedAt: 5, replayStepSeconds: 30, replayOffline: true)
+        let settings = ElectionSettings(enabled: true, source: .replay, round: 2, channelIds: ["app": "abc"], broadcastMode: .live, minPushIntervalSeconds: 45, candidateColors: ["13": "#FF0000"], replayStartedAt: 5, replayStepSeconds: 30, replayOffline: true, finalMessages: ["default": .init(text: "x", alertTitle: "t", alertBody: nil)])
         let decoded = try JSONDecoder().decode(ElectionSettings.self, from: JSONEncoder().encode(settings))
         XCTAssertEqual(decoded, settings)
+    }
+
+    // MARK: - Final Message
+
+    private func message(_ text: String) -> ElectionSettings.FinalMessage {
+        .init(text: text, alertTitle: nil, alertBody: nil)
+    }
+
+    private func electedSnapshot(winner: Int) throws -> ElectionSnapshot {
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        let candidates = final.candidates.map { candidate in
+            ElectionSnapshot.Candidate(
+                number: candidate.number, name: candidate.name, party: candidate.party, votes: candidate.votes,
+                percent: candidate.percent, status: candidate.number == winner ? .elected : .notElected,
+                hasValidVotes: candidate.hasValidVotes
+            )
+        }
+        return ElectionSnapshot(
+            electionCode: final.electionCode, round: 2, generationId: final.generationId, totalizedAt: final.totalizedAt,
+            isFinal: true, sectionsTotal: final.sectionsTotal, sectionsCounted: final.sectionsCounted,
+            sectionsCountedPercent: 100, validVotes: final.validVotes, candidates: candidates
+        )
+    }
+
+    func testFinalMessagePrefersTheMostSpecificKey() throws {
+        // The simulation ends in a runoff between 57 and 89.
+        let runoff = try ElectionFixtures.finalPresidentSnapshot()
+        var settings = ElectionSettings(finalMessages: ["default": message("d"), "runoff": message("r")])
+        XCTAssertEqual(settings.finalMessage(for: runoff)?.text, "r")
+        settings.finalMessages["runoff:57-89"] = message("57 x 89")
+        XCTAssertEqual(settings.finalMessage(for: runoff)?.text, "57 x 89")
+
+        let elected = try electedSnapshot(winner: 89)
+        XCTAssertEqual(settings.finalMessage(for: elected)?.text, "d")
+        settings.finalMessages["elected:89"] = message("89 eleito")
+        settings.finalMessages["elected:57"] = message("57 eleito")
+        XCTAssertEqual(settings.finalMessage(for: elected)?.text, "89 eleito")
+    }
+
+    func testNoFinalMessageBeforeTheEndOrWithoutAMatch() throws {
+        let settings = ElectionSettings(finalMessages: ["elected:13": message("x")])
+        XCTAssertNil(settings.finalMessage(for: try ElectionFixtures.finalPresidentSnapshot()))
+        let counting = ElectionReplay(final: try ElectionFixtures.finalPresidentSnapshot()).snapshot(at: 0.5)
+        XCTAssertNil(ElectionSettings(finalMessages: ["default": message("x")]).finalMessage(for: counting))
+    }
+
+    func testContentStateCarriesFinalMessageOnlyWhenFinal() throws {
+        let settings = ElectionSettings(finalMessages: ["default": message("Acabou")])
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        XCTAssertEqual(ElectionLiveContentState(snapshot: final, settings: settings).finalMessage, "Acabou")
+
+        let counting = ElectionReplay(final: final).snapshot(at: 0.5)
+        let state = ElectionLiveContentState(snapshot: counting, settings: settings)
+        XCTAssertNil(state.finalMessage)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(state)) as? [String: Any])
+        XCTAssertNil(json["finalMessage"], "left out of the JSON when nil")
+    }
+
+    func testFinalMessagesMergeAndNullRemoves() throws {
+        let settings = ElectionSettings(finalMessages: ["default": message("a"), "runoff": message("b")])
+        let json = #"{"finalMessages":{"runoff":null,"elected:13":{"text":"c","alertTitle":"t"}}}"#
+        let update = try JSONDecoder().decode(ElectionSettings.Update.self, from: Data(json.utf8))
+        let updated = settings.applying(update)
+        XCTAssertEqual(Set(updated.finalMessages.keys), ["default", "elected:13"])
+        XCTAssertEqual(updated.finalMessages["elected:13"]?.alertTitle, "t")
+        XCTAssertNil(updated.finalMessages["elected:13"]?.alertBody)
     }
 
     // MARK: - Store

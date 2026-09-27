@@ -10,6 +10,9 @@ struct ElectionLiveContentState: Codable, Equatable {
     /// TSE totalization time, seconds since 1970.
     var updatedAt: Double
     var candidates: [Candidate]
+    /// The admin's message for how the count ended (`ElectionSettings.finalMessages`). Only
+    /// on the final state; left out of the JSON when nil.
+    var finalMessage: String?
 
     struct Candidate: Codable, Equatable {
         let number: Int
@@ -27,9 +30,19 @@ struct ElectionLiveContentState: Codable, Equatable {
 
     /// - Parameter candidateColors: "#RRGGBB" by ballot number, as a string key so it
     ///   round-trips through JSON settings.
-    init(snapshot: ElectionSnapshot, candidateColors: [String: String], fallbackDate: Date = .now) {
+    init(snapshot: ElectionSnapshot, settings: ElectionSettings, fallbackDate: Date = .now) {
+        self.init(
+            snapshot: snapshot,
+            candidateColors: settings.candidateColors,
+            finalMessage: settings.finalMessage(for: snapshot)?.text,
+            fallbackDate: fallbackDate
+        )
+    }
+
+    init(snapshot: ElectionSnapshot, candidateColors: [String: String], finalMessage: String? = nil, fallbackDate: Date = .now) {
         self.sectionsCountedPercent = snapshot.sectionsCountedPercent
         self.isFinal = snapshot.isFinal
+        self.finalMessage = snapshot.isFinal ? finalMessage : nil
         self.updatedAt = (snapshot.totalizedAt ?? fallbackDate).timeIntervalSince1970
         self.candidates = snapshot.candidates
             .prefix(Self.candidateLimit(round: snapshot.round))

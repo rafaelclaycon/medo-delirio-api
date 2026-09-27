@@ -18,6 +18,8 @@ struct ElectionBroadcastPlanner {
         let priority: Int
         /// For the logs.
         let reason: String
+        /// Only the first final push lights up the Lock Screen.
+        var alerts: Bool = true
     }
 
     struct Sent: Equatable {
@@ -45,6 +47,10 @@ struct ElectionBroadcastPlanner {
         guard state != lastSent.state else { return nil }
 
         if state.isFinal {
+            // The admin edited the final message after the end went out: resend it quietly.
+            if lastSent.state.isFinal {
+                return Decision(event: .end, priority: 5, reason: "final message edited", alerts: false)
+            }
             return Decision(event: .end, priority: 10, reason: "final result")
         }
         // Only happens when a replay restarts: activities started since then need to hear
@@ -69,7 +75,12 @@ struct ElectionBroadcastPlanner {
 
     // MARK: - Payload
 
-    static func payload(for state: ElectionLiveContentState, decision: Decision, now: Date) -> Payload {
+    static func payload(
+        for state: ElectionLiveContentState,
+        decision: Decision,
+        now: Date,
+        finalMessage: ElectionSettings.FinalMessage? = nil
+    ) -> Payload {
         let timestamp = Int(now.timeIntervalSince1970)
         switch decision.event {
         case .update:
@@ -88,7 +99,7 @@ struct ElectionBroadcastPlanner {
                 contentState: state,
                 staleDate: nil,
                 dismissalDate: timestamp + Int(dismissalInterval),
-                alert: finalAlert(for: state)
+                alert: decision.alerts ? finalAlert(for: state, message: finalMessage) : nil
             ))
         }
     }
@@ -100,8 +111,17 @@ struct ElectionBroadcastPlanner {
         return Int(now.timeIntervalSince1970 + lifetime)
     }
 
-    /// Lights up the Lock Screen when the result is known.
-    static func finalAlert(for state: ElectionLiveContentState) -> Payload.Alert {
+    /// Lights up the Lock Screen when the result is known. The admin's texts replace the
+    /// neutral ones.
+    static func finalAlert(for state: ElectionLiveContentState, message: ElectionSettings.FinalMessage? = nil) -> Payload.Alert {
+        let neutral = neutralFinalAlert(for: state)
+        return Payload.Alert(
+            title: message?.alertTitle ?? neutral.title,
+            body: message?.alertBody ?? neutral.body
+        )
+    }
+
+    private static func neutralFinalAlert(for state: ElectionLiveContentState) -> Payload.Alert {
         let title = "Apuração encerrada"
         if let winner = state.candidates.first(where: { $0.status == .elected }) {
             return .init(title: title, body: "\(winner.name) (\(winner.party)) vence com \(formatted(winner.percent))% dos votos válidos.")

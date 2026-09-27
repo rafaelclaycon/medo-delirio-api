@@ -172,11 +172,16 @@ struct ElectionPollingService {
     private func broadcast(settings: ElectionSettings, now: Date) async {
         guard settings.broadcastMode != .off, let snapshot = await store.snapshot else { return }
 
-        let state = ElectionLiveContentState(snapshot: snapshot, candidateColors: settings.candidateColors)
+        let state = ElectionLiveContentState(snapshot: snapshot, settings: settings)
         let planner = ElectionBroadcastPlanner(minInterval: settings.minPushIntervalSeconds)
         guard let decision = planner.decide(state, lastSent: await store.lastBroadcast, now: now) else { return }
 
-        let payload = ElectionBroadcastPlanner.payload(for: state, decision: decision, now: now)
+        let payload = ElectionBroadcastPlanner.payload(
+            for: state,
+            decision: decision,
+            now: now,
+            finalMessage: settings.finalMessage(for: snapshot)
+        )
         let sent = ElectionBroadcastPlanner.Sent(state: state, at: now)
         let summary = "\(decision.event.rawValue), priority \(decision.priority), \(decision.reason)"
 

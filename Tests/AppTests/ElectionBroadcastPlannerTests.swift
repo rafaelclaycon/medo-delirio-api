@@ -66,6 +66,30 @@ final class ElectionBroadcastPlannerTests: XCTestCase {
         XCTAssertEqual(decision?.priority, 10)
     }
 
+    func testEditedFinalMessageIsResentQuietly() throws {
+        let ended = try state(at: 1)
+        var edited = ended
+        edited.finalMessage = "Nova mensagem"
+        let decision = try XCTUnwrap(planner.decide(edited, lastSent: sent(ended, secondsAgo: 1), now: start))
+        XCTAssertEqual(decision.event, .end)
+        XCTAssertEqual(decision.priority, 5)
+        XCTAssertFalse(decision.alerts)
+
+        let aps = try XCTUnwrap(try payloadJSON(edited, decision)["aps"] as? [String: Any])
+        XCTAssertNil(aps["alert"])
+        XCTAssertEqual((aps["content-state"] as? [String: Any])?["finalMessage"] as? String, "Nova mensagem")
+    }
+
+    func testAdminAlertReplacesTheNeutralOne() throws {
+        let final = try state(at: 1)
+        let onlyTitle = ElectionBroadcastPlanner.finalAlert(for: final, message: .init(text: "x", alertTitle: "Aeeee", alertBody: nil))
+        XCTAssertEqual(onlyTitle.title, "Aeeee")
+        XCTAssertTrue(onlyTitle.body.hasSuffix("vão para o 2º turno."), "the neutral body stays when only the title is set")
+
+        let both = ElectionBroadcastPlanner.finalAlert(for: final, message: .init(text: "x", alertTitle: "A", alertBody: "B"))
+        XCTAssertEqual(both, .init(title: "A", body: "B"))
+    }
+
     func testReplayRestartAfterTheEndIsSentRightAway() throws {
         let decision = planner.decide(try state(at: 0), lastSent: sent(try state(at: 1), secondsAgo: 1), now: start)
         XCTAssertEqual(decision?.event, .update)

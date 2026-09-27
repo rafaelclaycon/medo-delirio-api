@@ -48,6 +48,20 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     var replayStepSeconds: Double = 60
     /// Uses the simulation result built into the server instead of fetching it from the TSE.
     var replayOffline: Bool = false
+    /// Written ahead by the admin, one per outcome, since the final push goes out as soon as
+    /// the TSE closes the count. See `finalMessage(for:)` for the keys.
+    var finalMessages: [String: FinalMessage] = [:]
+
+    struct FinalMessage: Codable, Equatable, Sendable {
+        /// Shown on the Live Activity under the final result.
+        let text: String
+        /// Replace the default "Apuração encerrada" alert when set.
+        let alertTitle: String?
+        let alertBody: String?
+
+        static let maxTextLength = 120
+        static let maxAlertLength = 180
+    }
 
     static let settingKey = "election-settings"
 
@@ -62,7 +76,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayStartedAt: Double? = nil,
         replayDurationMinutes: Double = 20,
         replayStepSeconds: Double = 60,
-        replayOffline: Bool = false
+        replayOffline: Bool = false,
+        finalMessages: [String: FinalMessage] = [:]
     ) {
         self.enabled = enabled
         self.source = source
@@ -75,6 +90,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         self.replayDurationMinutes = replayDurationMinutes
         self.replayStepSeconds = replayStepSeconds
         self.replayOffline = replayOffline
+        self.finalMessages = finalMessages
     }
 
     /// Missing keys fall back to the defaults, so adding a field doesn't break the JSON
@@ -93,6 +109,25 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayDurationMinutes = try container.decodeIfPresent(Double.self, forKey: .replayDurationMinutes) ?? defaults.replayDurationMinutes
         replayStepSeconds = try container.decodeIfPresent(Double.self, forKey: .replayStepSeconds) ?? defaults.replayStepSeconds
         replayOffline = try container.decodeIfPresent(Bool.self, forKey: .replayOffline) ?? defaults.replayOffline
+        finalMessages = try container.decodeIfPresent([String: FinalMessage].self, forKey: .finalMessages) ?? defaults.finalMessages
+    }
+
+    /// The admin's message for how the count ended, most specific key first: `elected:13`
+    /// then `elected`; `runoff:13-22` (numbers in ascending order) then `runoff`; then
+    /// `default`. Nil until the count is final.
+    func finalMessage(for snapshot: ElectionSnapshot) -> FinalMessage? {
+        guard snapshot.isFinal else { return nil }
+        var keys: [String] = []
+        if let elected = snapshot.candidates.first(where: { $0.status == .elected }) {
+            keys += ["elected:\(elected.number)", "elected"]
+        } else {
+            let finalists = snapshot.candidates.filter { $0.status == .runoff }.map(\.number).sorted()
+            if finalists.count == 2 {
+                keys += ["runoff:\(finalists[0])-\(finalists[1])", "runoff"]
+            }
+        }
+        keys.append("default")
+        return keys.lazy.compactMap { finalMessages[$0] }.first
     }
 
     /// A channel only works for the app it was created for, so there's no fallback between
@@ -142,6 +177,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         var replayDurationMinutes: Double?
         var replayStepSeconds: Double?
         var replayOffline: Bool?
+        /// Merged by key. A null value removes that key's message.
+        var finalMessages: [String: FinalMessage?]?
         /// Starts (or restarts) the replay from 0%.
         var restartReplay: Bool?
     }
@@ -160,6 +197,9 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         if let replayDurationMinutes = update.replayDurationMinutes { settings.replayDurationMinutes = replayDurationMinutes }
         if let replayStepSeconds = update.replayStepSeconds { settings.replayStepSeconds = replayStepSeconds }
         if let replayOffline = update.replayOffline { settings.replayOffline = replayOffline }
+        for (key, message) in update.finalMessages ?? [:] {
+            settings.finalMessages[key] = message
+        }
         if update.restartReplay == true || (update.source == .replay && source != .replay) {
             settings.replayStartedAt = now.timeIntervalSince1970
         }

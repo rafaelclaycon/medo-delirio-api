@@ -59,7 +59,7 @@ struct ElectionController {
             enabled: settings.enabled,
             channelId: settings.channelId(forBundleId: req.query[String.self, at: "bundleId"]),
             round: settings.round,
-            state: snapshot.map { ElectionLiveContentState(snapshot: $0, candidateColors: settings.candidateColors) }
+            state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) }
         )
     }
 
@@ -80,7 +80,7 @@ struct ElectionController {
             isFinal: snapshot?.isFinal,
             lastFetchAt: await store.lastFetchAt,
             lastError: await store.lastError,
-            state: snapshot.map { ElectionLiveContentState(snapshot: $0, candidateColors: settings.candidateColors) },
+            state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) },
             lastBroadcastAt: await store.lastBroadcast?.at,
             lastBroadcastEvent: await store.lastBroadcastDecision?.event.rawValue,
             lastBroadcastPriority: await store.lastBroadcastDecision?.priority,
@@ -95,6 +95,15 @@ struct ElectionController {
         let update = try req.content.decode(ElectionSettings.Update.self)
         if let round = update.round, ![1, 2].contains(round) {
             throw Abort(.badRequest, reason: "round must be 1 or 2")
+        }
+        for (key, message) in update.finalMessages ?? [:] {
+            guard let message else { continue }
+            guard !message.text.isEmpty, message.text.count <= ElectionSettings.FinalMessage.maxTextLength else {
+                throw Abort(.badRequest, reason: "finalMessages[\(key)].text must have 1 to \(ElectionSettings.FinalMessage.maxTextLength) characters")
+            }
+            for alert in [message.alertTitle, message.alertBody].compactMap({ $0 }) where alert.count > ElectionSettings.FinalMessage.maxAlertLength {
+                throw Abort(.badRequest, reason: "finalMessages[\(key)] alert texts can't pass \(ElectionSettings.FinalMessage.maxAlertLength) characters")
+            }
         }
         if let interval = update.minPushIntervalSeconds, interval < ElectionPollingService.pollingInterval {
             throw Abort(.badRequest, reason: "minPushIntervalSeconds can't be below the \(Int(ElectionPollingService.pollingInterval))s polling interval")
