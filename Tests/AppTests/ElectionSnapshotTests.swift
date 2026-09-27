@@ -111,12 +111,65 @@ final class ElectionSnapshotTests: XCTestCase {
 
     func testRejectsGarbageNumbers() throws {
         var json = try XCTUnwrap(String(data: ElectionFixtures.data("br-c0001-e021270-u.json"), encoding: .utf8))
-        json = json.replacingOccurrences(of: "\"ts\" : \"528951\"", with: "\"ts\" : \"\"")
+        // Empty is fine (see testEmptyCountingFieldsReadAsZero); garbage is not.
+        json = json.replacingOccurrences(of: "\"ts\" : \"528951\"", with: "\"ts\" : \"abc\"")
         let file = try JSONDecoder().decode(TSEResultFile.self, from: Data(json.utf8))
         XCTAssertThrowsError(try ElectionSnapshot(from: file))
     }
 
     // MARK: - Replay
+
+    // MARK: - Empty Fields
+
+    /// The fixture with some fields blanked, like a file published before the count starts.
+    private func fixtureFile(blanking fields: Set<String>) throws -> TSEResultFile {
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: ElectionFixtures.data("br-c0001-e021270-u.json")) as? [String: Any])
+        func blank(_ object: inout [String: Any]) {
+            for key in object.keys where fields.contains(key) && object[key] is String {
+                object[key] = ""
+            }
+        }
+        var sections = try XCTUnwrap(json["s"] as? [String: Any]); blank(&sections); json["s"] = sections
+        var votes = try XCTUnwrap(json["v"] as? [String: Any]); blank(&votes); json["v"] = votes
+        var offices = try XCTUnwrap(json["carg"] as? [[String: Any]])
+        for o in offices.indices {
+            var groupings = try XCTUnwrap(offices[o]["agr"] as? [[String: Any]])
+            for g in groupings.indices {
+                var parties = try XCTUnwrap(groupings[g]["par"] as? [[String: Any]])
+                for p in parties.indices {
+                    var candidates = try XCTUnwrap(parties[p]["cand"] as? [[String: Any]])
+                    for c in candidates.indices { blank(&candidates[c]) }
+                    parties[p]["cand"] = candidates
+                }
+                groupings[g]["par"] = parties
+            }
+            offices[o]["agr"] = groupings
+        }
+        json["carg"] = offices
+        return try JSONDecoder().decode(TSEResultFile.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    func testEmptyCountingFieldsReadAsZero() throws {
+        let file = try fixtureFile(blanking: ["vap", "pvapn", "st", "pst", "vv", "ts"])
+        let snapshot = try ElectionSnapshot(from: file)
+        XCTAssertEqual(snapshot.sectionsCountedPercent, 0)
+        XCTAssertEqual(snapshot.sectionsCounted, 0)
+        XCTAssertEqual(snapshot.validVotes, 0)
+        XCTAssertEqual(snapshot.candidates.count, try ElectionFixtures.finalPresidentSnapshot().candidates.count)
+        XCTAssertTrue(snapshot.candidates.allSatisfy { $0.votes == 0 && $0.percent == 0 })
+    }
+
+    func testEmptyPositionsKeepEveryCandidate() throws {
+        let snapshot = try ElectionSnapshot(from: fixtureFile(blanking: ["seq"]))
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        XCTAssertEqual(Set(snapshot.candidates.map(\.number)), Set(final.candidates.map(\.number)))
+        // Without positions, the order falls back to votes.
+        XCTAssertEqual(snapshot.candidates.map(\.votes), snapshot.candidates.map(\.votes).sorted(by: >))
+    }
+
+    func testEmptyBallotNumberStillFails() throws {
+        XCTAssertThrowsError(try ElectionSnapshot(from: fixtureFile(blanking: ["n"])))
+    }
 
     func testReplayCountsFastAtFirst() {
         XCTAssertEqual(ElectionReplay.countedFraction(at: 0), 0)

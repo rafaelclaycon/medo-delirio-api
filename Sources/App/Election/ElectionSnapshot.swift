@@ -58,13 +58,14 @@ extension ElectionSnapshot {
         for party in office.agr.flatMap(\.par) {
             for candidate in party.cand {
                 ranked.append((
-                    try Self.int(candidate.seq, field: "seq"),
+                    // Without a position yet, candidates go last, by votes.
+                    try Self.int(candidate.seq, field: "seq", emptyAs: .max),
                     Candidate(
                         number: try Self.int(candidate.n, field: "n"),
                         name: candidate.nmu,
                         party: party.sg,
-                        votes: try Self.int(candidate.vap, field: "vap"),
-                        percent: try Self.double(candidate.pvapn, field: "pvapn"),
+                        votes: try Self.int(candidate.vap, field: "vap", emptyAs: 0),
+                        percent: try Self.double(candidate.pvapn, field: "pvapn", emptyAs: 0),
                         status: Self.status(elected: candidate.e, situation: candidate.st, isFinal: isFinal),
                         hasValidVotes: candidate.dvt == "Válido"
                     )
@@ -78,11 +79,13 @@ extension ElectionSnapshot {
             generationId: file.idg,
             totalizedAt: Self.date(day: file.dt, time: file.ht),
             isFinal: isFinal,
-            sectionsTotal: try Self.int(file.s.ts, field: "ts"),
-            sectionsCounted: try Self.int(file.s.st, field: "st"),
-            sectionsCountedPercent: try Self.double(file.s.pst, field: "pst"),
-            validVotes: try Self.int(file.v.vv, field: "vv"),
-            candidates: ranked.sorted { $0.rank < $1.rank }.map(\.candidate)
+            sectionsTotal: try Self.int(file.s.ts, field: "ts", emptyAs: 0),
+            sectionsCounted: try Self.int(file.s.st, field: "st", emptyAs: 0),
+            sectionsCountedPercent: try Self.double(file.s.pst, field: "pst", emptyAs: 0),
+            validVotes: try Self.int(file.v.vv, field: "vv", emptyAs: 0),
+            candidates: ranked
+                .sorted { ($0.rank, -$0.candidate.votes) < ($1.rank, -$1.candidate.votes) }
+                .map(\.candidate)
         )
     }
 
@@ -95,15 +98,27 @@ extension ElectionSnapshot {
         return isFinal ? .notElected : .counting
     }
 
-    private static func int(_ value: String, field: String) throws -> Int {
-        guard let number = Int(value) else {
+    /// Counting fields can come empty before the count starts, and `emptyAs` reads them as
+    /// that value instead of failing the whole file: one blank field would leave the app
+    /// without a state at 17h. Fields that say who the data belongs to (ballot number,
+    /// round) have no fallback, since guessing those would show the wrong candidate.
+    private static func int(_ value: String, field: String, emptyAs fallback: Int? = nil) throws -> Int {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty, let fallback {
+            return fallback
+        }
+        guard let number = Int(trimmed) else {
             throw ParsingError.invalidNumber(field: field, value: value)
         }
         return number
     }
 
-    private static func double(_ value: String, field: String) throws -> Double {
-        guard let number = Double(value.replacingOccurrences(of: ",", with: ".")) else {
+    private static func double(_ value: String, field: String, emptyAs fallback: Double? = nil) throws -> Double {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty, let fallback {
+            return fallback
+        }
+        guard let number = Double(trimmed.replacingOccurrences(of: ",", with: ".")) else {
             throw ParsingError.invalidNumber(field: field, value: value)
         }
         return number
