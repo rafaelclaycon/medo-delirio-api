@@ -2,6 +2,11 @@ import Foundation
 
 /// Subset of the unified result file (EA20, `-u.json`) we need for the President race.
 /// The TSE sends every value as a string, with Brazilian decimal commas.
+///
+/// Only what identifies the file and each candidate is required. Everything else is
+/// optional: files published during the count leave fields out that the final file has
+/// (the 28/09 simulation dropped `dvt` mid-count), and one missing key used to reject the
+/// whole file. `ElectionSnapshot` fills the gaps with safe defaults.
 struct TSEResultFile: Decodable {
 
     /// Election code.
@@ -11,26 +16,26 @@ struct TSEResultFile: Decodable {
     /// Generation id, unique per generated file.
     let idg: String
     /// Totalization date ("dd/MM/yyyy") and time ("HH:mm:ss"), Brasília time.
-    let dt: String
-    let ht: String
+    let dt: String?
+    let ht: String?
     /// Counting status: "f" once the totalization for this scope is final.
-    let and: String
-    let s: Sections
-    let v: Votes
+    let and: String?
+    let s: Sections?
+    let v: Votes?
     let carg: [Office]
 
     struct Sections: Decodable {
         /// Total sections.
-        let ts: String
+        let ts: String?
         /// Totalized sections.
-        let st: String
+        let st: String?
         /// Totalized sections percentage, e.g. "97,31".
-        let pst: String
+        let pst: String?
     }
 
     struct Votes: Decodable {
         /// Valid votes.
-        let vv: String
+        let vv: String?
     }
 
     struct Office: Decodable {
@@ -44,7 +49,7 @@ struct TSEResultFile: Decodable {
     }
 
     struct Party: Decodable {
-        let sg: String
+        let sg: String?
         let cand: [Candidate]
     }
 
@@ -52,18 +57,20 @@ struct TSEResultFile: Decodable {
         /// Ballot number.
         let n: String
         /// Ballot name.
-        let nmu: String
+        let nmu: String?
+        /// Full name, used when the ballot name is missing.
+        let nm: String?
         /// Vote destination: "Válido", "Anulado", "Anulado sub judice", ...
-        let dvt: String
+        let dvt: String?
         /// Ranking position computed by the TSE.
-        let seq: String
+        let seq: String?
         /// "s" when elected (or qualified for the 2nd round).
-        let e: String
+        let e: String?
         /// Situation: "Eleito", "2º turno", "Não eleito", ...
-        let st: String
+        let st: String?
         /// Votes.
-        let vap: String
+        let vap: String?
         /// Percentage with full precision, e.g. "7,527528669".
-        let pvapn: String
+        let pvapn: String?
     }
 }

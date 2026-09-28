@@ -167,6 +167,51 @@ final class ElectionSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.candidates.map(\.votes), snapshot.candidates.map(\.votes).sorted(by: >))
     }
 
+    /// The fixture with some keys removed, like the mid-count files of the 28/09 simulation.
+    private func fixtureFile(removing fields: Set<String>) throws -> TSEResultFile {
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: ElectionFixtures.data("br-c0001-e021270-u.json")) as? [String: Any])
+        for key in fields { json.removeValue(forKey: key) }
+        var offices = try XCTUnwrap(json["carg"] as? [[String: Any]])
+        for o in offices.indices {
+            var groupings = try XCTUnwrap(offices[o]["agr"] as? [[String: Any]])
+            for g in groupings.indices {
+                var parties = try XCTUnwrap(groupings[g]["par"] as? [[String: Any]])
+                for p in parties.indices {
+                    for key in fields { parties[p].removeValue(forKey: key) }
+                    var candidates = try XCTUnwrap(parties[p]["cand"] as? [[String: Any]])
+                    for c in candidates.indices {
+                        for key in fields { candidates[c].removeValue(forKey: key) }
+                    }
+                    parties[p]["cand"] = candidates
+                }
+                groupings[g]["par"] = parties
+            }
+            offices[o]["agr"] = groupings
+        }
+        json["carg"] = offices
+        return try JSONDecoder().decode(TSEResultFile.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    /// What broke the 28/09 simulation: `dvt` missing from the candidates mid-count.
+    func testMissingVoteDestinationStillParses() throws {
+        let snapshot = try ElectionSnapshot(from: fixtureFile(removing: ["dvt"]))
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        XCTAssertEqual(snapshot.candidates.map(\.number), final.candidates.map(\.number))
+        XCTAssertEqual(snapshot.candidates.map(\.percent), final.candidates.map(\.percent))
+        XCTAssertTrue(snapshot.candidates.allSatisfy(\.hasValidVotes))
+    }
+
+    func testMissingOptionalFieldsFallBackToDefaults() throws {
+        let file = try fixtureFile(removing: ["dvt", "seq", "e", "st", "vap", "pvapn", "nmu", "sg", "dt", "ht", "and", "s", "v"])
+        let snapshot = try ElectionSnapshot(from: file)
+        XCTAssertFalse(snapshot.isFinal)
+        XCTAssertNil(snapshot.totalizedAt)
+        XCTAssertEqual(snapshot.sectionsCountedPercent, 0)
+        XCTAssertTrue(snapshot.candidates.allSatisfy { $0.status == .counting && $0.votes == 0 })
+        // The full name stands in for the ballot name.
+        XCTAssertFalse(snapshot.candidates.contains { $0.name.isEmpty })
+    }
+
     func testEmptyBallotNumberStillFails() throws {
         XCTAssertThrowsError(try ElectionSnapshot(from: fixtureFile(blanking: ["n"])))
     }

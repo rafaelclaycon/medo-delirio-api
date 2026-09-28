@@ -59,15 +59,16 @@ extension ElectionSnapshot {
             for candidate in party.cand {
                 ranked.append((
                     // Without a position yet, candidates go last, by votes.
-                    try Self.int(candidate.seq, field: "seq", emptyAs: .max),
+                    try Self.int(candidate.seq ?? "", field: "seq", emptyAs: .max),
                     Candidate(
                         number: try Self.int(candidate.n, field: "n"),
-                        name: candidate.nmu,
-                        party: party.sg,
-                        votes: try Self.int(candidate.vap, field: "vap", emptyAs: 0),
-                        percent: try Self.double(candidate.pvapn, field: "pvapn", emptyAs: 0),
-                        status: Self.status(elected: candidate.e, situation: candidate.st, isFinal: isFinal),
-                        hasValidVotes: candidate.dvt == "Válido"
+                        name: Self.name(of: candidate),
+                        party: party.sg ?? "",
+                        votes: try Self.int(candidate.vap ?? "", field: "vap", emptyAs: 0),
+                        percent: try Self.double(candidate.pvapn ?? "", field: "pvapn", emptyAs: 0),
+                        status: Self.status(elected: candidate.e ?? "", situation: candidate.st ?? "", isFinal: isFinal),
+                        // Missing mid-count: shown as valid, like almost every candidate.
+                        hasValidVotes: (candidate.dvt ?? "Válido") == "Válido"
                     )
                 ))
             }
@@ -77,12 +78,12 @@ extension ElectionSnapshot {
             electionCode: file.ele,
             round: try Self.int(file.t, field: "t"),
             generationId: file.idg,
-            totalizedAt: Self.date(day: file.dt, time: file.ht),
+            totalizedAt: Self.date(day: file.dt ?? "", time: file.ht ?? ""),
             isFinal: isFinal,
-            sectionsTotal: try Self.int(file.s.ts, field: "ts", emptyAs: 0),
-            sectionsCounted: try Self.int(file.s.st, field: "st", emptyAs: 0),
-            sectionsCountedPercent: try Self.double(file.s.pst, field: "pst", emptyAs: 0),
-            validVotes: try Self.int(file.v.vv, field: "vv", emptyAs: 0),
+            sectionsTotal: try Self.int(file.s?.ts ?? "", field: "ts", emptyAs: 0),
+            sectionsCounted: try Self.int(file.s?.st ?? "", field: "st", emptyAs: 0),
+            sectionsCountedPercent: try Self.double(file.s?.pst ?? "", field: "pst", emptyAs: 0),
+            validVotes: try Self.int(file.v?.vv ?? "", field: "vv", emptyAs: 0),
             candidates: ranked
                 .sorted { ($0.rank, -$0.candidate.votes) < ($1.rank, -$1.candidate.votes) }
                 .map(\.candidate)
@@ -132,6 +133,16 @@ extension ElectionSnapshot {
         formatter.dateFormat = "dd/MM/yyyy HH:mm:ss"
         return formatter
     }()
+
+    /// Ballot name, then full name, then the number, so a row never shows up blank.
+    private static func name(of candidate: TSEResultFile.Candidate) -> String {
+        for name in [candidate.nmu, candidate.nm] {
+            if let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty {
+                return name
+            }
+        }
+        return "Candidato \(candidate.n)"
+    }
 
     private static func date(day: String, time: String) -> Date? {
         brasiliaFormatter.date(from: "\(day) \(time)")
