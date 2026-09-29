@@ -205,11 +205,31 @@ final class ElectionSnapshotTests: XCTestCase {
         let file = try fixtureFile(removing: ["dvt", "seq", "e", "st", "vap", "pvapn", "nmu", "sg", "dt", "ht", "and", "s", "v"])
         let snapshot = try ElectionSnapshot(from: file)
         XCTAssertFalse(snapshot.isFinal)
-        XCTAssertNil(snapshot.totalizedAt)
+        // No totalization time: the generation time (dg/hg) stands in.
+        XCTAssertNotNil(snapshot.totalizedAt)
         XCTAssertEqual(snapshot.sectionsCountedPercent, 0)
         XCTAssertTrue(snapshot.candidates.allSatisfy { $0.status == .counting && $0.votes == 0 })
         // The full name stands in for the ballot name.
         XCTAssertFalse(snapshot.candidates.contains { $0.name.isEmpty })
+    }
+
+    /// The 29/09 simulation's 0% file had empty dt/ht, so the time came from the clock and
+    /// changed every tick. The generation time is fixed per file.
+    func testEmptyTotalizationTimeFallsBackToGenerationTime() throws {
+        let snapshot = try ElectionSnapshot(from: fixtureFile(removing: ["dt", "ht"]))
+        let generated = try XCTUnwrap(snapshot.totalizedAt)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Sao_Paulo"))
+        let parts = calendar.dateComponents([.day, .month, .year, .hour, .minute, .second], from: generated)
+        // The fixture's dg/hg: 24/09/2026 16:12:52.
+        XCTAssertEqual([parts.day, parts.month, parts.year, parts.hour, parts.minute, parts.second], [24, 9, 2026, 16, 12, 52])
+
+        // Same file, same content state, whenever it's built.
+        let settings = ElectionSettings()
+        XCTAssertEqual(
+            ElectionLiveContentState(snapshot: snapshot, settings: settings, fallbackDate: Date(timeIntervalSince1970: 0)),
+            ElectionLiveContentState(snapshot: snapshot, settings: settings, fallbackDate: Date(timeIntervalSince1970: 999))
+        )
     }
 
     func testEmptyBallotNumberStillFails() throws {

@@ -78,7 +78,12 @@ extension ElectionSnapshot {
             electionCode: file.ele,
             round: try Self.int(file.t, field: "t"),
             generationId: file.idg,
-            totalizedAt: Self.date(day: file.dt ?? "", time: file.ht ?? ""),
+            // Before the count starts, dt/ht are empty (seen on 29/09). Without a time, the
+            // content state fell back to "now" on every tick, which looked like a new state
+            // and sent a push every interval with no new data. The generation time is fixed
+            // per file.
+            totalizedAt: Self.date(day: file.dt ?? "", time: file.ht ?? "")
+                ?? Self.date(day: file.dg ?? "", time: file.hg ?? ""),
             isFinal: isFinal,
             sectionsTotal: try Self.int(file.s?.ts ?? "", field: "ts", emptyAs: 0),
             sectionsCounted: try Self.int(file.s?.st ?? "", field: "st", emptyAs: 0),

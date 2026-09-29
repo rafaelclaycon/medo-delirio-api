@@ -15,9 +15,14 @@ struct TSEResultFile: Decodable {
     let t: String
     /// Generation id, unique per generated file.
     let idg: String
-    /// Totalization date ("dd/MM/yyyy") and time ("HH:mm:ss"), Brasília time.
+    /// Totalization date ("dd/MM/yyyy") and time ("HH:mm:ss"), Brasília time. Empty before
+    /// the count starts.
     let dt: String?
     let ht: String?
+    /// When the TSE generated this file, same formats. Stands in for the totalization time
+    /// when that's empty.
+    let dg: String?
+    let hg: String?
     /// Counting status: "f" once the totalization for this scope is final.
     let and: String?
     let s: Sections?
