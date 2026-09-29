@@ -96,6 +96,17 @@ final class ElectionBroadcastPlannerTests: XCTestCase {
         XCTAssertEqual(decision?.priority, 10)
     }
 
+    func testFailedBroadcastWaitsBeforeRetrying() {
+        let failedAt = start
+        XCTAssertTrue(ElectionBroadcastPlanner.canRetry(lastFailureAt: nil, now: start, minInterval: 30))
+        // Not on the next 10 s tick, as before.
+        XCTAssertFalse(ElectionBroadcastPlanner.canRetry(lastFailureAt: failedAt, now: start.addingTimeInterval(10), minInterval: 30))
+        XCTAssertFalse(ElectionBroadcastPlanner.canRetry(lastFailureAt: failedAt, now: start.addingTimeInterval(59), minInterval: 30))
+        XCTAssertTrue(ElectionBroadcastPlanner.canRetry(lastFailureAt: failedAt, now: start.addingTimeInterval(60), minInterval: 30))
+        // A longer push interval stretches the wait too.
+        XCTAssertFalse(ElectionBroadcastPlanner.canRetry(lastFailureAt: failedAt, now: start.addingTimeInterval(90), minInterval: 120))
+    }
+
     // MARK: - Payload
 
     func testUpdatePayload() throws {

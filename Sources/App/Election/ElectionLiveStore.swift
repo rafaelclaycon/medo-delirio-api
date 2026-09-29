@@ -29,6 +29,8 @@ actor ElectionLiveStore {
     private(set) var lastBroadcast: ElectionBroadcastPlanner.Sent?
     private(set) var lastBroadcastDecision: ElectionBroadcastPlanner.Decision?
     private(set) var lastBroadcastError: String?
+    /// When every channel last failed. The next attempt waits for `retryDelay`.
+    private(set) var lastBroadcastFailureAt: Date?
 
     /// Returns true when the target changed and the state was reset.
     @discardableResult
@@ -43,6 +45,7 @@ actor ElectionLiveStore {
         lastBroadcast = nil
         lastBroadcastDecision = nil
         lastBroadcastError = nil
+        lastBroadcastFailureAt = nil
         return true
     }
 
@@ -88,9 +91,11 @@ actor ElectionLiveStore {
         lastBroadcast = sent
         lastBroadcastDecision = decision
         lastBroadcastError = error
+        lastBroadcastFailureAt = nil
     }
 
-    func markBroadcastError(_ error: String) {
+    func markBroadcastError(_ error: String, at date: Date) {
         lastBroadcastError = error
+        lastBroadcastFailureAt = date
     }
 }

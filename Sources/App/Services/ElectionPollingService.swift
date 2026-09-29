@@ -175,6 +175,11 @@ struct ElectionPollingService {
         let state = ElectionLiveContentState(snapshot: snapshot, settings: settings)
         let planner = ElectionBroadcastPlanner(minInterval: settings.minPushIntervalSeconds)
         guard let decision = planner.decide(state, lastSent: await store.lastBroadcast, now: now) else { return }
+        guard ElectionBroadcastPlanner.canRetry(
+            lastFailureAt: await store.lastBroadcastFailureAt,
+            now: now,
+            minInterval: settings.minPushIntervalSeconds
+        ) else { return }
 
         let payload = ElectionBroadcastPlanner.payload(
             for: state,
@@ -196,7 +201,7 @@ struct ElectionPollingService {
 
         let channels = settings.channelIds.sorted { $0.key < $1.key }
         guard !channels.isEmpty else {
-            await reportBroadcastError("no channels, create them with POST election/channels")
+            await reportBroadcastError("no channels, create them with POST election/channels", at: now)
             return
         }
 
@@ -214,7 +219,7 @@ struct ElectionPollingService {
         // When every channel failed, nothing is recorded and the next tick tries again.
         // When only some did, retrying would repeat the push to the others.
         guard failures.count < channels.count else {
-            await reportBroadcastError(failures.joined(separator: "; "))
+            await reportBroadcastError(failures.joined(separator: "; "), at: now)
             return
         }
         let error = failures.isEmpty ? nil : failures.joined(separator: "; ")
@@ -222,12 +227,12 @@ struct ElectionPollingService {
         app.logger.info("Election push: \(summary) to \(channels.count - failures.count) channel(s)\(error.map { ", failed: \($0)" } ?? "")")
     }
 
-    /// Logs only when the error changes, since a broken channel would fail every 10 seconds.
-    private func reportBroadcastError(_ error: String) async {
+    /// Logs only when the error changes, since a broken channel fails on every retry.
+    private func reportBroadcastError(_ error: String, at date: Date) async {
         if await store.lastBroadcastError != error {
             app.logger.error("Election push: \(error)")
         }
-        await store.markBroadcastError(error)
+        await store.markBroadcastError(error, at: date)
     }
 
     // MARK: - Helpers

@@ -69,6 +69,17 @@ struct ElectionBroadcastPlanner {
         return Decision(event: .update, priority: 5, reason: "progress")
     }
 
+    /// After every channel failed, wait at least this long before trying again. Retrying on
+    /// the next 10 s tick kept a channel APNs had throttled (429 TooManyRequests) throttled.
+    static func retryDelay(minInterval: TimeInterval) -> TimeInterval {
+        max(minInterval, 60)
+    }
+
+    static func canRetry(lastFailureAt: Date?, now: Date, minInterval: TimeInterval) -> Bool {
+        guard let lastFailureAt else { return true }
+        return now.timeIntervalSince(lastFailureAt) >= retryDelay(minInterval: minInterval)
+    }
+
     static func milestone(of state: ElectionLiveContentState) -> Double {
         (state.sectionsCountedPercent / milestoneStep).rounded(.down) * milestoneStep
     }
