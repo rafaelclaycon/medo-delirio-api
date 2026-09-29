@@ -44,6 +44,29 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(candidate["status"] as? String, "runoff")
     }
 
+    // MARK: - Details
+
+    func testDetailsKeepEveryCandidateWithVotes() throws {
+        let snapshot = try ElectionFixtures.finalPresidentSnapshot()
+        let details = ElectionLiveDetails(snapshot: snapshot, candidateColors: ["57": "#1D4E89"])
+        XCTAssertEqual(details.candidates.map(\.number), snapshot.candidates.map(\.number))
+        XCTAssertEqual(details.candidates.map(\.votes), snapshot.candidates.map(\.votes))
+        XCTAssertEqual(details.sectionsTotal, snapshot.sectionsTotal)
+        XCTAssertEqual(details.validVotes, snapshot.validVotes)
+        XCTAssertEqual(details.candidates.first { $0.number == 57 }?.colorHex, "#1D4E89")
+        XCTAssertGreaterThan(details.candidates.count, ElectionLiveContentState(snapshot: snapshot, candidateColors: [:]).candidates.count)
+    }
+
+    func testOfficialResultsURLDefaultsAndResets() throws {
+        XCTAssertEqual(ElectionSettings().officialResultsURL, ElectionSettings.defaultOfficialResultsURL)
+        let pointed = ElectionSettings().applying(.init(officialResultsURL: "https://resultados.tse.jus.br/oficial/app/index.html"))
+        XCTAssertEqual(pointed.officialResultsURL, "https://resultados.tse.jus.br/oficial/app/index.html")
+        XCTAssertEqual(pointed.applying(.init(officialResultsURL: "")).officialResultsURL, ElectionSettings.defaultOfficialResultsURL)
+        // Settings saved before the field existed still load.
+        let old = try JSONDecoder().decode(ElectionSettings.self, from: Data(#"{"enabled":true}"#.utf8))
+        XCTAssertEqual(old.officialResultsURL, ElectionSettings.defaultOfficialResultsURL)
+    }
+
     // MARK: - Settings
 
     func testSettingsDefaultsAreSafe() {

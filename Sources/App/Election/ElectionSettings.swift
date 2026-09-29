@@ -48,6 +48,12 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     var replayStepSeconds: Double = 60
     /// Uses the simulation result built into the server instead of fetching it from the TSE.
     var replayOffline: Bool = false
+    /// Where the app's "Ver no site do TSE" goes. The results app itself
+    /// (resultados.tse.jus.br/oficial/app) answered 404 on 29/09, before the election, so
+    /// the default is the TSE's results page; point it straight at the app once it's up.
+    var officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
+    static let defaultOfficialResultsURL = "https://www.tse.jus.br/eleicoes/resultados-eleicoes"
+
     /// Written ahead by the admin, one per outcome, since the final push goes out as soon as
     /// the TSE closes the count. See `finalMessage(for:)` for the keys.
     var finalMessages: [String: FinalMessage] = [:]
@@ -77,7 +83,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayDurationMinutes: Double = 20,
         replayStepSeconds: Double = 60,
         replayOffline: Bool = false,
-        finalMessages: [String: FinalMessage] = [:]
+        finalMessages: [String: FinalMessage] = [:],
+        officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
     ) {
         self.enabled = enabled
         self.source = source
@@ -91,6 +98,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         self.replayStepSeconds = replayStepSeconds
         self.replayOffline = replayOffline
         self.finalMessages = finalMessages
+        self.officialResultsURL = officialResultsURL
     }
 
     /// Missing keys fall back to the defaults, so adding a field doesn't break the JSON
@@ -110,6 +118,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayStepSeconds = try container.decodeIfPresent(Double.self, forKey: .replayStepSeconds) ?? defaults.replayStepSeconds
         replayOffline = try container.decodeIfPresent(Bool.self, forKey: .replayOffline) ?? defaults.replayOffline
         finalMessages = try container.decodeIfPresent([String: FinalMessage].self, forKey: .finalMessages) ?? defaults.finalMessages
+        officialResultsURL = try container.decodeIfPresent(String.self, forKey: .officialResultsURL) ?? defaults.officialResultsURL
     }
 
     /// The admin's message for how the count ended, most specific key first: `elected:13`
@@ -179,6 +188,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         var replayOffline: Bool?
         /// Merged by key. A null value removes that key's message.
         var finalMessages: [String: FinalMessage?]?
+        /// An empty string goes back to the default.
+        var officialResultsURL: String?
         /// Starts (or restarts) the replay from 0%.
         var restartReplay: Bool?
     }
@@ -199,6 +210,9 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         if let replayOffline = update.replayOffline { settings.replayOffline = replayOffline }
         for (key, message) in update.finalMessages ?? [:] {
             settings.finalMessages[key] = message
+        }
+        if let officialResultsURL = update.officialResultsURL {
+            settings.officialResultsURL = officialResultsURL.isEmpty ? Self.defaultOfficialResultsURL : officialResultsURL
         }
         if update.restartReplay == true || (update.source == .replay && source != .replay) {
             settings.replayStartedAt = now.timeIntervalSince1970

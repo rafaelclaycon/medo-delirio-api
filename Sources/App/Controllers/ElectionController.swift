@@ -17,6 +17,10 @@ struct ElectionController {
         let channelId: String?
         let round: Int
         let state: ElectionLiveContentState?
+        /// For the app's results screen. Apps from before it ignore the key.
+        let details: ElectionLiveDetails?
+        /// The TSE page behind "Ver no site do TSE".
+        let officialResultsURL: String
     }
 
     struct StatusResponse: Content {
@@ -59,7 +63,9 @@ struct ElectionController {
             enabled: settings.enabled,
             channelId: settings.channelId(forBundleId: req.query[String.self, at: "bundleId"]),
             round: settings.round,
-            state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) }
+            state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) },
+            details: snapshot.map { ElectionLiveDetails(snapshot: $0, candidateColors: settings.candidateColors) },
+            officialResultsURL: settings.officialResultsURL
         )
     }
 
@@ -104,6 +110,9 @@ struct ElectionController {
             for alert in [message.alertTitle, message.alertBody].compactMap({ $0 }) where alert.count > ElectionSettings.FinalMessage.maxAlertLength {
                 throw Abort(.badRequest, reason: "finalMessages[\(key)] alert texts can't pass \(ElectionSettings.FinalMessage.maxAlertLength) characters")
             }
+        }
+        if let url = update.officialResultsURL, !url.isEmpty, URL(string: url)?.scheme != "https" {
+            throw Abort(.badRequest, reason: "officialResultsURL must be an https URL")
         }
         if let interval = update.minPushIntervalSeconds, interval < ElectionPollingService.pollingInterval {
             throw Abort(.badRequest, reason: "minPushIntervalSeconds can't be below the \(Int(ElectionPollingService.pollingInterval))s polling interval")
