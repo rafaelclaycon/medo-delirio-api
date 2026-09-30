@@ -28,9 +28,13 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     static let betaBundleId = "com.rafaelschmitt.MedoDelirioBrasilia.beta"
     static let appBundleIds = [productionBundleId, betaBundleId]
 
-    /// Public launch switch. Testers can use the feature before this through the app's
-    /// `electionLiveActivity` feature flag.
+    /// Public launch switch.
     var enabled: Bool = false
+    /// App builds (`CFBundleVersion`) that get the feature while `enabled` is off, such as the
+    /// build in App Review, so the version already in the store doesn't show it. The build is
+    /// all that tells two versions apart: the app doesn't send its version, but iOS puts the
+    /// build in the User-Agent. See `isEnabled(forUserAgent:)`.
+    var previewBuilds: [String] = []
     var source: Source = .simulation
     var round: Int = 1
     /// APNs broadcast channel the Live Activities subscribe to, by app bundle ID. Channels
@@ -48,6 +52,11 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     var replayStepSeconds: Double = 60
     /// Uses the simulation result built into the server instead of fetching it from the TSE.
     var replayOffline: Bool = false
+    /// Starts the replay over after the final result has been up for `replayLoopPauseMinutes`,
+    /// instead of staying at 100%. Each lap ends the Live Activities with the final push, as a
+    /// real count would; the next lap needs a new one.
+    var replayLoop: Bool = false
+    var replayLoopPauseMinutes: Double = 5
     /// Where the app's "App do TSE" goes: the TSE's Resultados app on the App Store by
     /// default. A setting so it can change on election night without an app review.
     var officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
@@ -72,6 +81,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
 
     init(
         enabled: Bool = false,
+        previewBuilds: [String] = [],
         source: Source = .simulation,
         round: Int = 1,
         channelIds: [String: String] = [:],
@@ -82,10 +92,13 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayDurationMinutes: Double = 20,
         replayStepSeconds: Double = 60,
         replayOffline: Bool = false,
+        replayLoop: Bool = false,
+        replayLoopPauseMinutes: Double = 5,
         finalMessages: [String: FinalMessage] = [:],
         officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
     ) {
         self.enabled = enabled
+        self.previewBuilds = previewBuilds
         self.source = source
         self.round = round
         self.channelIds = channelIds
@@ -96,6 +109,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         self.replayDurationMinutes = replayDurationMinutes
         self.replayStepSeconds = replayStepSeconds
         self.replayOffline = replayOffline
+        self.replayLoop = replayLoop
+        self.replayLoopPauseMinutes = replayLoopPauseMinutes
         self.finalMessages = finalMessages
         self.officialResultsURL = officialResultsURL
     }
@@ -106,6 +121,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = ElectionSettings()
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
+        previewBuilds = try container.decodeIfPresent([String].self, forKey: .previewBuilds) ?? defaults.previewBuilds
         source = try container.decodeIfPresent(Source.self, forKey: .source) ?? defaults.source
         round = try container.decodeIfPresent(Int.self, forKey: .round) ?? defaults.round
         channelIds = try container.decodeIfPresent([String: String].self, forKey: .channelIds) ?? defaults.channelIds
@@ -116,6 +132,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         replayDurationMinutes = try container.decodeIfPresent(Double.self, forKey: .replayDurationMinutes) ?? defaults.replayDurationMinutes
         replayStepSeconds = try container.decodeIfPresent(Double.self, forKey: .replayStepSeconds) ?? defaults.replayStepSeconds
         replayOffline = try container.decodeIfPresent(Bool.self, forKey: .replayOffline) ?? defaults.replayOffline
+        replayLoop = try container.decodeIfPresent(Bool.self, forKey: .replayLoop) ?? defaults.replayLoop
+        replayLoopPauseMinutes = try container.decodeIfPresent(Double.self, forKey: .replayLoopPauseMinutes) ?? defaults.replayLoopPauseMinutes
         finalMessages = try container.decodeIfPresent([String: FinalMessage].self, forKey: .finalMessages) ?? defaults.finalMessages
         officialResultsURL = try container.decodeIfPresent(String.self, forKey: .officialResultsURL) ?? defaults.officialResultsURL
     }
@@ -138,6 +156,25 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         return keys.lazy.compactMap { finalMessages[$0] }.first
     }
 
+    /// Whether the app making the request sees the feature: everyone once `enabled` is on,
+    /// and before that only the builds in `previewBuilds`.
+    func isEnabled(forUserAgent userAgent: String?) -> Bool {
+        if enabled { return true }
+        guard let build = Self.appBuild(fromUserAgent: userAgent) else { return false }
+        return previewBuilds.contains(build)
+    }
+
+    /// The build number in the User-Agent iOS sends for the app when it doesn't set its own,
+    /// e.g. "1" in "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0". Nil for anything that
+    /// isn't an app going through CFNetwork, such as a browser.
+    static func appBuild(fromUserAgent userAgent: String?) -> String? {
+        guard let userAgent, userAgent.contains(" CFNetwork/"),
+              let product = userAgent.split(separator: " ").first else { return nil }
+        let parts = product.split(separator: "/", maxSplits: 1)
+        guard parts.count == 2, !parts[1].isEmpty else { return nil }
+        return String(parts[1])
+    }
+
     /// A channel only works for the app it was created for, so there's no fallback between
     /// apps. A client that doesn't say which app it is gets production's.
     func channelId(forBundleId bundleId: String?) -> String? {
@@ -156,25 +193,36 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     }
 
     /// Where the replay is at `date`. Only moves at every `replayStepSeconds`, and the last
-    /// step always lands on the end of the duration.
+    /// step always lands on the end of the duration. With `replayLoop`, every lap is the
+    /// duration plus the pause on the final result, and the times start over with each lap.
     func replayPosition(at date: Date) -> ReplayPosition {
         guard let replayStartedAt, replayDurationMinutes > 0 else {
             return ReplayPosition(progress: 0, publishedAt: date)
         }
         let duration = replayDurationMinutes * 60
-        let elapsed = min(max(date.timeIntervalSince1970 - replayStartedAt, 0), duration)
+        var lapStartedAt = replayStartedAt
+        var elapsed = max(date.timeIntervalSince1970 - replayStartedAt, 0)
+        if replayLoop {
+            let lap = duration + max(replayLoopPauseMinutes, 0) * 60
+            let laps = (elapsed / lap).rounded(.down)
+            lapStartedAt += laps * lap
+            elapsed -= laps * lap
+        }
+        elapsed = min(elapsed, duration)
         let stepped = elapsed < duration && replayStepSeconds > 0
             ? (elapsed / replayStepSeconds).rounded(.down) * replayStepSeconds
             : elapsed
         return ReplayPosition(
             progress: stepped / duration,
-            publishedAt: Date(timeIntervalSince1970: replayStartedAt + stepped)
+            publishedAt: Date(timeIntervalSince1970: lapStartedAt + stepped)
         )
     }
 
     /// Fields left nil keep their current value.
     struct Update: Codable {
         var enabled: Bool?
+        /// Replaces the list. An empty list clears it.
+        var previewBuilds: [String]?
         var source: Source?
         var round: Int?
         /// Merged by bundle ID. An empty string removes that bundle's channel.
@@ -185,6 +233,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         var replayDurationMinutes: Double?
         var replayStepSeconds: Double?
         var replayOffline: Bool?
+        var replayLoop: Bool?
+        var replayLoopPauseMinutes: Double?
         /// Merged by key. A null value removes that key's message.
         var finalMessages: [String: FinalMessage?]?
         /// An empty string goes back to the default.
@@ -196,6 +246,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     func applying(_ update: Update, now: Date = .now) -> ElectionSettings {
         var settings = self
         if let enabled = update.enabled { settings.enabled = enabled }
+        if let previewBuilds = update.previewBuilds { settings.previewBuilds = previewBuilds }
         if let source = update.source { settings.source = source }
         if let round = update.round { settings.round = round }
         for (bundleId, channelId) in update.channelIds ?? [:] {
@@ -207,6 +258,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         if let replayDurationMinutes = update.replayDurationMinutes { settings.replayDurationMinutes = replayDurationMinutes }
         if let replayStepSeconds = update.replayStepSeconds { settings.replayStepSeconds = replayStepSeconds }
         if let replayOffline = update.replayOffline { settings.replayOffline = replayOffline }
+        if let replayLoop = update.replayLoop { settings.replayLoop = replayLoop }
+        if let replayLoopPauseMinutes = update.replayLoopPauseMinutes { settings.replayLoopPauseMinutes = replayLoopPauseMinutes }
         for (key, message) in update.finalMessages ?? [:] {
             settings.finalMessages[key] = message
         }

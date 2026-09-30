@@ -52,15 +52,17 @@ struct ElectionController {
 
     // MARK: - Public
 
-    /// Always returns the latest state, even while `enabled` is off: testers with the
-    /// app's feature flag need it before the public launch.
+    /// Always returns the latest state, even while `enabled` is off. `enabled` in the response
+    /// is what shows the app's banner: on for everyone after the launch, and before it only
+    /// for the builds in `previewBuilds` (the one in App Review, while the store version
+    /// stays without it).
     ///
     /// `?bundleId=` picks the channel: beta and production are different apps to APNs.
     func getLiveHandlerV4(req: Request) async throws -> LiveResponse {
         let settings = try await ElectionSettingsRepository.load(db: req.db)
         let snapshot = await req.application.electionLiveStore.snapshot
         return LiveResponse(
-            enabled: settings.enabled,
+            enabled: settings.isEnabled(forUserAgent: req.headers.first(name: .userAgent)),
             channelId: settings.channelId(forBundleId: req.query[String.self, at: "bundleId"]),
             round: settings.round,
             state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) },
@@ -119,7 +121,7 @@ struct ElectionController {
         }
         let settings = try await ElectionSettingsRepository.load(db: req.db).applying(update)
         try await ElectionSettingsRepository.save(settings, db: req.db)
-        req.logger.info("Election settings updated: enabled=\(settings.enabled) source=\(settings.source.rawValue) round=\(settings.round)")
+        req.logger.info("Election settings updated: enabled=\(settings.enabled) previewBuilds=\(settings.previewBuilds) source=\(settings.source.rawValue) round=\(settings.round)")
         return settings
     }
 

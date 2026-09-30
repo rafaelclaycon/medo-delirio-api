@@ -114,6 +114,41 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.replayStepSeconds, 60)
         XCTAssertFalse(settings.replayOffline)
         XCTAssertEqual(settings.finalMessages, [:])
+        XCTAssertEqual(settings.previewBuilds, [])
+    }
+
+    // MARK: - Preview builds
+
+    func testAppBuildFromUserAgent() {
+        XCTAssertEqual(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0"), "1")
+        XCTAssertEqual(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio/5 CFNetwork/3860.100.1 Darwin/25.0.0"), "5")
+        // Browsers and anything else that isn't an app going through CFNetwork.
+        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)"))
+        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "curl/8.7.1"))
+        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio CFNetwork/3860.100.1 Darwin/25.0.0"))
+        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: nil))
+    }
+
+    /// The build in App Review sees the feature while the version in the store doesn't.
+    func testPreviewBuildsSeeTheFeatureBeforeTheLaunch() {
+        let review = "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0"
+        let store = "MedoDelirio/5 CFNetwork/3860.100.1 Darwin/25.0.0"
+        let settings = ElectionSettings(previewBuilds: ["1"])
+        XCTAssertTrue(settings.isEnabled(forUserAgent: review))
+        XCTAssertFalse(settings.isEnabled(forUserAgent: store))
+        XCTAssertFalse(settings.isEnabled(forUserAgent: nil))
+        XCTAssertFalse(ElectionSettings().isEnabled(forUserAgent: review))
+        // After the launch, everyone.
+        let launched = ElectionSettings(enabled: true)
+        XCTAssertTrue(launched.isEnabled(forUserAgent: store))
+        XCTAssertTrue(launched.isEnabled(forUserAgent: nil))
+    }
+
+    func testPreviewBuildsUpdateReplacesTheList() {
+        let settings = ElectionSettings(previewBuilds: ["1"])
+        XCTAssertEqual(settings.applying(.init(previewBuilds: ["2", "3"])).previewBuilds, ["2", "3"])
+        XCTAssertEqual(settings.applying(.init(previewBuilds: [])).previewBuilds, [])
+        XCTAssertEqual(settings.applying(.init(source: .replay)).previewBuilds, ["1"])
     }
 
     func testBroadcastSettingsUpdate() {
@@ -150,6 +185,42 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 600)).progress, 1)
     }
 
+    func testReplayLoopsAfterThePauseOnTheFinalResult() {
+        // 10-minute count, 5-minute pause: laps of 15 minutes starting at 1000, 1900, 2800…
+        let settings = ElectionSettings(replayStartedAt: 1000, replayDurationMinutes: 10, replayStepSeconds: 60, replayLoop: true, replayLoopPauseMinutes: 5)
+        func position(_ seconds: Double) -> ElectionSettings.ReplayPosition {
+            settings.replayPosition(at: Date(timeIntervalSince1970: seconds))
+        }
+        XCTAssertEqual(position(1600), .init(progress: 1, publishedAt: Date(timeIntervalSince1970: 1600)))
+        XCTAssertEqual(position(1899), .init(progress: 1, publishedAt: Date(timeIntervalSince1970: 1600)))
+        XCTAssertEqual(position(1900), .init(progress: 0, publishedAt: Date(timeIntervalSince1970: 1900)))
+        XCTAssertEqual(position(2200), .init(progress: 0.5, publishedAt: Date(timeIntervalSince1970: 2200)))
+        XCTAssertEqual(position(2800 + 61), .init(progress: 0.1, publishedAt: Date(timeIntervalSince1970: 2860)))
+        // Without the loop, it stays on the result.
+        var once = settings
+        once.replayLoop = false
+        XCTAssertEqual(once.replayPosition(at: Date(timeIntervalSince1970: 2200)).progress, 1)
+    }
+
+    /// The whole lap as the poller and the planner see it: the final push once per lap, then
+    /// the count starting over.
+    func testReplayLoopEndsAndRestartsTheCount() throws {
+        let settings = ElectionSettings(replayStartedAt: 0, replayDurationMinutes: 10, replayStepSeconds: 60, replayLoop: true, replayLoopPauseMinutes: 5)
+        let replay = ElectionReplay(final: try ElectionFixtures.finalPresidentSnapshot())
+        let planner = ElectionBroadcastPlanner(minInterval: 30)
+        func state(_ seconds: Double) -> ElectionLiveContentState {
+            ElectionLiveContentState(snapshot: replay.snapshot(at: settings.replayPosition(at: Date(timeIntervalSince1970: seconds))), settings: settings)
+        }
+        let beforeEnd = ElectionBroadcastPlanner.Sent(state: state(540), at: Date(timeIntervalSince1970: 540))
+        XCTAssertEqual(planner.decide(state(600), lastSent: beforeEnd, now: Date(timeIntervalSince1970: 600))?.event, .end)
+        let end = ElectionBroadcastPlanner.Sent(state: state(600), at: Date(timeIntervalSince1970: 600))
+        XCTAssertNil(planner.decide(state(899), lastSent: end, now: Date(timeIntervalSince1970: 899)))
+        let restart = planner.decide(state(900), lastSent: end, now: Date(timeIntervalSince1970: 900))
+        XCTAssertEqual(restart?.event, .update)
+        XCTAssertEqual(restart?.reason, "count restarted")
+        XCTAssertEqual(state(900).sectionsCountedPercent, 0)
+    }
+
     func testReplayWithoutStepsMovesEveryPoll() {
         let settings = ElectionSettings(replayStartedAt: 1000, replayDurationMinutes: 10, replayStepSeconds: 0)
         XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 1030)).progress, 0.05)
@@ -161,9 +232,12 @@ final class ElectionLiveTests: XCTestCase {
     }
 
     func testReplaySettingsUpdate() {
-        let updated = ElectionSettings().applying(.init(replayStepSeconds: 90, replayOffline: true))
+        let updated = ElectionSettings().applying(.init(replayStepSeconds: 90, replayOffline: true, replayLoop: true, replayLoopPauseMinutes: 2))
         XCTAssertEqual(updated.replayStepSeconds, 90)
         XCTAssertTrue(updated.replayOffline)
+        XCTAssertTrue(updated.replayLoop)
+        XCTAssertEqual(updated.replayLoopPauseMinutes, 2)
+        XCTAssertFalse(ElectionSettings().replayLoop)
     }
 
     func testSettingsRoundTripThroughJSON() throws {
