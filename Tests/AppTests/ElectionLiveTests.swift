@@ -114,41 +114,30 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.replayStepSeconds, 60)
         XCTAssertFalse(settings.replayOffline)
         XCTAssertEqual(settings.finalMessages, [:])
-        XCTAssertEqual(settings.previewBuilds, [])
+        XCTAssertEqual(settings.previewVersions, [])
     }
 
-    // MARK: - Preview builds
+    // MARK: - Preview versions
 
-    func testAppBuildFromUserAgent() {
-        XCTAssertEqual(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0"), "1")
-        XCTAssertEqual(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio/5 CFNetwork/3860.100.1 Darwin/25.0.0"), "5")
-        // Browsers and anything else that isn't an app going through CFNetwork.
-        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)"))
-        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "curl/8.7.1"))
-        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: "MedoDelirio CFNetwork/3860.100.1 Darwin/25.0.0"))
-        XCTAssertNil(ElectionSettings.appBuild(fromUserAgent: nil))
-    }
-
-    /// The build in App Review sees the feature while the version in the store doesn't.
-    func testPreviewBuildsSeeTheFeatureBeforeTheLaunch() {
-        let review = "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0"
-        let store = "MedoDelirio/5 CFNetwork/3860.100.1 Darwin/25.0.0"
-        let settings = ElectionSettings(previewBuilds: ["1"])
-        XCTAssertTrue(settings.isEnabled(forUserAgent: review))
-        XCTAssertFalse(settings.isEnabled(forUserAgent: store))
-        XCTAssertFalse(settings.isEnabled(forUserAgent: nil))
-        XCTAssertFalse(ElectionSettings().isEnabled(forUserAgent: review))
+    /// The version in App Review sees the feature while the one in the store doesn't.
+    func testPreviewVersionsSeeTheFeatureBeforeTheLaunch() {
+        let settings = ElectionSettings(previewVersions: ["13.2"])
+        XCTAssertTrue(settings.isEnabled(forAppVersion: "13.2"))
+        XCTAssertFalse(settings.isEnabled(forAppVersion: "13.1"))
+        // 13.0 doesn't send its version.
+        XCTAssertFalse(settings.isEnabled(forAppVersion: nil))
+        XCTAssertFalse(ElectionSettings().isEnabled(forAppVersion: "13.2"))
         // After the launch, everyone.
         let launched = ElectionSettings(enabled: true)
-        XCTAssertTrue(launched.isEnabled(forUserAgent: store))
-        XCTAssertTrue(launched.isEnabled(forUserAgent: nil))
+        XCTAssertTrue(launched.isEnabled(forAppVersion: "13.1"))
+        XCTAssertTrue(launched.isEnabled(forAppVersion: nil))
     }
 
-    func testPreviewBuildsUpdateReplacesTheList() {
-        let settings = ElectionSettings(previewBuilds: ["1"])
-        XCTAssertEqual(settings.applying(.init(previewBuilds: ["2", "3"])).previewBuilds, ["2", "3"])
-        XCTAssertEqual(settings.applying(.init(previewBuilds: [])).previewBuilds, [])
-        XCTAssertEqual(settings.applying(.init(source: .replay)).previewBuilds, ["1"])
+    func testPreviewVersionsUpdateReplacesTheList() {
+        let settings = ElectionSettings(previewVersions: ["13.1"])
+        XCTAssertEqual(settings.applying(.init(previewVersions: ["13.2", "13.3"])).previewVersions, ["13.2", "13.3"])
+        XCTAssertEqual(settings.applying(.init(previewVersions: [])).previewVersions, [])
+        XCTAssertEqual(settings.applying(.init(source: .replay)).previewVersions, ["13.1"])
     }
 
     func testBroadcastSettingsUpdate() {

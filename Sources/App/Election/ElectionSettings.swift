@@ -30,11 +30,10 @@ struct ElectionSettings: Codable, Equatable, Sendable {
 
     /// Public launch switch.
     var enabled: Bool = false
-    /// App builds (`CFBundleVersion`) that get the feature while `enabled` is off, such as the
-    /// build in App Review, so the version already in the store doesn't show it. The build is
-    /// all that tells two versions apart: the app doesn't send its version, but iOS puts the
-    /// build in the User-Agent. See `isEnabled(forUserAgent:)`.
-    var previewBuilds: [String] = []
+    /// App versions (`CFBundleShortVersionString`, e.g. "13.2") that get the feature while
+    /// `enabled` is off, such as the version in App Review, so the one already in the store
+    /// doesn't show it. The app sends its version as `?appVersion=` since 13.1.
+    var previewVersions: [String] = []
     var source: Source = .simulation
     var round: Int = 1
     /// APNs broadcast channel the Live Activities subscribe to, by app bundle ID. Channels
@@ -81,7 +80,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
 
     init(
         enabled: Bool = false,
-        previewBuilds: [String] = [],
+        previewVersions: [String] = [],
         source: Source = .simulation,
         round: Int = 1,
         channelIds: [String: String] = [:],
@@ -98,7 +97,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
     ) {
         self.enabled = enabled
-        self.previewBuilds = previewBuilds
+        self.previewVersions = previewVersions
         self.source = source
         self.round = round
         self.channelIds = channelIds
@@ -121,7 +120,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let defaults = ElectionSettings()
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? defaults.enabled
-        previewBuilds = try container.decodeIfPresent([String].self, forKey: .previewBuilds) ?? defaults.previewBuilds
+        previewVersions = try container.decodeIfPresent([String].self, forKey: .previewVersions) ?? defaults.previewVersions
         source = try container.decodeIfPresent(Source.self, forKey: .source) ?? defaults.source
         round = try container.decodeIfPresent(Int.self, forKey: .round) ?? defaults.round
         channelIds = try container.decodeIfPresent([String: String].self, forKey: .channelIds) ?? defaults.channelIds
@@ -157,22 +156,12 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     }
 
     /// Whether the app making the request sees the feature: everyone once `enabled` is on,
-    /// and before that only the builds in `previewBuilds`.
-    func isEnabled(forUserAgent userAgent: String?) -> Bool {
+    /// and before that only the versions in `previewVersions`. Apps that don't send their
+    /// version (13.0) only see it once `enabled` is on.
+    func isEnabled(forAppVersion appVersion: String?) -> Bool {
         if enabled { return true }
-        guard let build = Self.appBuild(fromUserAgent: userAgent) else { return false }
-        return previewBuilds.contains(build)
-    }
-
-    /// The build number in the User-Agent iOS sends for the app when it doesn't set its own,
-    /// e.g. "1" in "MedoDelirio/1 CFNetwork/3860.100.1 Darwin/25.0.0". Nil for anything that
-    /// isn't an app going through CFNetwork, such as a browser.
-    static func appBuild(fromUserAgent userAgent: String?) -> String? {
-        guard let userAgent, userAgent.contains(" CFNetwork/"),
-              let product = userAgent.split(separator: " ").first else { return nil }
-        let parts = product.split(separator: "/", maxSplits: 1)
-        guard parts.count == 2, !parts[1].isEmpty else { return nil }
-        return String(parts[1])
+        guard let appVersion else { return false }
+        return previewVersions.contains(appVersion)
     }
 
     /// A channel only works for the app it was created for, so there's no fallback between
@@ -222,7 +211,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     struct Update: Codable {
         var enabled: Bool?
         /// Replaces the list. An empty list clears it.
-        var previewBuilds: [String]?
+        var previewVersions: [String]?
         var source: Source?
         var round: Int?
         /// Merged by bundle ID. An empty string removes that bundle's channel.
@@ -246,7 +235,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     func applying(_ update: Update, now: Date = .now) -> ElectionSettings {
         var settings = self
         if let enabled = update.enabled { settings.enabled = enabled }
-        if let previewBuilds = update.previewBuilds { settings.previewBuilds = previewBuilds }
+        if let previewVersions = update.previewVersions { settings.previewVersions = previewVersions }
         if let source = update.source { settings.source = source }
         if let round = update.round { settings.round = round }
         for (bundleId, channelId) in update.channelIds ?? [:] {
