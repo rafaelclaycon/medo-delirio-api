@@ -48,11 +48,10 @@ struct ElectionSettings: Codable, Equatable, Sendable {
     var replayStepSeconds: Double = 60
     /// Uses the simulation result built into the server instead of fetching it from the TSE.
     var replayOffline: Bool = false
-    /// Where the app's "Ver no site do TSE" goes. The results app itself
-    /// (resultados.tse.jus.br/oficial/app) answered 404 on 29/09, before the election, so
-    /// the default is the TSE's results page; point it straight at the app once it's up.
+    /// Where the app's "App do TSE" goes: the TSE's Resultados app on the App Store by
+    /// default. A setting so it can change on election night without an app review.
     var officialResultsURL: String = ElectionSettings.defaultOfficialResultsURL
-    static let defaultOfficialResultsURL = "https://www.tse.jus.br/eleicoes/resultados-eleicoes"
+    static let defaultOfficialResultsURL = "https://apps.apple.com/br/app/resultados/id1136359313"
 
     /// Written ahead by the admin, one per outcome, since the final push goes out as soon as
     /// the TSE closes the count. See `finalMessage(for:)` for the keys.

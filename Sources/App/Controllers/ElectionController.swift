@@ -19,7 +19,7 @@ struct ElectionController {
         let state: ElectionLiveContentState?
         /// For the app's results screen. Apps from before it ignore the key.
         let details: ElectionLiveDetails?
-        /// The TSE page behind "Ver no site do TSE".
+        /// Where the app's "App do TSE" goes.
         let officialResultsURL: String
     }
 
