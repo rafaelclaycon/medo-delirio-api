@@ -2421,13 +2421,13 @@ extension StatisticsController {
                 FROM UsageMetric um
                 INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
                 WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                  AND um.dateTime >= '\(date)'
+                  AND um.dateTime >= ?
                 GROUP BY e.id
                 ORDER BY playCount DESC
                 LIMIT 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopEpisodeItem(
                         rankNumber: "",
@@ -2461,13 +2461,13 @@ extension StatisticsController {
                 FROM UsageMetric um
                 INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
                 WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                  AND um.dateTime BETWEEN '\(firstDate)' AND '\(secondDate)'
+                  AND um.dateTime BETWEEN ? AND ?
                 GROUP BY e.id
                 ORDER BY playCount DESC
                 LIMIT 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(firstDate), .text(secondDate)]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopEpisodeItem(
                         rankNumber: "",
@@ -2481,6 +2481,60 @@ extension StatisticsController {
         } else {
             return req.eventLoop.makeSucceededFuture([])
         }
+    }
+}
+
+// MARK: - Popular Episodes
+
+extension StatisticsController {
+
+    /// The app's "N pessoas ouviram esta semana" on its most popular episodes. Every
+    /// client gets the same answer, so it's computed at most once an hour instead of
+    /// once per app launch. Takes no input: the 7-day window is fixed here.
+    func getPopularEpisodesThisWeekHandlerV4(req: Request) async throws -> [TopEpisodeItem] {
+        let cacheKey = "popular-episodes-this-week"
+
+        if let cached = try await req.cache.get(cacheKey, as: [TopEpisodeItem].self) {
+            return cached
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
+        }
+
+        // `dateTime` is stored as an ISO 8601 UTC string, so a string comparison works.
+        let cutoff = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7 * 24 * 60 * 60))
+
+        let query = """
+            SELECT
+                e.id AS episodeId,
+                e.title AS episodeName,
+                COUNT(*) AS playCount,
+                COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+            FROM UsageMetric um
+            -- Strips only the wrapper, so titles with their own parentheses still match.
+            -- 'didPlayEpisode(' is 15 characters.
+            INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
+            WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+              AND um.dateTime >= ?
+            GROUP BY e.id
+            ORDER BY uniqueListeners DESC
+            LIMIT 10
+        """
+
+        let rows = try await sqlite.query(query, [.text(cutoff)]).get()
+        let items = rows.map { row in
+            TopEpisodeItem(
+                rankNumber: "",
+                episodeId: row.column("episodeId")?.string ?? "",
+                episodeName: row.column("episodeName")?.string ?? "",
+                playCount: row.column("playCount")?.integer ?? 0,
+                uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+            )
+        }
+
+        try await req.cache.set(cacheKey, to: items, expiresIn: .hours(1))
+        return items
     }
 }
 

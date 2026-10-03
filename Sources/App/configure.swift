@@ -60,6 +60,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateWeeklyHighlightLog())
     app.migrations.add(CreateChannelSubscriptionEvent())
     app.migrations.add(AddIsWatchPairedToClientDeviceInfo())
+    app.migrations.add(AddUsageMetricDateTimeIndex())
 
     try await app.autoMigrate()
 

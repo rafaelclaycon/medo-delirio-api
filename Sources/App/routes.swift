@@ -105,6 +105,7 @@ func routes(_ app: Application) throws {
     app.get(api, v4, "episode-play-count-stats-all-time", use: statisticsController.getEpisodePlayCountStatsAllTimeHandlerV4)
     app.get(api, v4, "episode-play-count-stats-from", ":date", use: statisticsController.getEpisodePlayCountStatsFromHandlerV4)
     app.get(api, v4, "episode-play-count-stats-from-to", ":firstDate", ":secondDate", use: statisticsController.getEpisodePlayCountStatsFromToHandlerV4)
+    app.get(api, v4, "popular-episodes-this-week", use: statisticsController.getPopularEpisodesThisWeekHandlerV4)
 
     // Share Clip Analytics
     app.get(api, v4, "share-clip-analytics", ":password", use: statisticsController.getShareClipAnalyticsHandlerV4)
