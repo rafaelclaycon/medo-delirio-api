@@ -2807,3 +2807,163 @@ extension StatisticsController {
         )
     }
 }
+
+// MARK: - Election Live Activity
+
+extension StatisticsController {
+
+    private static let electionLiveStarted = "election_live_activity_started"
+    private static let electionLiveStopped = "election_live_activity_stopped"
+
+    /// Usage of the election Live Activity. `?since=` takes an ISO 8601 date (with or
+    /// without fractional seconds) and defaults to 24 hours ago.
+    func getElectionLiveAnalyticsHandlerV4(req: Request) async throws -> ElectionLiveAnalyticsResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let now = Date()
+        let sinceDate: Date
+        if let sinceParam = try? req.query.get(String.self, at: "since") {
+            guard let parsed = sinceParam.iso8601withFractionalSeconds ?? ISO8601DateFormatter().date(from: sinceParam) else {
+                throw Abort(.badRequest, reason: "since must be an ISO 8601 date")
+            }
+            sinceDate = parsed
+        } else {
+            sinceDate = now.addingTimeInterval(-24 * 60 * 60)
+        }
+        // `dateTime` is stored as an ISO 8601 UTC string, so a string comparison works.
+        let since = sinceDate.iso8601withFractionalSeconds
+        let watchingCutoff = now.addingTimeInterval(-8 * 60 * 60).iso8601withFractionalSeconds
+        let generatedAt = now.iso8601withFractionalSeconds
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return ElectionLiveAnalyticsResponse(
+                since: since,
+                uniqueStarters: 0,
+                totalStarts: 0,
+                uniqueStoppers: 0,
+                totalStops: 0,
+                likelyWatchingNow: 0,
+                whatsNewDismissals: 0,
+                hourly: [],
+                startersByVersion: [],
+                generatedAt: generatedAt
+            )
+        }
+
+        let started = Self.electionLiveStarted
+        let stopped = Self.electionLiveStopped
+        let testIdList = Self.testInstallIds.map { "'\($0)'" }.joined(separator: ",")
+        let bannerFilter = """
+            originatingScreen = 'ElectionLiveBanner'
+              AND destinationScreen IN ('\(started)', '\(stopped)')
+              AND customInstallId NOT IN (\(testIdList))
+            """
+
+        let aggregateQuery = """
+            SELECT
+                COUNT(DISTINCT CASE WHEN destinationScreen = '\(started)' THEN customInstallId END) AS uniqueStarters,
+                SUM(CASE WHEN destinationScreen = '\(started)' THEN 1 ELSE 0 END) AS totalStarts,
+                COUNT(DISTINCT CASE WHEN destinationScreen = '\(stopped)' THEN customInstallId END) AS uniqueStoppers,
+                SUM(CASE WHEN destinationScreen = '\(stopped)' THEN 1 ELSE 0 END) AS totalStops,
+                COUNT(DISTINCT CASE WHEN originatingScreen = 'ElectionLiveWhatsNew' THEN customInstallId END) AS whatsNewDismissals
+            FROM UsageMetric
+            WHERE dateTime >= ?
+              AND customInstallId NOT IN (\(testIdList))
+              AND (
+                (originatingScreen = 'ElectionLiveBanner' AND destinationScreen IN ('\(started)', '\(stopped)'))
+                OR (originatingScreen = 'ElectionLiveWhatsNew' AND destinationScreen = 'dismissed')
+              )
+            """
+
+        let hourlyQuery = """
+            SELECT
+                substr(dateTime, 1, 13) AS hour,
+                COUNT(DISTINCT CASE WHEN destinationScreen = '\(started)' THEN customInstallId END) AS starters,
+                COUNT(DISTINCT CASE WHEN destinationScreen = '\(stopped)' THEN customInstallId END) AS stoppers
+            FROM UsageMetric
+            WHERE dateTime >= ? AND \(bannerFilter)
+            GROUP BY hour
+            ORDER BY hour
+            """
+
+        let newStartersQuery = """
+            SELECT substr(firstStart, 1, 13) AS hour, COUNT(*) AS newStarters
+            FROM (
+                SELECT customInstallId, MIN(dateTime) AS firstStart
+                FROM UsageMetric
+                WHERE dateTime >= ? AND \(bannerFilter) AND destinationScreen = '\(started)'
+                GROUP BY customInstallId
+            )
+            GROUP BY hour
+            """
+
+        let versionQuery = """
+            SELECT appVersion, COUNT(DISTINCT customInstallId) AS starters
+            FROM UsageMetric
+            WHERE dateTime >= ? AND \(bannerFilter) AND destinationScreen = '\(started)'
+            GROUP BY appVersion
+            ORDER BY starters DESC
+            """
+
+        // SQLite fills the bare `destinationScreen` from the row that holds `MAX(dateTime)`,
+        // so each install's latest event comes out without a self-join.
+        let watchingQuery = """
+            SELECT COUNT(*) AS likelyWatchingNow
+            FROM (
+                SELECT destinationScreen, MAX(dateTime) AS lastAt
+                FROM UsageMetric
+                WHERE dateTime >= ? AND \(bannerFilter)
+                GROUP BY customInstallId
+            )
+            WHERE destinationScreen = '\(started)'
+            """
+
+        let aggregateRows = try await sqlite.query(aggregateQuery, [.text(since)]).get()
+        let hourlyRows = try await sqlite.query(hourlyQuery, [.text(since)]).get()
+        let newStartersRows = try await sqlite.query(newStartersQuery, [.text(since)]).get()
+        let versionRows = try await sqlite.query(versionQuery, [.text(since)]).get()
+        let watchingRows = try await sqlite.query(watchingQuery, [.text(watchingCutoff)]).get()
+
+        var newStartersByHour: [String: Int] = [:]
+        for row in newStartersRows {
+            guard let hour = row.column("hour")?.string else { continue }
+            newStartersByHour[hour] = row.column("newStarters")?.integer ?? 0
+        }
+
+        let hourly = hourlyRows.compactMap { row -> ElectionLiveHourlyCount? in
+            guard let hour = row.column("hour")?.string else { return nil }
+            return ElectionLiveHourlyCount(
+                hour: hour,
+                starters: row.column("starters")?.integer ?? 0,
+                newStarters: newStartersByHour[hour] ?? 0,
+                stoppers: row.column("stoppers")?.integer ?? 0
+            )
+        }
+
+        let startersByVersion = versionRows.map { row in
+            ElectionLiveVersionCount(
+                appVersion: row.column("appVersion")?.string ?? "",
+                starters: row.column("starters")?.integer ?? 0
+            )
+        }
+
+        let aggregate = aggregateRows.first
+        return ElectionLiveAnalyticsResponse(
+            since: since,
+            uniqueStarters: aggregate?.column("uniqueStarters")?.integer ?? 0,
+            totalStarts: aggregate?.column("totalStarts")?.integer ?? 0,
+            uniqueStoppers: aggregate?.column("uniqueStoppers")?.integer ?? 0,
+            totalStops: aggregate?.column("totalStops")?.integer ?? 0,
+            likelyWatchingNow: watchingRows.first?.column("likelyWatchingNow")?.integer ?? 0,
+            whatsNewDismissals: aggregate?.column("whatsNewDismissals")?.integer ?? 0,
+            hourly: hourly,
+            startersByVersion: startersByVersion,
+            generatedAt: generatedAt
+        )
+    }
+}
