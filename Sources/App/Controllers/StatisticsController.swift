@@ -2012,12 +2012,15 @@ extension StatisticsController {
              OR destinationScreen LIKE 'didAddBookmarkToEpisode%')
             """
 
+        let playFilter = "destinationScreen LIKE 'didPlayEpisode%'"
+
         guard let sqlite = req.db as? SQLiteDatabase else {
             let emptyDaily = dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
             return req.eventLoop.makeSucceededFuture(
                 EpisodeAnalyticsResponse(
                     dailyUniqueUsers: emptyDaily,
                     totalUniqueUsers: 0,
+                    totalViewers: 0,
                     usersWhoPlayed: 0,
                     usersWhoBookmarked: 0,
                     averagePlaysPerUser: 0,
@@ -2033,7 +2036,7 @@ extension StatisticsController {
                 SELECT COUNT(DISTINCT customInstallId) as activeUsersCount
                 FROM UsageMetric
                 WHERE date(dateTime) = date('\(dateString)')
-                  AND \(episodeFilter)
+                  AND \(playFilter)
                 """
 
             let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
@@ -2049,7 +2052,7 @@ extension StatisticsController {
 
         let aggregateQuery = """
             SELECT
-              COUNT(DISTINCT customInstallId) as totalUniqueUsers,
+              COUNT(DISTINCT customInstallId) as totalViewers,
               COUNT(DISTINCT CASE WHEN destinationScreen LIKE 'didPlayEpisode%' THEN customInstallId END) as usersWhoPlayed,
               COUNT(DISTINCT CASE WHEN destinationScreen LIKE 'didAddBookmarkToEpisode%' THEN customInstallId END) as usersWhoBookmarked,
               SUM(CASE WHEN destinationScreen LIKE 'didPlayEpisode%' THEN 1 ELSE 0 END) as totalPlays,
@@ -2068,7 +2071,7 @@ extension StatisticsController {
         return dailyResultsFuture.and(aggregateFuture).flatMapThrowing { dailyResults, aggregateRows in
             let row = aggregateRows.first
 
-            let totalUniqueUsers = row?.column("totalUniqueUsers")?.integer ?? 0
+            let totalViewers = row?.column("totalViewers")?.integer ?? 0
             let usersWhoPlayed = row?.column("usersWhoPlayed")?.integer ?? 0
             let usersWhoBookmarked = row?.column("usersWhoBookmarked")?.integer ?? 0
             let totalPlays = row?.column("totalPlays")?.integer ?? 0
@@ -2084,7 +2087,8 @@ extension StatisticsController {
 
             return EpisodeAnalyticsResponse(
                 dailyUniqueUsers: dailyResults,
-                totalUniqueUsers: totalUniqueUsers,
+                totalUniqueUsers: usersWhoPlayed,
+                totalViewers: totalViewers,
                 usersWhoPlayed: usersWhoPlayed,
                 usersWhoBookmarked: usersWhoBookmarked,
                 averagePlaysPerUser: averagePlaysPerUser,
