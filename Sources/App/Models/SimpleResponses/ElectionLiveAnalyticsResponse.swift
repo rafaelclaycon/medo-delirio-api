@@ -54,3 +54,37 @@ struct ElectionLiveVersionCount: Content {
     /// Distinct installs on this version that started the Live Activity.
     let starters: Int
 }
+
+/// Usage of the election Live Activity as a time series, for a chart. Built by
+/// `ElectionLiveUsageSeries`; same events and the same undercount as
+/// `ElectionLiveAnalyticsResponse`.
+struct ElectionLiveSeriesResponse: Content {
+
+    /// Window start, rounded down to a bucket boundary (ISO 8601 UTC).
+    let since: String
+    let until: String
+    let bucketMinutes: Int
+    /// Distinct installs that started the Live Activity from the banner in the window.
+    let uniqueStarters: Int
+    let totalStarts: Int
+    let uniqueStoppers: Int
+    /// Every bucket of the window in order, empty ones included.
+    let buckets: [ElectionLiveSeriesBucket]
+    let generatedAt: String
+}
+
+struct ElectionLiveSeriesBucket: Content {
+
+    /// Bucket start, ISO 8601 UTC.
+    let start: String
+    /// The same instant as "HH:mm" in Brasília time, for axis labels.
+    let startBrasilia: String
+    let starters: Int
+    let newStarters: Int
+    /// Everyone who started so far in the window: the chart's main line.
+    let cumulativeStarters: Int
+    let stoppers: Int
+    /// Installs whose latest banner event is a start at most 8 hours old at the end of the
+    /// bucket. An estimate: system ends and results screen stops are invisible.
+    let watchingEstimate: Int
+}

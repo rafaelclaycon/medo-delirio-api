@@ -125,6 +125,7 @@ func routes(_ app: Application) throws {
 
     // Election Live Activity Analytics
     app.get(api, v4, "election-live-analytics", ":password", use: statisticsController.getElectionLiveAnalyticsHandlerV4)
+    app.get(api, v4, "election-live-analytics", "series", ":password", use: statisticsController.getElectionLiveSeriesHandlerV4)
 
     let askForMoneyController = AskForMoneyController()
     app.get(api, v1, "display-ask-for-money-view", use: askForMoneyController.getDisplayAskForMoneyViewHandlerV1)

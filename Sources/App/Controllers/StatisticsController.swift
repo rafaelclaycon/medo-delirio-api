@@ -2970,4 +2970,105 @@ extension StatisticsController {
             generatedAt: generatedAt
         )
     }
+
+    private static let electionLiveBucketMinutes: Set<Int> = [5, 10, 15, 30, 60]
+    private static let electionLiveMaxWindow: TimeInterval = 48 * 60 * 60
+
+    /// Usage of the election Live Activity over time, for a chart. `?since=` and `?until=`
+    /// take ISO 8601 dates (default: the last 24 hours, at most 48), and `?bucketMinutes=`
+    /// one of 5, 10, 15, 30 or 60 (default 10).
+    func getElectionLiveSeriesHandlerV4(req: Request) async throws -> ElectionLiveSeriesResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let now = Date()
+        func date(_ key: String, default fallback: Date) throws -> Date {
+            guard let value = try? req.query.get(String.self, at: key) else { return fallback }
+            guard let parsed = ElectionLiveUsageSeries.parseDate(value) else {
+                throw Abort(.badRequest, reason: "\(key) must be an ISO 8601 date")
+            }
+            return parsed
+        }
+        let until = try date("until", default: now)
+        let since = try date("since", default: until.addingTimeInterval(-24 * 60 * 60))
+        guard until > since else {
+            throw Abort(.badRequest, reason: "until must be after since")
+        }
+        guard until.timeIntervalSince(since) <= Self.electionLiveMaxWindow else {
+            throw Abort(.badRequest, reason: "the window can't pass 48 hours")
+        }
+        let bucketMinutes = (try? req.query.get(Int.self, at: "bucketMinutes")) ?? 10
+        guard Self.electionLiveBucketMinutes.contains(bucketMinutes) else {
+            throw Abort(.badRequest, reason: "bucketMinutes must be 5, 10, 15, 30 or 60")
+        }
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            throw Abort(.internalServerError, reason: "election analytics need SQLite")
+        }
+
+        let started = Self.electionLiveStarted
+        let stopped = Self.electionLiveStopped
+        let testIdList = Self.testInstallIds.map { "'\($0)'" }.joined(separator: ",")
+        // Reaches back a Live Activity's lifetime, so installs that started before the window
+        // count as watching at its start. The range keeps the query on the dateTime index.
+        let query = """
+            SELECT customInstallId, destinationScreen, dateTime
+            FROM UsageMetric
+            WHERE dateTime >= ? AND dateTime < ?
+              AND originatingScreen = 'ElectionLiveBanner'
+              AND destinationScreen IN ('\(started)', '\(stopped)')
+              AND customInstallId NOT IN (\(testIdList))
+            ORDER BY dateTime
+            """
+        let lookback = since.addingTimeInterval(-ElectionLiveUsageSeries.watchLimit)
+        let rows = try await sqlite.query(query, [
+            .text(ElectionLiveUsageSeries.iso8601(lookback)),
+            .text(ElectionLiveUsageSeries.iso8601(until))
+        ]).get()
+
+        let events = rows.compactMap { row -> ElectionLiveUsageSeries.Event? in
+            guard let installId = row.column("customInstallId")?.string,
+                  let screen = row.column("destinationScreen")?.string,
+                  let dateTime = row.column("dateTime")?.string,
+                  let at = ElectionLiveUsageSeries.parseDate(dateTime) else {
+                return nil
+            }
+            return ElectionLiveUsageSeries.Event(
+                installId: installId,
+                kind: screen == started ? .started : .stopped,
+                at: at
+            )
+        }
+
+        let series = ElectionLiveUsageSeries(
+            events: events,
+            since: since,
+            until: until,
+            bucketSeconds: TimeInterval(bucketMinutes * 60)
+        )
+        return ElectionLiveSeriesResponse(
+            since: ElectionLiveUsageSeries.iso8601(series.since),
+            until: ElectionLiveUsageSeries.iso8601(series.until),
+            bucketMinutes: bucketMinutes,
+            uniqueStarters: series.uniqueStarters,
+            totalStarts: series.totalStarts,
+            uniqueStoppers: series.uniqueStoppers,
+            buckets: series.buckets.map {
+                ElectionLiveSeriesBucket(
+                    start: ElectionLiveUsageSeries.iso8601($0.start),
+                    startBrasilia: ElectionLiveUsageSeries.brasiliaTime($0.start),
+                    starters: $0.starters,
+                    newStarters: $0.newStarters,
+                    cumulativeStarters: $0.cumulativeStarters,
+                    stoppers: $0.stoppers,
+                    watchingEstimate: $0.watchingEstimate
+                )
+            },
+            generatedAt: ElectionLiveUsageSeries.iso8601(now)
+        )
+    }
 }
