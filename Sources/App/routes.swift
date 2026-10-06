@@ -72,6 +72,10 @@ func routes(_ app: Application) throws {
     app.post(api, v1, "share-count-stat", use: statisticsController.postShareCountStatHandlerV1)
     app.post(api, v1, "shared-to-bundle-id", use: statisticsController.postSharedToBundleIdHandlerV1)
 
+    // Plays
+    let playLogController = PlayLogController()
+    app.on(.POST, api, v4, "play-logs", body: .collect(maxSize: PlayLogController.maxBodySize), use: playLogController.postPlayLogsHandlerV4)
+
     // Songs
     app.get(api, v3, "song-share-count-stats-all-time", use: statisticsController.getSongShareCountStatsAllTimeHandlerV3)
     app.get(api, v3, "song-share-count-stats-from", ":date", use: statisticsController.getSongShareCountStatsFromHandlerV3)

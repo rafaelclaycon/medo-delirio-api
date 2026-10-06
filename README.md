@@ -18,7 +18,7 @@ Prefer to do it in Reais? [Here you go](https://apoia.se/app-medo-delirio-ios).
 - Sends push notifications to keep users updated.
 3. **User Insights (Anonymized)**:
 - Collects anonymized device model names and active user data.
-- Tracks anonymized content-sharing statistics (opt-out available in the app).
+- Tracks anonymized content-sharing and play statistics (opt-out available in the app).
 - Stores anonymized usage metrics.
 4. **Content Sharing Rankings**:
 Delivers Top 10 Most Shared Content rankings to the app (all-time and date-specific).
