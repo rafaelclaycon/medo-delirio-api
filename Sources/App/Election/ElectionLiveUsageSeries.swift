@@ -2,7 +2,7 @@ import Foundation
 
 /// Usage of the election Live Activity over time, for a chart: one bucket per few minutes
 /// with who started, who stopped and an estimate of who was still watching. Built from the
-/// `ElectionLiveBanner` start and stop events in `UsageMetric`. No Vapor here, so the
+/// start and stop events in `UsageMetric` (banner and results screen). No Vapor here, so the
 /// bucketing is unit tested.
 struct ElectionLiveUsageSeries: Equatable {
 

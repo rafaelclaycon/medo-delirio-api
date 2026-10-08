@@ -159,8 +159,10 @@ final class ElectionLiveSeriesRouteTests: XCTestCase {
             event("a", "election_live_activity_started", "2026-10-04T20:05:00.123Z"),
             event("b", "election_live_activity_started", "2026-10-04T20:12:00.000Z"),
             event("b", "election_live_activity_stopped", "2026-10-04T20:31:00.000Z"),
+            // The results screen counts like the banner.
+            event("e", "election_live_activity_started", "2026-10-04T20:40:00.000Z", screen: "ElectionResults"),
             // Not counted: another screen, and an event after the window.
-            event("c", "election_live_activity_started", "2026-10-04T20:06:00.000Z", screen: "ElectionResults"),
+            event("c", "election_live_activity_started", "2026-10-04T20:06:00.000Z", screen: "SoundsList"),
             event("d", "election_live_activity_started", "2026-10-04T21:10:00.000Z")
         ] {
             try await metric.create(on: app.db)
@@ -170,11 +172,32 @@ final class ElectionLiveSeriesRouteTests: XCTestCase {
             XCTAssertEqual(res.status, .ok)
             let body = try res.content.decode(ElectionLiveSeriesResponse.self)
             XCTAssertEqual(body.bucketMinutes, 15)
-            XCTAssertEqual(body.uniqueStarters, 2)
+            XCTAssertEqual(body.uniqueStarters, 3)
             XCTAssertEqual(body.uniqueStoppers, 1)
             XCTAssertEqual(body.buckets.map(\.startBrasilia), ["17:00", "17:15", "17:30", "17:45"])
-            XCTAssertEqual(body.buckets.map(\.cumulativeStarters), [2, 2, 2, 2])
-            XCTAssertEqual(body.buckets.map(\.watchingEstimate), [2, 2, 1, 1])
+            XCTAssertEqual(body.buckets.map(\.cumulativeStarters), [2, 2, 3, 3])
+            XCTAssertEqual(body.buckets.map(\.watchingEstimate), [2, 2, 2, 2])
+        }
+    }
+
+    /// The summary endpoint counts the results screen like the banner, and skips other screens.
+    func testSummaryCountsTheBannerAndTheResultsScreen() async throws {
+        for metric in [
+            event("a", "election_live_activity_started", "2026-10-04T20:05:00.000Z"),
+            event("a", "election_live_activity_stopped", "2026-10-04T20:20:00.000Z"),
+            event("e", "election_live_activity_started", "2026-10-04T20:40:00.000Z", screen: "ElectionResults"),
+            event("c", "election_live_activity_started", "2026-10-04T20:06:00.000Z", screen: "SoundsList")
+        ] {
+            try await metric.create(on: app.db)
+        }
+
+        try await app.test(.GET, "api/v4/election-live-analytics/\(TestEnvironment.testPassword)?since=2026-10-04T20:00:00Z") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let body = try res.content.decode(ElectionLiveAnalyticsResponse.self)
+            XCTAssertEqual(body.uniqueStarters, 2)
+            XCTAssertEqual(body.totalStarts, 2)
+            XCTAssertEqual(body.uniqueStoppers, 1)
+            XCTAssertEqual(body.startersByVersion.map(\.starters), [2])
         }
     }
 

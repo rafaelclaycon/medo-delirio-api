@@ -8,22 +8,22 @@
 import Vapor
 
 /// Usage of the election Live Activity, from the `UsageMetric` events the app's
-/// `ElectionLiveBanner` and `ElectionLiveWhatsNew` send. Installs are counted by
-/// `customInstallId`, so the same person starting several times counts once.
+/// `ElectionLiveBanner`, `ElectionResults` and `ElectionLiveWhatsNew` send. Installs are
+/// counted by `customInstallId`, so the same person starting several times counts once.
 ///
 /// Undercounts: the app only reports a start after the Live Activity actually began,
-/// and the results screen (13.1) doesn't send events at all.
+/// and the results screen only sends them from the version after 13.2 on.
 struct ElectionLiveAnalyticsResponse: Content {
 
     /// Start of the window, as received (ISO 8601 UTC).
     let since: String
-    /// Distinct installs that started the Live Activity from the banner.
+    /// Distinct installs that started the Live Activity, from the banner or the results screen.
     let uniqueStarters: Int
     let totalStarts: Int
-    /// Distinct installs that stopped it from the banner.
+    /// Distinct installs that stopped it, from the banner or the results screen.
     let uniqueStoppers: Int
     let totalStops: Int
-    /// Installs whose latest banner event is a start, sent in the last 8 hours (the
+    /// Installs whose latest start or stop event is a start, sent in the last 8 hours (the
     /// longest a Live Activity stays active). An estimate: it can't see activities the
     /// system or the results screen ended.
     let likelyWatchingNow: Int
@@ -64,7 +64,7 @@ struct ElectionLiveSeriesResponse: Content {
     let since: String
     let until: String
     let bucketMinutes: Int
-    /// Distinct installs that started the Live Activity from the banner in the window.
+    /// Distinct installs that started the Live Activity in the window.
     let uniqueStarters: Int
     let totalStarts: Int
     let uniqueStoppers: Int
@@ -84,7 +84,7 @@ struct ElectionLiveSeriesBucket: Content {
     /// Everyone who started so far in the window: the chart's main line.
     let cumulativeStarters: Int
     let stoppers: Int
-    /// Installs whose latest banner event is a start at most 8 hours old at the end of the
-    /// bucket. An estimate: system ends and results screen stops are invisible.
+    /// Installs whose latest start or stop event is a start at most 8 hours old at the end of the
+    /// bucket. An estimate: activities the system or the final push ended are invisible.
     let watchingEstimate: Int
 }

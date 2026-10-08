@@ -2818,6 +2818,9 @@ extension StatisticsController {
 
     private static let electionLiveStarted = "election_live_activity_started"
     private static let electionLiveStopped = "election_live_activity_stopped"
+    /// Where people start and stop the Live Activity: the banner, and the results screen
+    /// from the version after 13.2 on.
+    private static let electionLiveScreens = "'ElectionLiveBanner', 'ElectionResults'"
 
     /// Usage of the election Live Activity. `?since=` takes an ISO 8601 date (with or
     /// without fractional seconds) and defaults to 24 hours ago.
@@ -2863,7 +2866,7 @@ extension StatisticsController {
         let stopped = Self.electionLiveStopped
         let testIdList = Self.testInstallIds.map { "'\($0)'" }.joined(separator: ",")
         let bannerFilter = """
-            originatingScreen = 'ElectionLiveBanner'
+            originatingScreen IN (\(Self.electionLiveScreens))
               AND destinationScreen IN ('\(started)', '\(stopped)')
               AND customInstallId NOT IN (\(testIdList))
             """
@@ -2879,7 +2882,7 @@ extension StatisticsController {
             WHERE dateTime >= ?
               AND customInstallId NOT IN (\(testIdList))
               AND (
-                (originatingScreen = 'ElectionLiveBanner' AND destinationScreen IN ('\(started)', '\(stopped)'))
+                (originatingScreen IN (\(Self.electionLiveScreens)) AND destinationScreen IN ('\(started)', '\(stopped)'))
                 OR (originatingScreen = 'ElectionLiveWhatsNew' AND destinationScreen = 'dismissed')
               )
             """
@@ -3019,7 +3022,7 @@ extension StatisticsController {
             SELECT customInstallId, destinationScreen, dateTime
             FROM UsageMetric
             WHERE dateTime >= ? AND dateTime < ?
-              AND originatingScreen = 'ElectionLiveBanner'
+              AND originatingScreen IN (\(Self.electionLiveScreens))
               AND destinationScreen IN ('\(started)', '\(stopped)')
               AND customInstallId NOT IN (\(testIdList))
             ORDER BY dateTime
