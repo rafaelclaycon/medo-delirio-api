@@ -215,6 +215,46 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.replayPosition(at: Date(timeIntervalSince1970: 1030)).progress, 0.05)
     }
 
+    // MARK: - Runoff replay
+
+    func testFirstRoundReplayKeepsTheSimulationResult() throws {
+        let first = try ElectionFixtures.finalPresidentSnapshot()
+        XCTAssertEqual(ElectionReplay.final(forRound: 1, from: first), first)
+    }
+
+    /// The 2nd round is made up from the simulation's two finalists, 57 and 89.
+    func testRunoffReplayHasTheTwoFinalistsAndAWinner() throws {
+        let first = try ElectionFixtures.finalPresidentSnapshot()
+        let runoff = ElectionReplay.final(forRound: 2, from: first)
+        XCTAssertEqual(runoff.round, 2)
+        XCTAssertTrue(runoff.isFinal)
+        XCTAssertEqual(runoff.candidates.map(\.number), [89, 57])
+        XCTAssertEqual(runoff.candidates.map(\.status), [.elected, .notElected])
+        XCTAssertTrue(runoff.candidates.allSatisfy(\.hasValidVotes))
+        // Every vote minus blank and null ones: the simulation's own "vvc".
+        XCTAssertEqual(runoff.validVotes, 120_704_576)
+        XCTAssertEqual(runoff.candidates.map(\.votes).reduce(0, +), runoff.validVotes)
+        XCTAssertEqual(runoff.candidates[0].percent, 50.83, accuracy: 0.01)
+        XCTAssertEqual(runoff.turnout, first.turnout)
+        XCTAssertNotEqual(runoff.generationId, first.generationId)
+    }
+
+    func testRunoffReplayLeadChangesLateInTheCount() throws {
+        let runoff = ElectionReplay.final(forRound: 2, from: try ElectionFixtures.finalPresidentSnapshot())
+        let replay = ElectionReplay(final: runoff)
+        XCTAssertEqual(replay.snapshot(at: 0.5).leader?.number, 57)
+        XCTAssertEqual(replay.snapshot(at: 0.99).leader?.number, 89)
+        XCTAssertEqual(replay.snapshot(at: 1).candidates.first?.status, .elected)
+        XCTAssertEqual(replay.snapshot(at: 0.5).candidates.count, 2)
+    }
+
+    func testRunoffContentStateShowsTheTwoFinalists() throws {
+        let runoff = ElectionReplay.final(forRound: 2, from: try ElectionFixtures.finalPresidentSnapshot())
+        let state = ElectionLiveContentState(snapshot: runoff, settings: ElectionSettings(round: 2))
+        XCTAssertEqual(state.candidates.map(\.number), [89, 57])
+        XCTAssertTrue(state.isFinal)
+    }
+
     func testReplayNotStarted() {
         let now = Date(timeIntervalSince1970: 42)
         XCTAssertEqual(ElectionSettings().replayPosition(at: now), .init(progress: 0, publishedAt: now))

@@ -149,6 +149,56 @@ final class ElectionSnapshotTests: XCTestCase {
         return try JSONDecoder().decode(TSEResultFile.self, from: JSONSerialization.data(withJSONObject: json))
     }
 
+    // MARK: - Turnout
+
+    /// The fixture's own percentages (pa 14,85, pvb 6,57, ptvn 6,51) check ours.
+    func testReadsBlankAndNullVotesAndAbstentions() throws {
+        let turnout = try XCTUnwrap(ElectionFixtures.finalPresidentSnapshot().turnout)
+        XCTAssertEqual(turnout.electorate, 163_079_139)
+        XCTAssertEqual(turnout.attended, 138_863_131)
+        XCTAssertEqual(turnout.abstentions, 24_215_741)
+        XCTAssertEqual(turnout.totalVotes, 138_863_131)
+        XCTAssertEqual(turnout.blankVotes, 9_118_018)
+        XCTAssertEqual(turnout.nullVotes, 9_040_537)
+        XCTAssertEqual(turnout.abstentionPercent, 14.85, accuracy: 0.005)
+        XCTAssertEqual(turnout.blankPercent, 6.57, accuracy: 0.005)
+        XCTAssertEqual(turnout.nullPercent, 6.51, accuracy: 0.005)
+    }
+
+    func testAFileWithoutTurnoutStillReads() throws {
+        let snapshot = try ElectionSnapshot(from: fixtureFile(removing: ["e"]))
+        XCTAssertNil(snapshot.turnout)
+        XCTAssertFalse(snapshot.candidates.isEmpty)
+    }
+
+    /// Turnout is extra: an odd value there leaves it out instead of failing the count.
+    func testAnOddTurnoutValueDoesntRejectTheFile() throws {
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: ElectionFixtures.data("br-c0001-e021270-u.json")) as? [String: Any])
+        var electorate = try XCTUnwrap(json["e"] as? [String: Any])
+        electorate["c"] = "n/d"
+        json["e"] = electorate
+        let file = try JSONDecoder().decode(TSEResultFile.self, from: JSONSerialization.data(withJSONObject: json))
+        let snapshot = try ElectionSnapshot(from: file)
+        XCTAssertNil(snapshot.turnout)
+        XCTAssertEqual(snapshot.sectionsCountedPercent, 100)
+    }
+
+    func testDetailsCarryTurnoutWithPercentages() throws {
+        let details = ElectionLiveDetails(snapshot: try ElectionFixtures.finalPresidentSnapshot(), candidateColors: [:])
+        let turnout = try XCTUnwrap(details.turnout)
+        XCTAssertEqual(turnout.blankVotes, 9_118_018)
+        XCTAssertEqual(turnout.blankPercent, 6.57, accuracy: 0.005)
+        XCTAssertEqual(turnout.abstentionPercent, 14.85, accuracy: 0.005)
+    }
+
+    func testReplayScalesTurnoutWithTheCount() throws {
+        let final = try ElectionFixtures.finalPresidentSnapshot()
+        let half = try XCTUnwrap(ElectionReplay(final: final).snapshot(at: 0.5).turnout)
+        XCTAssertEqual(half.blankVotes, 9_118_018 / 2)
+        XCTAssertEqual(half.abstentions, 24_215_741 / 2)
+        XCTAssertEqual(half.blankPercent, final.turnout?.blankPercent ?? 0, accuracy: 0.01)
+    }
+
     func testEmptyCountingFieldsReadAsZero() throws {
         let file = try fixtureFile(blanking: ["vap", "pvapn", "st", "pst", "vv", "ts"])
         let snapshot = try ElectionSnapshot(from: file)

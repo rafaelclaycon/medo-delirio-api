@@ -124,7 +124,8 @@ struct ElectionPollingService {
     // MARK: - Replay
 
     /// Counts towards the final result of the TSE simulation, fetched once. The result built
-    /// into the server stands in when `replayOffline` is on or the TSE doesn't answer.
+    /// into the server stands in when `replayOffline` is on or the TSE doesn't answer. With
+    /// `round` 2, the final result is a runoff made up from it (`ElectionReplay.final`).
     private func pollReplay(settings: ElectionSettings, now: Date) async throws {
         let final: ElectionSnapshot
         if let cached = await store.replayFinal {
@@ -148,7 +149,8 @@ struct ElectionPollingService {
             await store.setReplayFinal(final)
         }
 
-        let snapshot = ElectionReplay(final: final).snapshot(at: settings.replayPosition(at: now))
+        let roundFinal = ElectionReplay.final(forRound: settings.round, from: final)
+        let snapshot = ElectionReplay(final: roundFinal).snapshot(at: settings.replayPosition(at: now))
         if await store.update(snapshot: snapshot, etag: nil, at: now) {
             didReceive(snapshot)
         }

@@ -26,6 +26,8 @@ struct TSEResultFile: Decodable {
     /// Counting status: "f" once the totalization for this scope is final.
     let and: String?
     let s: Sections?
+    /// Electorate and turnout, for the sections counted so far.
+    let e: Electorate?
     let v: Votes?
     let carg: [Office]
 
@@ -38,9 +40,24 @@ struct TSEResultFile: Decodable {
         let pst: String?
     }
 
+    struct Electorate: Decodable {
+        /// Registered voters.
+        let te: String?
+        /// Voters who showed up (comparecimento).
+        let c: String?
+        /// Voters who didn't (abstenção).
+        let a: String?
+    }
+
     struct Votes: Decodable {
         /// Valid votes.
         let vv: String?
+        /// Every vote cast: valid, blank and null.
+        let tv: String?
+        /// Blank votes.
+        let vb: String?
+        /// Null votes, all kinds.
+        let tvn: String?
     }
 
     struct Office: Decodable {

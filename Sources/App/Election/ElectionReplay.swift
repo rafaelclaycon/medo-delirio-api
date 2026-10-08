@@ -33,7 +33,56 @@ struct ElectionReplay {
             sectionsCounted: snapshot.sectionsCounted,
             sectionsCountedPercent: snapshot.sectionsCountedPercent,
             validVotes: snapshot.validVotes,
-            candidates: snapshot.candidates
+            candidates: snapshot.candidates,
+            turnout: snapshot.turnout
+        )
+    }
+
+    /// Share of the valid votes the replay's 2nd round winner ends with.
+    static let runoffWinnerShare = 0.5083
+
+    /// The final result to replay for `round`. The TSE simulation only has a 1st round, so
+    /// the 2nd is made up from it: its two finalists, TSE test candidates, with the one who
+    /// came second winning by a little. The replay starts with the other one ahead, so the
+    /// lead changes mid-count. Same electorate, blank and null votes as the 1st round.
+    static func final(forRound round: Int, from firstRound: ElectionSnapshot) -> ElectionSnapshot {
+        guard round == 2 else { return firstRound }
+
+        let runoff = firstRound.candidates.filter { $0.status == .runoff }
+        let finalists = runoff.count == 2 ? runoff : Array(firstRound.candidates.prefix(2))
+        guard finalists.count == 2 else { return firstRound }
+
+        let turnout = firstRound.turnout
+        let validVotes = turnout.map { $0.totalVotes - $0.blankVotes - $0.nullVotes } ?? firstRound.validVotes
+        let winnerVotes = Int((Double(validVotes) * runoffWinnerShare).rounded())
+        let loserVotes = validVotes - winnerVotes
+        func candidate(_ source: ElectionSnapshot.Candidate, votes: Int, status: ElectionSnapshot.Status) -> ElectionSnapshot.Candidate {
+            ElectionSnapshot.Candidate(
+                number: source.number,
+                name: source.name,
+                party: source.party,
+                votes: votes,
+                percent: validVotes > 0 ? Double(votes) / Double(validVotes) * 100 : 0,
+                status: status,
+                hasValidVotes: true
+            )
+        }
+
+        return ElectionSnapshot(
+            electionCode: firstRound.electionCode,
+            round: 2,
+            generationId: firstRound.generationId + "-t2",
+            totalizedAt: firstRound.totalizedAt,
+            isFinal: true,
+            sectionsTotal: firstRound.sectionsTotal,
+            sectionsCounted: firstRound.sectionsCounted,
+            sectionsCountedPercent: firstRound.sectionsCountedPercent,
+            validVotes: validVotes,
+            candidates: [
+                candidate(finalists[1], votes: winnerVotes, status: .elected),
+                candidate(finalists[0], votes: loserVotes, status: .notElected)
+            ],
+            turnout: turnout
         )
     }
 
@@ -79,7 +128,8 @@ struct ElectionReplay {
             sectionsCounted: sectionsCounted,
             sectionsCountedPercent: final.sectionsTotal > 0 ? Double(sectionsCounted) / Double(final.sectionsTotal) * 100 : 0,
             validVotes: validVotes,
-            candidates: candidates
+            candidates: candidates,
+            turnout: final.turnout?.scaled(by: progress)
         )
     }
 }

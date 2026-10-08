@@ -16,6 +16,44 @@ struct ElectionSnapshot: Codable, Equatable {
     let validVotes: Int
     /// Sorted by the TSE ranking.
     let candidates: [Candidate]
+    /// Blank and null votes and who didn't vote. Nil when the file doesn't have them.
+    var turnout: Turnout? = nil
+
+    /// For the sections counted so far, like every other count in the file.
+    struct Turnout: Codable, Equatable {
+        let electorate: Int
+        let attended: Int
+        let abstentions: Int
+        let totalVotes: Int
+        let blankVotes: Int
+        let nullVotes: Int
+
+        /// Share of the voters in counted sections who didn't vote, 0 to 100.
+        var abstentionPercent: Double {
+            Self.percent(abstentions, of: attended + abstentions)
+        }
+
+        /// Shares of every vote cast, 0 to 100, as the TSE computes them.
+        var blankPercent: Double { Self.percent(blankVotes, of: totalVotes) }
+        var nullPercent: Double { Self.percent(nullVotes, of: totalVotes) }
+
+        /// Every count times `fraction`, for the replay.
+        func scaled(by fraction: Double) -> Turnout {
+            func scale(_ value: Int) -> Int { Int((Double(value) * fraction).rounded(.down)) }
+            return Turnout(
+                electorate: electorate,
+                attended: scale(attended),
+                abstentions: scale(abstentions),
+                totalVotes: scale(totalVotes),
+                blankVotes: scale(blankVotes),
+                nullVotes: scale(nullVotes)
+            )
+        }
+
+        private static func percent(_ part: Int, of whole: Int) -> Double {
+            whole > 0 ? Double(part) / Double(whole) * 100 : 0
+        }
+    }
 
     struct Candidate: Codable, Equatable {
         let number: Int
@@ -91,7 +129,22 @@ extension ElectionSnapshot {
             validVotes: try Self.int(file.v?.vv ?? "", field: "vv", emptyAs: 0),
             candidates: ranked
                 .sorted { ($0.rank, -$0.candidate.votes) < ($1.rank, -$1.candidate.votes) }
-                .map(\.candidate)
+                .map(\.candidate),
+            turnout: Self.turnout(from: file)
+        )
+    }
+
+    /// Extra, so it never rejects the file: missing or odd fields leave it out, and the count
+    /// goes on without it.
+    static func turnout(from file: TSEResultFile) -> Turnout? {
+        guard let electorate = file.e, let votes = file.v else { return nil }
+        return try? Turnout(
+            electorate: int(electorate.te ?? "", field: "te", emptyAs: 0),
+            attended: int(electorate.c ?? "", field: "c", emptyAs: 0),
+            abstentions: int(electorate.a ?? "", field: "a", emptyAs: 0),
+            totalVotes: int(votes.tv ?? "", field: "tv", emptyAs: 0),
+            blankVotes: int(votes.vb ?? "", field: "vb", emptyAs: 0),
+            nullVotes: int(votes.tvn ?? "", field: "tvn", emptyAs: 0)
         )
     }
 
