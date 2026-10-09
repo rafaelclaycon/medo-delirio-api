@@ -312,6 +312,43 @@ final class ElectionLiveTests: XCTestCase {
         XCTAssertEqual(settings.finalMessage(for: elected)?.text, "89 eleito")
     }
 
+    func testFinalMessageFillsTheVoteMargin() throws {
+        let elected = try electedSnapshot(winner: 89)
+        let votes = elected.candidates.filter(\.hasValidVotes).map(\.votes).sorted(by: >)
+        let margin = ElectionSettings.FinalMessage.formattedCount(votes[0] - votes[1])
+        let settings = ElectionSettings(finalMessages: [
+            "elected": .init(text: "Venceu por {diferença} votos. Um deles foi seu.", alertTitle: "{diferenca} votos!", alertBody: nil),
+        ])
+
+        let message = try XCTUnwrap(settings.finalMessage(for: elected))
+        XCTAssertEqual(message.text, "Venceu por \(margin) votos. Um deles foi seu.")
+        XCTAssertEqual(message.alertTitle, "\(margin) votos!")
+        XCTAssertNil(message.alertBody)
+        XCTAssertEqual(ElectionLiveContentState(snapshot: elected, settings: settings).finalMessage, message.text)
+        XCTAssertEqual(settings.finalMessages["elected"]?.text, "Venceu por {diferença} votos. Um deles foi seu.", "the saved text keeps the placeholder")
+    }
+
+    func testFinalMessageKeepsItsThemeAndDecodesWithoutOne() throws {
+        let elected = try electedSnapshot(winner: 89)
+        let settings = ElectionSettings(finalMessages: [
+            "elected:89": .init(text: "Por {diferença} votos", alertTitle: nil, alertBody: nil, theme: "celebration"),
+        ])
+        XCTAssertEqual(settings.finalMessage(for: elected)?.theme, "celebration", "filling the placeholders keeps it")
+
+        // Messages saved before the theme existed.
+        let saved = #"{"finalMessages":{"default":{"text":"Acabou"}}}"#
+        let decoded = try JSONDecoder().decode(ElectionSettings.self, from: Data(saved.utf8))
+        XCTAssertNil(decoded.finalMessages["default"]?.theme)
+    }
+
+    func testFormattedCountGroupsThousandsWithDots() {
+        XCTAssertEqual(ElectionSettings.FinalMessage.formattedCount(0), "0")
+        XCTAssertEqual(ElectionSettings.FinalMessage.formattedCount(999), "999")
+        XCTAssertEqual(ElectionSettings.FinalMessage.formattedCount(1_000), "1.000")
+        XCTAssertEqual(ElectionSettings.FinalMessage.formattedCount(2_003_696), "2.003.696")
+        XCTAssertEqual(ElectionSettings.FinalMessage.formattedCount(-12_345), "-12.345")
+    }
+
     func testNoFinalMessageBeforeTheEndOrWithoutAMatch() throws {
         let settings = ElectionSettings(finalMessages: ["elected:13": message("x")])
         XCTAssertNil(settings.finalMessage(for: try ElectionFixtures.finalPresidentSnapshot()))

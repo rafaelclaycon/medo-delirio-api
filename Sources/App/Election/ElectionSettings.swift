@@ -71,9 +71,44 @@ struct ElectionSettings: Codable, Equatable, Sendable {
         /// Replace the default "Apuração encerrada" alert when set.
         let alertTitle: String?
         let alertBody: String?
+        /// How the app's results screen dresses the result, one of `themes`. Only in
+        /// `GET election/live`, never in the push: the Live Activity looks the same either way.
+        var theme: String? = nil
 
         static let maxTextLength = 120
+        /// `celebration`: confetti, fireworks haptics, the card in red. `comfort`: the card
+        /// turns night blue and stars come out. Apps ignore values they don't know.
+        static let themes = ["celebration", "comfort"]
         static let maxAlertLength = 180
+
+        /// Replaced with how many votes the 1st finished ahead of the 2nd, as "2.003.696":
+        /// the texts are written before the count ends, the number can't be. Also without
+        /// the cedilla, for keyboards that make it hard.
+        static let marginPlaceholders = ["{diferença}", "{diferenca}"]
+
+        /// The texts with the placeholders filled in from the final snapshot. Left as they
+        /// are without two candidates to compare.
+        func filled(for snapshot: ElectionSnapshot) -> FinalMessage {
+            guard let margin = snapshot.voteMargin else { return self }
+            let number = Self.formattedCount(margin)
+            func fill(_ text: String) -> String {
+                Self.marginPlaceholders.reduce(text) { $0.replacingOccurrences(of: $1, with: number) }
+            }
+            return FinalMessage(text: fill(text), alertTitle: alertTitle.map(fill), alertBody: alertBody.map(fill), theme: theme)
+        }
+
+        /// "2.003.696", by hand: the Linux server may not have the pt_BR locale data.
+        static func formattedCount(_ value: Int) -> String {
+            let digits = Array(String(value.magnitude))
+            var groups: [String] = []
+            var end = digits.count
+            while end > 0 {
+                let start = max(end - 3, 0)
+                groups.insert(String(digits[start..<end]), at: 0)
+                end = start
+            }
+            return (value < 0 ? "-" : "") + groups.joined(separator: ".")
+        }
     }
 
     static let settingKey = "election-settings"
@@ -139,7 +174,8 @@ struct ElectionSettings: Codable, Equatable, Sendable {
 
     /// The admin's message for how the count ended, most specific key first: `elected:13`
     /// then `elected`; `runoff:13-22` (numbers in ascending order) then `runoff`; then
-    /// `default`. Nil until the count is final.
+    /// `default`. Nil until the count is final. Placeholders come filled in
+    /// (`FinalMessage.filled(for:)`).
     func finalMessage(for snapshot: ElectionSnapshot) -> FinalMessage? {
         guard snapshot.isFinal else { return nil }
         var keys: [String] = []
@@ -152,7 +188,7 @@ struct ElectionSettings: Codable, Equatable, Sendable {
             }
         }
         keys.append("default")
-        return keys.lazy.compactMap { finalMessages[$0] }.first
+        return keys.lazy.compactMap { finalMessages[$0] }.first?.filled(for: snapshot)
     }
 
     /// Whether the app making the request sees the feature: everyone once `enabled` is on,

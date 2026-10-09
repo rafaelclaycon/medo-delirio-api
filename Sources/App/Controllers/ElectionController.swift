@@ -21,6 +21,9 @@ struct ElectionController {
         let details: ElectionLiveDetails?
         /// Where the app's "App do TSE" goes.
         let officialResultsURL: String
+        /// The final message's theme (`ElectionSettings.FinalMessage.themes`), only once the
+        /// count is final. Apps from before it ignore the key.
+        let finalTheme: String?
     }
 
     struct StatusResponse: Content {
@@ -68,7 +71,8 @@ struct ElectionController {
             round: settings.round,
             state: snapshot.map { ElectionLiveContentState(snapshot: $0, settings: settings) },
             details: snapshot.map { ElectionLiveDetails(snapshot: $0, candidateColors: settings.candidateColors) },
-            officialResultsURL: settings.officialResultsURL
+            officialResultsURL: settings.officialResultsURL,
+            finalTheme: snapshot.flatMap { settings.finalMessage(for: $0)?.theme }
         )
     }
 
@@ -112,6 +116,9 @@ struct ElectionController {
             }
             for alert in [message.alertTitle, message.alertBody].compactMap({ $0 }) where alert.count > ElectionSettings.FinalMessage.maxAlertLength {
                 throw Abort(.badRequest, reason: "finalMessages[\(key)] alert texts can't pass \(ElectionSettings.FinalMessage.maxAlertLength) characters")
+            }
+            if let theme = message.theme, !ElectionSettings.FinalMessage.themes.contains(theme) {
+                throw Abort(.badRequest, reason: "finalMessages[\(key)].theme must be one of \(ElectionSettings.FinalMessage.themes.joined(separator: ", "))")
             }
         }
         if let url = update.officialResultsURL, !url.isEmpty, URL(string: url)?.scheme != "https" {

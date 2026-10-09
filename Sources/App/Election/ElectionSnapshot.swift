@@ -77,6 +77,13 @@ struct ElectionSnapshot: Codable, Equatable {
         candidates.first
     }
 
+    /// Votes between the two most voted, among those whose votes count. Nil with fewer than two.
+    var voteMargin: Int? {
+        let votes = candidates.filter(\.hasValidVotes).map(\.votes).sorted(by: >)
+        guard votes.count >= 2 else { return nil }
+        return votes[0] - votes[1]
+    }
+
     enum ParsingError: Error {
         case presidentOfficeNotFound
         case invalidNumber(field: String, value: String)
