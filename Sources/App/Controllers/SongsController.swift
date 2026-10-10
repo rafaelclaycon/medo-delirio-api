@@ -94,8 +94,11 @@ struct SongsController {
             throw Abort(.internalServerError)
         }
 
+        // Deleted content must 404 so a client retrying an old `created` event
+        // can't bring it back.
         return MedoContent.query(on: req.db)
             .filter(\.$id == songIdAsUUID)
+            .filter(\.$isHidden == false)
             .first()
             .unwrap(or: Abort(.notFound))
             .flatMap { content in
@@ -104,7 +107,7 @@ struct SongsController {
             }
     }
 
-    func deleteSongHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteSongHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -119,20 +122,23 @@ struct SongsController {
         guard let songIdAsUUID = UUID(uuidString: songId) else {
             throw Abort(.internalServerError)
         }
-        return MedoContent.query(on: req.db)
-            .filter(\.$id == songIdAsUUID)
-            .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                content.isHidden = true
-                return content.save(on: req.db).flatMap {
-                    let updateEvent = UpdateEvent(contentId: songId,
-                                                  dateTime: Date().iso8601withFractionalSeconds,
-                                                  mediaType: .song,
-                                                  eventType: .deleted,
-                                                  visible: true)
-                    return updateEvent.save(on: req.db).transform(to: .ok)
-                }
-            }
+        guard let content = try await MedoContent.find(songIdAsUUID, on: req.db) else {
+            throw Abort(.notFound)
+        }
+
+        try await req.db.transaction { transaction in
+            content.isHidden = true
+            try await content.save(on: transaction)
+            try await UpdateEvent.hideAll(forContentId: songId, on: transaction)
+            let updateEvent = UpdateEvent(
+                contentId: songId,
+                dateTime: Date().iso8601withFractionalSeconds,
+                mediaType: .song,
+                eventType: .deleted,
+                visible: true
+            )
+            try await updateEvent.save(on: transaction)
+        }
+        return .ok
     }
 }

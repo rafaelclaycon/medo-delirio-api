@@ -1,5 +1,6 @@
 @testable import App
 import XCTVapor
+import Fluent
 import Foundation
 
 private struct NewSoundPayload: Content {
@@ -75,6 +76,52 @@ final class SoundsControllerTests: XCTestCase {
             let sounds = try res.content.decode([Sound].self)
             XCTAssertFalse(sounds.contains { $0.id == createdId })
         })
+    }
+
+    func testDeletedSoundIsNotServedAnymore() async throws {
+        let createdId = try await createSound()
+
+        try await app.test(.DELETE, "api/v3/sound/\(createdId)/\(TestEnvironment.testPassword)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .ok)
+        })
+
+        // A client retrying the sound's old `created` event must not get it back.
+        try await app.test(.GET, "api/v3/sound/\(createdId)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .notFound)
+        })
+    }
+
+    func testDeletingASoundLeavesOnlyItsDeletionVisible() async throws {
+        let createdId = try await createSound()
+        let fetchedEvent = try await UpdateEvent.query(on: app.db).filter(\.$contentId == createdId).first()
+        let createdEvent = try XCTUnwrap(fetchedEvent)
+        createdEvent.visible = true
+        try await createdEvent.save(on: app.db)
+
+        try await app.test(.DELETE, "api/v3/sound/\(createdId)/\(TestEnvironment.testPassword)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .ok)
+        })
+        // Deleting again (to re-send the deletion) still works on hidden content.
+        try await app.test(.DELETE, "api/v3/sound/\(createdId)/\(TestEnvironment.testPassword)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .ok)
+        })
+
+        try await app.test(.GET, "api/v3/update-events/all", afterResponse: { res async throws in
+            let events = try res.content.decode([UpdateEvent].self).filter { $0.contentId == createdId }
+            XCTAssertEqual(events.count, 1)
+            XCTAssertEqual(events.first?.eventType, .deleted)
+        })
+    }
+
+    private func createSound() async throws -> String {
+        var createdId = ""
+        try await app.test(.POST, "api/v3/create-sound/\(TestEnvironment.testPassword)", beforeRequest: { req async throws in
+            try req.content.encode(Self.samplePayload())
+        }, afterResponse: { res async throws in
+            XCTAssertEqual(res.status, .created)
+            createdId = try JSONDecoder().decode(CreateContentResponse.self, from: Data(buffer: res.body)).contentId
+        })
+        return createdId
     }
 
     private static func samplePayload() -> NewSoundPayload {

@@ -64,3 +64,16 @@ final class UpdateEvent: Model, Content {
         self.visible = visible
     }
 }
+
+extension UpdateEvent {
+
+    /// Hides every event of a piece of content, so clients that haven't synced it yet
+    /// skip straight to its deletion instead of downloading it first. A bulk query
+    /// update, so it doesn't trigger `UpdateEventPushMiddleware`.
+    static func hideAll(forContentId contentId: String, on db: Database) async throws {
+        try await UpdateEvent.query(on: db)
+            .filter(\.$contentId == contentId)
+            .set(\.$visible, to: false)
+            .update()
+    }
+}
