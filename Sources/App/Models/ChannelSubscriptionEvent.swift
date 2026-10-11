@@ -4,7 +4,7 @@ import Vapor
 /// Append-only log of channel subscribe/unsubscribe actions. The `DeviceChannel`
 /// pivot is hard-deleted on unsubscribe, so without this log churn is unrecoverable —
 /// it lets us count unsubscribes (and subscribes) over time per channel.
-final class ChannelSubscriptionEvent: Model, Content {
+final class ChannelSubscriptionEvent: Model, Content, @unchecked Sendable {
 
     static let schema = "ChannelSubscriptionEvent"
 

@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class ContentFile: Model, Content {
+final class ContentFile: Model, Content, @unchecked Sendable {
     
     static let schema = "ContentFile"
     

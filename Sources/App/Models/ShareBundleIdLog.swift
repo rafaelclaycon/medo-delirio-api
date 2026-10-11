@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-final class ShareBundleIdLog: Model, Content {
+final class ShareBundleIdLog: Model, Content, @unchecked Sendable {
 
     static let schema = "ShareBundleIdLog"
     

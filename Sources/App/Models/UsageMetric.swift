@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class UsageMetric: Model, Content {
+final class UsageMetric: Model, Content, @unchecked Sendable {
 
     static let schema = "UsageMetric"
     

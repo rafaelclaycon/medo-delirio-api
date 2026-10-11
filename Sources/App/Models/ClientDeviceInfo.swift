@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-final class ClientDeviceInfo: Model, Content {
+final class ClientDeviceInfo: Model, Content, @unchecked Sendable {
 
     static let schema = "ClientDeviceInfo"
     

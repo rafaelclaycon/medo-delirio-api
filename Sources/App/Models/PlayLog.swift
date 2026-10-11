@@ -14,7 +14,7 @@ import Vapor
 /// A burst of re-taps on the same content is folded into a single play by the app before
 /// it gets here; the rule lives in `PlayDeduplicator` on the client, which is why every row
 /// carries the app version that counted it.
-final class PlayLog: Model {
+final class PlayLog: Model, @unchecked Sendable {
 
     static let schema = "PlayLog"
 

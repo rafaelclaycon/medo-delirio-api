@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class ReactionSound: Model, Content {
+final class ReactionSound: Model, Content, @unchecked Sendable {
 
     static let schema = "ReactionSound"
     

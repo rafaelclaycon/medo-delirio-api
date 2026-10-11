@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class Author: Model, Content {
+final class Author: Model, Content, @unchecked Sendable {
 
     static let schema = "Author"
 

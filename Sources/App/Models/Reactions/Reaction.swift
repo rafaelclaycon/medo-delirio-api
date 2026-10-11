@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class Reaction: Model, Content, Equatable, Hashable {
+final class Reaction: Model, Content, Equatable, Hashable, @unchecked Sendable {
 
     static let schema = "Reaction"
     

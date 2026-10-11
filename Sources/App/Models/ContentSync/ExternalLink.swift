@@ -7,7 +7,7 @@
 
 import Vapor
 
-final class ExternalLink: Content {
+struct ExternalLink: Content {
 
     var icon: String
     var title: String

@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class MedoContent: Model, Content {
+final class MedoContent: Model, Content, @unchecked Sendable {
 
     static let schema = "MedoContent"
     

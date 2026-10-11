@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class UserFolderContentLog: Model, Content {
+final class UserFolderContentLog: Model, Content, @unchecked Sendable {
 
     static let schema = "UserFolderContentLog"
     

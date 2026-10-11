@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-final class ShareCountStat: Model, Content {
+final class ShareCountStat: Model, Content, @unchecked Sendable {
 
     static let schema = "ShareCountStat"
     

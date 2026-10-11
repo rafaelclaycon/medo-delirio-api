@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class MusicGenre: Model, Content {
+final class MusicGenre: Model, Content, @unchecked Sendable {
 
     static let schema = "MusicGenre"
 

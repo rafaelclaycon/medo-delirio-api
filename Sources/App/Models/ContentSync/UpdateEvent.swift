@@ -8,7 +8,7 @@
 import Fluent
 import Vapor
 
-final class UpdateEvent: Model, Content {
+final class UpdateEvent: Model, Content, @unchecked Sendable {
 
     static let schema = "UpdateEvent"
     

@@ -4,7 +4,7 @@ import Vapor
 /// One row per Weekly Highlights notification broadcast. Lets us report how many
 /// highlights were sent each week, since `WeeklyHighlightsSendResult` is otherwise
 /// ephemeral (returned in the HTTP response and logged, never persisted).
-final class WeeklyHighlightLog: Model, Content {
+final class WeeklyHighlightLog: Model, Content, @unchecked Sendable {
 
     static let schema = "WeeklyHighlightLog"
 

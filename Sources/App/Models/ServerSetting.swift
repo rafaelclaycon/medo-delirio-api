@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-final class ServerSetting: Model, Content {
+final class ServerSetting: Model, Content, @unchecked Sendable {
 
     static let schema = "ServerSetting"
 

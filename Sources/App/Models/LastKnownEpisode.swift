@@ -1,7 +1,7 @@
 import Fluent
 import Vapor
 
-final class LastKnownEpisode: Model, Content {
+final class LastKnownEpisode: Model, Content, @unchecked Sendable {
 
     static let schema = "LastKnownEpisode"
 

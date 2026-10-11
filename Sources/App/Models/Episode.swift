@@ -6,7 +6,7 @@
 import Fluent
 import Vapor
 
-final class Episode: Model, Content {
+final class Episode: Model, Content, @unchecked Sendable {
 
     static let schema = "Episode"
 
