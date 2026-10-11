@@ -2389,10 +2389,12 @@ extension StatisticsController {
                     COUNT(*) AS playCount,
                     COUNT(DISTINCT um.customInstallId) AS uniqueListeners
                 FROM UsageMetric um
-                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                -- Strips only the wrapper, so titles with their own parentheses still match.
+                -- 'didPlayEpisode(' is 15 characters.
+                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
                 WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
                 GROUP BY e.id
-                ORDER BY playCount DESC
+                ORDER BY uniqueListeners DESC, playCount DESC
                 LIMIT 10
             """
 
@@ -2425,11 +2427,13 @@ extension StatisticsController {
                     COUNT(*) AS playCount,
                     COUNT(DISTINCT um.customInstallId) AS uniqueListeners
                 FROM UsageMetric um
-                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                -- Strips only the wrapper, so titles with their own parentheses still match.
+                -- 'didPlayEpisode(' is 15 characters.
+                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
                 WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
                   AND um.dateTime >= ?
                 GROUP BY e.id
-                ORDER BY playCount DESC
+                ORDER BY uniqueListeners DESC, playCount DESC
                 LIMIT 10
             """
 
@@ -2465,15 +2469,18 @@ extension StatisticsController {
                     COUNT(*) AS playCount,
                     COUNT(DISTINCT um.customInstallId) AS uniqueListeners
                 FROM UsageMetric um
-                INNER JOIN Episode e ON e.title = replace(replace(um.destinationScreen, 'didPlayEpisode(', ''), ')', '')
+                -- Strips only the wrapper, so titles with their own parentheses still match.
+                -- 'didPlayEpisode(' is 15 characters.
+                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
                 WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                  AND um.dateTime BETWEEN ? AND ?
+                  -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+                  AND um.dateTime >= ? AND um.dateTime < ?
                 GROUP BY e.id
-                ORDER BY playCount DESC
+                ORDER BY uniqueListeners DESC, playCount DESC
                 LIMIT 10
             """
 
-            return sqlite.query(query, [.text(firstDate), .text(secondDate)]).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopEpisodeItem(
                         rankNumber: "",
