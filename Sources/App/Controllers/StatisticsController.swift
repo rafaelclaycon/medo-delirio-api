@@ -152,13 +152,13 @@ struct StatisticsController {
                 from ShareCountStat s
                 inner join MedoContent c on c.id = s.contentId
                 where c.contentType = 0
-                and s.dateTime > '\(date)'
+                and s.dateTime > ?
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
             """
             
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     ShareCountStat(
                         installId: "",
@@ -216,13 +216,13 @@ struct StatisticsController {
                 inner join MedoContent c on c.id = s.contentId
                 inner join Author a on c.authorId = a.id
                 where c.contentType = 0
-                and s.dateTime > '\(date)'
+                and s.dateTime > ?
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopChartItem(
                         rankNumber: "",
@@ -254,13 +254,14 @@ struct StatisticsController {
                 inner join MedoContent c on c.id = s.contentId
                 inner join Author a on c.authorId = a.id
                 where c.contentType = 0
-                and s.dateTime between '\(firstDate)' and '\(secondDate)'
+                -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+                and s.dateTime >= ? and s.dateTime < ?
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopChartItem(
                         rankNumber: "",
@@ -289,7 +290,7 @@ struct StatisticsController {
                     SUM(s.shareCount) AS totalShareCount
                 FROM ShareCountStat s
                 INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
-                WHERE s.contentId = '\(soundId)'
+                WHERE s.contentId = ?
             """
 
             let monthYearQuery = """
@@ -299,14 +300,14 @@ struct StatisticsController {
                     SUM(s.shareCount) AS totalShareCount
                 FROM ShareCountStat s
                 INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
-                WHERE s.contentId = '\(soundId)'
+                WHERE s.contentId = ?
                 GROUP BY year, month
                 ORDER BY totalShareCount DESC
                 LIMIT 1
             """
 
-            let shareCountFuture = sqlite.query(shareCountQuery)
-            let monthYearFuture = sqlite.query(monthYearQuery)
+            let shareCountFuture = sqlite.query(shareCountQuery, [.text(soundId)])
+            let monthYearFuture = sqlite.query(monthYearQuery, [.text(soundId)])
 
             return shareCountFuture.and(monthYearFuture).flatMapThrowing { shareCountRows, monthYearRows in
                 // Processing the all-time and last-week share counts
@@ -959,10 +960,10 @@ struct StatisticsController {
                 SELECT COUNT(DISTINCT customInstallId) as shareCount
                 FROM UsageMetric
                 WHERE originatingScreen = 'Retro2025'
-                AND date(dateTime) = date('\(date)')
+                AND date(dateTime) = date(?)
             """
 
-            return sqlite.query(query).flatMapThrowing { rows in
+            return sqlite.query(query, [.text(date)]).flatMapThrowing { rows in
                 guard let row = rows.first else {
                     return Retro2025ShareCountResponse(shareCount: 0, date: date)
                 }
@@ -1111,13 +1112,13 @@ extension StatisticsController {
                 inner join MedoContent c on c.id = s.contentId
                 inner join MusicGenre mg on mg.id = c.musicGenre
                 where c.contentType = 1
-                and s.dateTime > '\(date)'
+                and s.dateTime > ?
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopChartItem(
                         rankNumber: "",
@@ -1149,13 +1150,14 @@ extension StatisticsController {
                 inner join MedoContent c on c.id = s.contentId
                 inner join MusicGenre mg on mg.id = c.musicGenre
                 where c.contentType = 1
-                and s.dateTime between '\(firstDate)' and '\(secondDate)'
+                -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+                and s.dateTime >= ? and s.dateTime < ?
                 group by s.contentId
                 order by totalShareCount desc
                 limit 10
             """
 
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
+            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
                 req.eventLoop.makeSucceededFuture(
                     TopChartItem(
                         rankNumber: "",
