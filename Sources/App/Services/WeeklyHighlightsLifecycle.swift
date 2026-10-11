@@ -14,7 +14,7 @@ struct WeeklyHighlightsLifecycle: LifecycleHandler {
         ) { _ in
             Task {
                 let service = WeeklyHighlightsService(app: app)
-                await service.sendWeeklyHighlights()
+                _ = await service.sendWeeklyHighlights()
             }
         }
 
