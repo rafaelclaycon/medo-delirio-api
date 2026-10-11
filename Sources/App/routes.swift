@@ -75,6 +75,12 @@ func routes(_ app: Application) throws {
     // Plays
     let playLogController = PlayLogController()
     app.on(.POST, api, v4, "play-logs", body: .collect(maxSize: PlayLogController.maxBodySize), use: playLogController.postPlayLogsHandlerV4)
+    app.get(api, v4, "sound-play-count-stats-all-time", use: playLogController.getSoundPlayCountStatsAllTimeHandlerV4)
+    app.get(api, v4, "sound-play-count-stats-from", ":date", use: playLogController.getSoundPlayCountStatsFromHandlerV4)
+    app.get(api, v4, "sound-play-count-stats-from-to", ":firstDate", ":secondDate", use: playLogController.getSoundPlayCountStatsFromToHandlerV4)
+    app.get(api, v4, "song-play-count-stats-all-time", use: playLogController.getSongPlayCountStatsAllTimeHandlerV4)
+    app.get(api, v4, "song-play-count-stats-from", ":date", use: playLogController.getSongPlayCountStatsFromHandlerV4)
+    app.get(api, v4, "song-play-count-stats-from-to", ":firstDate", ":secondDate", use: playLogController.getSongPlayCountStatsFromToHandlerV4)
 
     // Songs
     app.get(api, v3, "song-share-count-stats-all-time", use: statisticsController.getSongShareCountStatsAllTimeHandlerV3)

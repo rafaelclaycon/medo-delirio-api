@@ -7,6 +7,7 @@
 
 import Vapor
 import Fluent
+import SQLiteNIO
 
 struct PlayLogController {
 
@@ -119,5 +120,119 @@ struct PlayLogController {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value) != nil
+    }
+}
+
+// MARK: - Rankings
+
+/// The most played sounds and songs, with the same periods as the share rankings
+/// (`v3/sound-share-count-stats-*`), so the app can build both URLs the same way.
+///
+/// Only plays someone started count: a playlist advancing on its own says more about what
+/// was queued next than about what people want to hear.
+extension PlayLogController {
+
+    func getSoundPlayCountStatsAllTimeHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        try await topPlayed(.sound, from: nil, through: nil, on: req)
+    }
+
+    func getSoundPlayCountStatsFromHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+        return try await topPlayed(.sound, from: date, through: nil, on: req)
+    }
+
+    func getSoundPlayCountStatsFromToHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        guard
+            let firstDate = req.parameters.get("firstDate"),
+            let secondDate = req.parameters.get("secondDate")
+        else {
+            throw Abort(.badRequest, reason: "Missing date parameters.")
+        }
+        return try await topPlayed(.sound, from: firstDate, through: secondDate, on: req)
+    }
+
+    func getSongPlayCountStatsAllTimeHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        try await topPlayed(.song, from: nil, through: nil, on: req)
+    }
+
+    func getSongPlayCountStatsFromHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        guard let date = req.parameters.get("date") else {
+            throw Abort(.badRequest, reason: "Missing date parameter.")
+        }
+        return try await topPlayed(.song, from: date, through: nil, on: req)
+    }
+
+    func getSongPlayCountStatsFromToHandlerV4(req: Request) async throws -> [TopPlayedItem] {
+        guard
+            let firstDate = req.parameters.get("firstDate"),
+            let secondDate = req.parameters.get("secondDate")
+        else {
+            throw Abort(.badRequest, reason: "Missing date parameters.")
+        }
+        return try await topPlayed(.song, from: firstDate, through: secondDate, on: req)
+    }
+
+    /// The top 10 of one content type, by plays and then by how many installs played it.
+    ///
+    /// `through` includes the whole of its last day: `2026-12-31` keeps plays from that
+    /// afternoon, which a plain `BETWEEN` against the full timestamps would drop. Hidden
+    /// content is left out, since the app can't open it.
+    private func topPlayed(
+        _ contentType: ContentType,
+        from firstDate: String?,
+        through lastDate: String?,
+        on req: Request
+    ) async throws -> [TopPlayedItem] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
+        }
+
+        let subtitle = contentType == .song
+            ? (select: "'' AS authorId, COALESCE(mg.name, '') AS authorName", join: "LEFT JOIN MusicGenre mg ON mg.id = c.musicGenre")
+            : (select: "COALESCE(a.id, '') AS authorId, COALESCE(a.name, '') AS authorName", join: "LEFT JOIN Author a ON a.id = c.authorId")
+
+        var conditions = ["p.contentType = ?", "p.isAutoplay = 0", "c.isHidden = 0"]
+        var binds: [SQLiteData] = [.integer(contentType.rawValue)]
+        if let firstDate {
+            conditions.append("p.dateTime >= ?")
+            binds.append(.text(firstDate))
+        }
+        if let lastDate {
+            // `dateTime` is an ISO 8601 string and '~' sorts after every character in one,
+            // so this keeps every timestamp that starts with `lastDate`.
+            conditions.append("p.dateTime < ?")
+            binds.append(.text(lastDate + "~"))
+        }
+
+        let query = """
+            SELECT
+                p.contentId,
+                c.title AS contentName,
+                \(subtitle.select),
+                COUNT(*) AS playCount,
+                COUNT(DISTINCT p.installId) AS uniqueListeners
+            FROM PlayLog p
+            INNER JOIN MedoContent c ON c.id = p.contentId
+            \(subtitle.join)
+            WHERE \(conditions.joined(separator: "\n  AND "))
+            GROUP BY p.contentId
+            ORDER BY playCount DESC, uniqueListeners DESC
+            LIMIT 10
+        """
+
+        let rows = try await sqlite.query(query, binds).get()
+        return rows.map { row in
+            TopPlayedItem(
+                rankNumber: "",
+                contentId: row.column("contentId")?.string ?? "",
+                contentName: row.column("contentName")?.string ?? "",
+                contentAuthorId: row.column("authorId")?.string ?? "",
+                contentAuthorName: row.column("authorName")?.string ?? "",
+                playCount: row.column("playCount")?.integer ?? 0,
+                uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+            )
+        }
     }
 }
