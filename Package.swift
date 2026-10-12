@@ -1,17 +1,17 @@
-// swift-tools-version:5.10
+// swift-tools-version:6.0
 import PackageDescription
 
 let package = Package(
     name: "medo-delirio-api",
     platforms: [
-       .macOS(.v12)
+       .macOS(.v13)
     ],
     dependencies: [
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
-        .package(url: "https://github.com/vapor/fluent.git", from: "4.0.0"),
-        .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.0.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
+        .package(url: "https://github.com/vapor/fluent.git", from: "4.13.0"),
+        .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.9.0"),
         .package(url: "https://github.com/vapor/apns", from: "3.0.0"),
-        .package(url: "https://github.com/nmdias/FeedKit.git", from: "9.0.0"),
+        .package(url: "https://github.com/nmdias/FeedKit.git", from: "9.1.0"),
     ],
     targets: [
         .target(

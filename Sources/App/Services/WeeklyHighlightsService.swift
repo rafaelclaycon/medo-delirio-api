@@ -18,7 +18,7 @@ struct WeeklyHighlightsService {
 
     private static let lastSentKey = "weekly_highlights_last_sent"
 
-    private static var brtDateFormatter: DateFormatter = {
+    private static let brtDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = TimeZone(identifier: "America/Sao_Paulo")!

@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import JWTKit
+@preconcurrency import JWTKit
 import Vapor
 
 struct ReleaseConfigs {

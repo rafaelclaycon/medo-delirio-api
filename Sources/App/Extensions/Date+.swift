@@ -15,7 +15,8 @@ extension ISO8601DateFormatter {
 }
 
 extension Formatter {
-    static let iso8601withFractionalSeconds = ISO8601DateFormatter([.withInternetDateTime, .withFractionalSeconds])
+    // ISO8601DateFormatter is thread-safe once configured, and this one is never mutated.
+    nonisolated(unsafe) static let iso8601withFractionalSeconds = ISO8601DateFormatter([.withInternetDateTime, .withFractionalSeconds])
 }
 
 extension Date {

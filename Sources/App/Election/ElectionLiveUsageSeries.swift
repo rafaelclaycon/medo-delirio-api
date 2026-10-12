@@ -129,13 +129,14 @@ struct ElectionLiveUsageSeries: Equatable {
 
     // MARK: - Parsing
 
-    private static let fractionalFormatter: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is thread-safe once configured, and these are never mutated.
+    nonisolated(unsafe) private static let fractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
 
-    private static let plainFormatter = ISO8601DateFormatter()
+    nonisolated(unsafe) private static let plainFormatter = ISO8601DateFormatter()
 
     /// The app sends `UsageMetric.dateTime` with fractional seconds. Accepts both, for
     /// query parameters typed by hand.
