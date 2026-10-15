@@ -62,6 +62,7 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(AddIsWatchPairedToClientDeviceInfo())
     app.migrations.add(AddUsageMetricDateTimeIndex())
     app.migrations.add(CreatePlayLog())
+    app.migrations.add(AddFeaturedRankFieldToAuthor())
 
     try await app.autoMigrate()
 

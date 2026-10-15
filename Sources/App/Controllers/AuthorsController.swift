@@ -75,6 +75,13 @@ struct AuthorsController {
                 existingAuthor.photo = author.photo
                 existingAuthor.description = author.description
                 existingAuthor.externalLinks = author.externalLinks
+                // Only when the request carries a number: a MedoHelper from before the
+                // field existed doesn't send it, and that shouldn't take anyone out of
+                // the row. 0 (or less) takes the author out; a missing key and an
+                // explicit null look the same to Fluent, so neither can.
+                if let featuredRank = author.featuredRank {
+                    existingAuthor.featuredRank = featuredRank > 0 ? featuredRank : nil
+                }
 
                 let updateEvent = UpdateEvent(
                     contentId: author.id!.uuidString,
