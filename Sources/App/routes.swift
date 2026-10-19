@@ -133,6 +133,9 @@ func routes(_ app: Application) throws {
     // Watch Pairing Analytics
     app.get(api, v4, "watch-pairing-rate", ":password", use: statisticsController.getWatchPairingRateHandlerV4)
 
+    // Games Analytics
+    app.get(api, v4, "games-analytics", ":password", use: statisticsController.getGamesAnalyticsHandlerV4)
+
     // Election Live Activity Analytics
     app.get(api, v4, "election-live-analytics", ":password", use: statisticsController.getElectionLiveAnalyticsHandlerV4)
     app.get(api, v4, "election-live-analytics", "series", ":password", use: statisticsController.getElectionLiveSeriesHandlerV4)

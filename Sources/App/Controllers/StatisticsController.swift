@@ -3084,3 +3084,103 @@ extension StatisticsController {
         )
     }
 }
+
+// MARK: - Games
+
+extension StatisticsController {
+
+    /// Usage of the games ("De quem é essa fuça?" and "Eu já ouvi essa voz antes…"), for the
+    /// features tab in MedoHelper. `?days=N` (default 30, at most 365) sets the window in UTC
+    /// days, today included.
+    func getGamesAnalyticsHandlerV4(req: Request) async throws -> GamesAnalyticsResponse {
+        guard let password = req.parameters.get("password") else {
+            throw Abort(.internalServerError)
+        }
+        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+
+        let days = min(max((try? req.query.get(Int.self, at: "days")) ?? 30, 1), 365)
+        let now = Date()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        let sinceDate = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: now)) ?? now
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        dayFormatter.timeZone = calendar.timeZone
+        dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let dayList = (0..<days).compactMap { calendar.date(byAdding: .day, value: $0, to: sinceDate) }
+            .map { dayFormatter.string(from: $0) }
+        // `dateTime` is stored as an ISO 8601 UTC string, so a string comparison works.
+        let since = sinceDate.iso8601withFractionalSeconds
+
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return GamesAnalyticsResponse(
+                events: [],
+                dayList: dayList,
+                since: since,
+                activeUsers: 0,
+                activeUsersWithGames: 0,
+                generatedAt: now.iso8601withFractionalSeconds
+            )
+        }
+
+        let testIdList = Self.testInstallIds.map { "'\($0)'" }.joined(separator: ",")
+        let eventsQuery = """
+            SELECT customInstallId, originatingScreen, destinationScreen, dateTime
+            FROM UsageMetric
+            WHERE dateTime >= ?
+              AND customInstallId NOT IN (\(testIdList))
+              AND (
+                originatingScreen IN ('\(GameUsageEvent.gameScreen)', '\(GameUsageEvent.shareScreen)')
+                OR (originatingScreen = '\(GameUsageEvent.supportScreen)' AND destinationScreen = '\(GameUsageEvent.supportSheetShown)')
+              )
+            """
+        // Versions are compared in Swift: as text, "13.10" would sort before "13.6".
+        let activeQuery = """
+            SELECT DISTINCT installId, appVersion
+            FROM StillAliveSignal
+            WHERE dateTime >= ?
+              AND \(Self.excludeSimulatorsClause)
+              AND installId NOT IN (\(testIdList))
+            """
+
+        let eventRows = try await sqlite.query(eventsQuery, [.text(since)]).get()
+        let activeRows = try await sqlite.query(activeQuery, [.text(since)]).get()
+
+        let events = eventRows.compactMap { row -> GameUsageEvent? in
+            guard let installId = row.column("customInstallId")?.string,
+                  let originatingScreen = row.column("originatingScreen")?.string,
+                  let destinationScreen = row.column("destinationScreen")?.string,
+                  let dateTime = row.column("dateTime")?.string else {
+                return nil
+            }
+            return GameUsageEvent(
+                installId: installId,
+                originatingScreen: originatingScreen,
+                destinationScreen: destinationScreen,
+                dateTime: dateTime
+            )
+        }
+
+        var activeUsers: Set<String> = []
+        var activeUsersWithGames: Set<String> = []
+        for row in activeRows {
+            guard let installId = row.column("installId")?.string else { continue }
+            activeUsers.insert(installId)
+            if let appVersion = row.column("appVersion")?.string,
+               GameUsageEvent.appVersion(appVersion, isAtLeast: GameUsageEvent.firstAppVersion) {
+                activeUsersWithGames.insert(installId)
+            }
+        }
+
+        return GamesAnalyticsResponse(
+            events: events,
+            dayList: dayList,
+            since: since,
+            activeUsers: activeUsers.count,
+            activeUsersWithGames: activeUsersWithGames.count,
+            generatedAt: now.iso8601withFractionalSeconds
+        )
+    }
+}
