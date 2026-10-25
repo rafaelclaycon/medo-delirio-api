@@ -29,7 +29,7 @@ struct StatisticsController {
 
     /// Internal/test devices used during development. Excluded from analytics
     /// so they don't pollute the data we show in MedoHelper.
-    private static let testInstallIds: Set<String> = [
+    static let testInstallIds: Set<String> = [
         "0A4D4541-BC16-4C15-842E-DA6ACF957027", "0F1DF136-BECC-4216-ABF5-BC05C91FBB5B",
         "A93E5354-41F9-5170-AFD9-817FAE37D037", "F60AF930-0CBA-41FF-A80E-1E6007ED6AE8",
         "F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4", "FC2ADC6B-B70E-4B69-BC69-CCCADB64903F",
@@ -40,6 +40,11 @@ struct StatisticsController {
         "173BF7C0-CDF9-4A8D-A1B9-F91611AA12FF", "93AC7BAB-9E30-4219-A0E8-04B4AD8F009C",
         "AE87DEEA-23BD-4FFD-B918-63B572CD165C"
     ]
+
+    /// `UsageMetric` rows for a tap on a chapter. `destinationScreen` bakes the chapter
+    /// id/title into the action string itself (e.g. "didTapChapter(184, Abertura)"),
+    /// there is no structured column to filter on, hence the LIKE-prefix matching.
+    static let chapterTapFilter = "destinationScreen LIKE 'didTapChapter(%' AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying')"
 
     private static let totalUniqueInstallsByMonthQuery = """
         SELECT
@@ -2242,10 +2247,7 @@ extension StatisticsController {
 
         dates.reverse()
 
-        // `destinationScreen` bakes the chapter id/title into the action string itself
-        // (e.g. "didTapChapter(184, Abertura)"), there is no structured column to filter
-        // on, hence the LIKE-prefix matching below.
-        let tapFilter = "destinationScreen LIKE 'didTapChapter(%' AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying')"
+        let tapFilter = Self.chapterTapFilter
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             let emptyDaily = dates.map { DailyChapterTapsResponse(date: $0, tapCount: 0) }

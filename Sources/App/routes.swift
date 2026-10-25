@@ -136,6 +136,9 @@ func routes(_ app: Application) throws {
     // Games Analytics
     app.get(api, v4, "games-analytics", ":password", use: statisticsController.getGamesAnalyticsHandlerV4)
 
+    let widgetSummaryController = WidgetSummaryController()
+    app.get(api, v4, "widget-summary", ":password", use: widgetSummaryController.getWidgetSummaryHandlerV4)
+
     // Election Live Activity Analytics
     app.get(api, v4, "election-live-analytics", ":password", use: statisticsController.getElectionLiveAnalyticsHandlerV4)
     app.get(api, v4, "election-live-analytics", "series", ":password", use: statisticsController.getElectionLiveSeriesHandlerV4)
