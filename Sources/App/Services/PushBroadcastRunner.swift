@@ -24,7 +24,7 @@ struct PushBroadcastRunner: Sendable {
             do {
                 try await send(target.token)
                 await store.record(.sent, for: id)
-            } catch where Self.isInvalidToken(error) {
+            } catch where PushTokenErrors.isInvalidToken(error) {
                 await removeDevice(target.installId)
                 await store.record(.removedToken, for: id)
             } catch {
@@ -36,10 +36,5 @@ struct PushBroadcastRunner: Sendable {
             }
         }
         await store.finish(id: id, as: .finished)
-    }
-
-    static func isInvalidToken(_ error: Error) -> Bool {
-        let description = String(describing: error).lowercased()
-        return description.contains("baddevicetoken") || description.contains("unregistered")
     }
 }

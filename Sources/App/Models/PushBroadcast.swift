@@ -24,7 +24,7 @@ struct PushBroadcastStatus: Content, Equatable {
     var processed: Int
     var sent: Int
     var failed: Int
-    /// Tokens APNs rejected as unregistered or bad, whose devices were deleted.
+    /// Tokens APNs rejected as unregistered, bad or for another topic, whose devices were deleted.
     var removedTokens: Int
     let startedAt: Date
     var finishedAt: Date?

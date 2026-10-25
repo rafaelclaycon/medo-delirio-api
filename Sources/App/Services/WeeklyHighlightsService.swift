@@ -197,8 +197,7 @@ struct WeeklyHighlightsService {
                     sentCount += 1
                     sentDeviceIds.append(device.installId)
                 } catch {
-                    let desc = String(describing: error).lowercased()
-                    if desc.contains("baddevicetoken") || desc.contains("unregistered") {
+                    if PushTokenErrors.isInvalidToken(error) {
                         try? await device.delete(on: db)
                         let msg = "Deleted invalid token for device \(device.installId)"
                         app.logger.info("Weekly highlights: \(msg)")

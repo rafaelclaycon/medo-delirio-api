@@ -181,8 +181,7 @@ func routes(_ app: Application) throws {
             do {
                 try await app.apns.send(.init(title: notif.title, body: notif.description), to: token).get()
             } catch {
-                let errorDescription = String(describing: error).lowercased()
-                if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                if PushTokenErrors.isInvalidToken(error) {
                     try? await device.delete(on: req.db)
                     req.logger.info("Deleted invalid push token for device \(device.installId)")
                 } else {

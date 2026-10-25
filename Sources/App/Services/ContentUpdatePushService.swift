@@ -54,8 +54,7 @@ actor ContentUpdatePushService {
             do {
                 try await app.apns.send(notification, pushType: .background, to: token, priority: 5).get()
             } catch {
-                let errorDescription = String(describing: error).lowercased()
-                if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                if PushTokenErrors.isInvalidToken(error) {
                     try? await device.delete(on: app.db)
                     app.logger.info("Content update push: deleted invalid push token for device \(device.installId)")
                 } else {

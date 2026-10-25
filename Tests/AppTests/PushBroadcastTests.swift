@@ -2,6 +2,7 @@
 import XCTVapor
 import Fluent
 import Foundation
+import APNSwift
 
 final class PushBroadcastTests: XCTestCase {
 
@@ -60,6 +61,14 @@ final class PushBroadcastTests: XCTestCase {
         XCTAssertNotNil(final.finishedAt)
         let removedIds = await removed.installIds
         XCTAssertEqual(removedIds, ["device-1"])
+    }
+
+    func testTokensForAnotherTopicCountAsInvalid() {
+        let reasons: [APNSwiftError.ResponseErrorMessage] = [.badDeviceToken, .unregistered, .deviceTokenNotForTopic]
+        for reason in reasons {
+            XCTAssertTrue(PushTokenErrors.isInvalidToken(APNSwiftError.ResponseError.badRequest(reason)), "\(reason)")
+        }
+        XCTAssertFalse(PushTokenErrors.isInvalidToken(APNSwiftError.ResponseError.badRequest(.tooManyRequests)))
     }
 
     func testRunnerStopsBeforeTheNextDeviceWhenCancelled() async throws {

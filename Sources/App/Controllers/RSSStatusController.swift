@@ -83,8 +83,7 @@ struct RSSStatusController {
                 sentCount += 1
                 sentDeviceIds.append(device.installId)
             } catch {
-                let errorDescription = String(describing: error).lowercased()
-                if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                if PushTokenErrors.isInvalidToken(error) {
                     try? await device.delete(on: req.db)
                     errors.append("Deleted invalid token for device \(device.installId)")
                 } else {

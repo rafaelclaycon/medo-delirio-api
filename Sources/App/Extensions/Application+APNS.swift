@@ -17,3 +17,15 @@ extension Application {
         )
     }
 }
+
+enum PushTokenErrors {
+
+    /// APNs answers meaning the token will never work for our topic, so its device can be
+    /// deleted. DeviceTokenNotForTopic comes from tokens issued for another bundle ID.
+    static func isInvalidToken(_ error: Error) -> Bool {
+        let description = String(describing: error).lowercased()
+        return description.contains("baddevicetoken")
+            || description.contains("unregistered")
+            || description.contains("devicetokennotfortopic")
+    }
+}

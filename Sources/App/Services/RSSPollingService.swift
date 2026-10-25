@@ -199,8 +199,7 @@ struct RSSPollingService {
                     sentCount += 1
                     sentDeviceIds.append(device.installId)
                 } catch {
-                    let errorDescription = String(describing: error).lowercased()
-                    if errorDescription.contains("baddevicetoken") || errorDescription.contains("unregistered") {
+                    if PushTokenErrors.isInvalidToken(error) {
                         try? await device.delete(on: db)
                         app.logger.info("RSS poll: deleted invalid push token for device \(device.installId)")
                     } else {
