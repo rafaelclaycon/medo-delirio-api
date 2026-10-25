@@ -67,6 +67,7 @@ public func configure(_ app: Application) async throws {
     try await app.autoMigrate()
 
     app.electionLiveStore = ElectionLiveStore()
+    app.pushBroadcastStore = PushBroadcastStore()
 
     try routes(app)
     

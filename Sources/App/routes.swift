@@ -194,6 +194,13 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "unsubscribe-channel", use: notificationsController.postUnsubscribeChannelHandlerV4)
     app.get(api, v4, "device-channels", ":installId", use: notificationsController.getDeviceChannelsHandlerV4)
 
+    let pushBroadcastController = PushBroadcastController()
+    app.get(api, v4, "push-audience", ":password", use: pushBroadcastController.getAudienceHandlerV4)
+    app.post(api, v4, "push-broadcasts", ":password", use: pushBroadcastController.postBroadcastHandlerV4)
+    app.get(api, v4, "push-broadcasts", ":password", use: pushBroadcastController.getBroadcastsHandlerV4)
+    app.get(api, v4, "push-broadcast", ":id", ":password", use: pushBroadcastController.getBroadcastHandlerV4)
+    app.post(api, v4, "push-broadcast", ":id", "cancel", ":password", use: pushBroadcastController.postCancelBroadcastHandlerV4)
+
     let soundsController = SoundsController()
     app.post(api, v3, "import-sounds", ":password", use: soundsController.postImportSoundsHandlerV3)
     app.post(api, v3, "create-sound", ":password", use: soundsController.postCreateSoundHandlerV3)
