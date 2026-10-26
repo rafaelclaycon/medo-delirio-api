@@ -10,8 +10,8 @@ Already modern before this plan started: async `@main` entrypoint using `Applica
 
 | Phase | What | Status |
 |---|---|---|
-| 1 | Swift 6 language mode and `Sendable` cleanup | ✅ Done, deploying and observing for a week |
-| 2 | Background jobs: async RSS fetch, cancellable `Task` loops | ⏳ Next |
+| 1 | Swift 6 language mode and `Sendable` cleanup | ✅ Done, observed in production Oct 12–26 |
+| 2 | Background jobs: async RSS fetch, cancellable `Task` loops | 🚀 Implemented, awaiting deploy |
 | 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ⏳ |
 | 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency | ⏳ |
 | 5 | Move admin passwords out of URL paths (breaking API change) | 💬 Needs an app-side plan |
@@ -98,9 +98,19 @@ To roll back only the toolchain requirement, reverting `3a40188` is enough. The 
 - Each job can be turned off with an env flag: `RSS_POLLING_ENABLED` and `WEEKLY_HIGHLIGHTS_ENABLED`.
 
 **Verification:**
-- [ ] Unit test for parsing the feed from `Data`, using a fixture in `Tests/AppTests/Fixtures`. Existing `RSSPollingServiceTests` only cover GUID extraction.
-- [ ] Unit test for the "next Friday 18:00 BRT" calculation, including just before and just after 18:00 on a Friday.
-- [ ] After deploy, watch for one full RSS cycle (20 min) and one Friday send.
+- [x] Unit tests for parsing the feed from `Data` (`RSSPollingServiceTests`). They use inline Spreaker-shaped XML instead of a fixture file and cover a valid feed, too few items, a latest item without a GUID, and invalid XML.
+- [x] Unit tests for the "next Friday 18:00 BRT" calculation (`WeeklyHighlightsScheduleTests`), covering just before and just after 18:00 on a Friday and a server clock in UTC.
+- [x] One-off check of the full poll against the live feed in the testing environment (in-memory database, no push): 901 episodes synced, and a second run correctly found nothing new.
+- [ ] After deploy, watch one full RSS cycle (20 min) and one Friday send.
+
+**What was done (Oct 26):**
+
+- **RSS fetch:** `checkForNewEpisode()` is `async`. It downloads the feed with `app.client` (30 s timeout) and parses it with `FeedParser(data:)` on `app.threadPool`. The parse takes ~0.1 s on a Mac and longer on the Nanode, and with 1 CPU the concurrency pool has a single thread, so blocking work stays off it.
+- **Parse output:** `parseFeed` maps FeedKit items into a `Sendable` `FeedEpisode` struct, so FeedKit types don't spread into the sync code.
+- **Polls run one after another:** processing the episode and syncing episodes happen in order inside the poll. The next 20-minute wait starts only after a poll finishes. This also closes a latent double-send: before, if sending new-episode pushes (0.5 s per device) took longer than 20 minutes, the next poll could see the old GUID still in the database and notify everyone again.
+- **Lifecycles:** `RSSPollingLifecycle` and `WeeklyHighlightsLifecycle` follow the `ElectionPollingLifecycle` pattern: one stored `Task`, cancelled in `shutdown`. The `DispatchQueue` and `scheduleRepeatedTask` usage is gone.
+- **Weekly highlights:** the next Friday 18:00 BRT is recomputed before every wait, and the "next run in …" line is logged each time. The 60-second minimum wait stays, and the existing once-per-day guard in `sendWeeklyHighlights` still prevents duplicate sends.
+- **Not done:** `PushBroadcastController` also starts a `Task {}` that isn't cancelled on shutdown. Its state lives in memory and is lost on restart anyway, so cancelling it wouldn't change much. Left as is.
 
 ---
 

@@ -1,22 +1,28 @@
 import Vapor
-import NIOCore
-import Dispatch
 
-struct RSSPollingLifecycle: LifecycleHandler {
+final class RSSPollingLifecycle: LifecycleHandler, @unchecked Sendable {
+
+    private var task: Task<Void, Never>?
 
     func didBoot(_ app: Application) throws {
-        let intervalMinutes = RSSPollingService.pollingIntervalMinutes
+        let service = RSSPollingService(app: app)
+        let interval = Duration.seconds(RSSPollingService.pollingIntervalMinutes * 60)
 
-        app.eventLoopGroup.next().scheduleRepeatedTask(
-            initialDelay: .seconds(5),
-            delay: .seconds(Int64(intervalMinutes * 60))
-        ) { _ in
-            DispatchQueue.global(qos: .utility).async {
-                let service = RSSPollingService(app: app)
-                service.checkForNewEpisode()
+        // Polls one after another: the next wait only starts once a check, including any
+        // new episode notifications, has finished.
+        task = Task {
+            try? await Task.sleep(for: .seconds(5))
+            while !Task.isCancelled {
+                await service.checkForNewEpisode()
+                try? await Task.sleep(for: interval)
             }
+            app.logger.info("RSS poll: stopped")
         }
 
-        app.logger.info("RSS polling scheduled every \(intervalMinutes) minutes")
+        app.logger.info("RSS polling scheduled every \(RSSPollingService.pollingIntervalMinutes) minutes")
+    }
+
+    func shutdown(_ app: Application) {
+        task?.cancel()
     }
 }

@@ -1,33 +1,41 @@
 import Vapor
-import NIOCore
 import Foundation
 
-struct WeeklyHighlightsLifecycle: LifecycleHandler {
+final class WeeklyHighlightsLifecycle: LifecycleHandler, @unchecked Sendable {
+
+    private var task: Task<Void, Never>?
 
     func didBoot(_ app: Application) throws {
-        let initialDelay = secondsUntilNextFriday18BRT()
-        let weeklyInterval: Int64 = 7 * 24 * 60 * 60
+        let service = WeeklyHighlightsService(app: app)
 
-        app.eventLoopGroup.next().scheduleRepeatedTask(
-            initialDelay: .seconds(initialDelay),
-            delay: .seconds(weeklyInterval)
-        ) { _ in
-            Task {
-                let service = WeeklyHighlightsService(app: app)
+        // Works out the next Friday 18:00 BRT before every wait instead of adding a fixed
+        // week, so a slow send or a restart never shifts the schedule.
+        task = Task {
+            while !Task.isCancelled {
+                let delay = Self.secondsUntilNextFriday18BRT(from: .now)
+                let hours = delay / 3600
+                let minutes = (delay % 3600) / 60
+                app.logger.info("Weekly highlights scheduled every Friday at 18:00 BRT (next run in \(hours)h \(minutes)m)")
+
+                do {
+                    try await Task.sleep(for: .seconds(delay))
+                } catch {
+                    break
+                }
                 _ = await service.sendWeeklyHighlights()
             }
+            app.logger.info("Weekly highlights: stopped")
         }
-
-        let hours = initialDelay / 3600
-        let minutes = (initialDelay % 3600) / 60
-        app.logger.info("Weekly highlights scheduled every Friday at 18:00 BRT (first run in \(hours)h \(minutes)m)")
     }
 
-    private func secondsUntilNextFriday18BRT() -> Int64 {
+    func shutdown(_ app: Application) {
+        task?.cancel()
+    }
+
+    static func secondsUntilNextFriday18BRT(from now: Date) -> Int64 {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Sao_Paulo")!
 
-        let now = Date()
         // weekday: 1 = Sunday, 6 = Friday
         let weekday = calendar.component(.weekday, from: now)
         let hour = calendar.component(.hour, from: now)
@@ -45,6 +53,7 @@ struct WeeklyHighlightsLifecycle: LifecycleHandler {
         components.nanosecond = 0
 
         let targetDate = calendar.date(from: components)!
+        // At least a minute, so a wake-up that lands a hair before 18:00 can't loop.
         return Int64(max(60, targetDate.timeIntervalSince(now)))
     }
 }

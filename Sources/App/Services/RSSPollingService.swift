@@ -9,42 +9,111 @@ struct RSSPollingService {
     static let minimumFeedItemCount = 5
     static let newEpisodeCooldownHours = 2
 
+    static let requestTimeoutSeconds: Int64 = 30
+
     let app: Application
 
-    func checkForNewEpisode() {
+    struct FeedEpisode: Sendable, Equatable {
+        let guid: String
+        let title: String
+        let imageURL: String?
+        let pubDate: Date?
+    }
+
+    /// Every episode in the feed that has a GUID, newest first. The first one is always the
+    /// feed's latest item.
+    struct FeedSnapshot: Sendable {
+        let episodes: [FeedEpisode]
+
+        var latest: FeedEpisode { episodes[0] }
+    }
+
+    enum FeedError: Error, CustomStringConvertible {
+        case parse(ParserError)
+        case noItems
+        case tooFewItems(Int)
+        case missingLatestGUID
+
+        var description: String {
+            switch self {
+            case .parse(let error):
+                return "failed to parse feed - \(error)"
+            case .noItems:
+                return "failed to extract episodes from feed"
+            case .tooFewItems(let count):
+                return "feed returned only \(count) item(s), expected at least \(RSSPollingService.minimumFeedItemCount) — skipping (possible feed malfunction)"
+            case .missingLatestGUID:
+                return "failed to extract latest episode GUID from feed"
+            }
+        }
+    }
+
+    func checkForNewEpisode() async {
         app.logger.info("RSS poll: checking feed for new episodes...")
 
-        let parser = FeedParser(URL: Self.feedURL)
-        let result = parser.parse()
-
-        switch result {
-        case .success(let feed):
-            guard let rssFeed = feed.rssFeed,
-                  let items = rssFeed.items else {
-                app.logger.error("RSS poll: failed to extract episodes from feed")
-                return
+        let snapshot: FeedSnapshot
+        do {
+            let data = try await fetchFeed()
+            // Parsing ~1 MB of XML is blocking work, kept off the concurrency pool.
+            snapshot = try await app.threadPool.runIfActive { try Self.parseFeed(data) }
+        } catch let error as FeedError {
+            if case .tooFewItems = error {
+                app.logger.warning("RSS poll: \(error)")
+            } else {
+                app.logger.error("RSS poll: \(error)")
             }
-
-            guard items.count >= Self.minimumFeedItemCount else {
-                app.logger.warning("RSS poll: feed returned only \(items.count) item(s), expected at least \(Self.minimumFeedItemCount) — skipping (possible feed malfunction)")
-                return
-            }
-
-            guard let latestItem = items.first,
-                  let guid = latestItem.guid?.value else {
-                app.logger.error("RSS poll: failed to extract latest episode GUID from feed")
-                return
-            }
-
-            let title = latestItem.title ?? "Unknown"
-            Task {
-                await self.processEpisode(guid: guid, title: title)
-                await self.syncEpisodes(items: items)
-            }
-
-        case .failure(let error):
-            app.logger.error("RSS poll: failed to parse feed - \(error)")
+            return
+        } catch {
+            app.logger.error("RSS poll: failed to fetch feed - \(error)")
+            return
         }
+
+        await processEpisode(guid: snapshot.latest.guid, title: snapshot.latest.title)
+        await syncEpisodes(snapshot.episodes)
+    }
+
+    private func fetchFeed() async throws -> Data {
+        let response = try await app.client.get(URI(string: Self.feedURL.absoluteString)) { request in
+            request.timeout = .seconds(Self.requestTimeoutSeconds)
+        }
+        guard response.status == .ok else {
+            throw Abort(response.status, reason: "feed responded \(response.status.code)")
+        }
+        guard let body = response.body else {
+            throw Abort(.badGateway, reason: "feed responded with an empty body")
+        }
+        return Data(body.readableBytesView)
+    }
+
+    static func parseFeed(_ data: Data) throws(FeedError) -> FeedSnapshot {
+        let feed: Feed
+        switch FeedParser(data: data).parse() {
+        case .success(let parsed):
+            feed = parsed
+        case .failure(let error):
+            throw .parse(error)
+        }
+
+        guard let items = feed.rssFeed?.items else {
+            throw .noItems
+        }
+        guard items.count >= minimumFeedItemCount else {
+            throw .tooFewItems(items.count)
+        }
+        guard items.first?.guid?.value != nil else {
+            throw .missingLatestGUID
+        }
+
+        let episodes = items.compactMap { item -> FeedEpisode? in
+            guard let guid = item.guid?.value else { return nil }
+            return FeedEpisode(
+                guid: guid,
+                title: item.title ?? "Unknown",
+                imageURL: item.iTunes?.iTunesImage?.attributes?.href,
+                pubDate: item.pubDate
+            )
+        }
+        return FeedSnapshot(episodes: episodes)
     }
 
     private func processEpisode(guid: String, title: String) async {
@@ -116,12 +185,12 @@ struct RSSPollingService {
 
     // MARK: - Episode Sync
 
-    private func syncEpisodes(items: [RSSFeedItem]) async {
+    private func syncEpisodes(_ feedEpisodes: [FeedEpisode]) async {
         let db = app.db
 
         // Early exit: if the most recent episode is already stored, the rest are too.
-        if let firstGuid = items.first?.guid?.value {
-            let latestId = Self.parseEpisodeId(from: firstGuid)
+        if let latest = feedEpisodes.first {
+            let latestId = Self.parseEpisodeId(from: latest.guid)
             if (try? await Episode.find(latestId, on: db)) != nil {
                 app.logger.info("RSS poll: episode sync skipped — no new episodes")
                 return
@@ -131,13 +200,11 @@ struct RSSPollingService {
         var newCount = 0
         var updatedCount = 0
 
-        for item in items {
-            guard let guid = item.guid?.value else { continue }
-
-            let episodeId = Self.parseEpisodeId(from: guid)
-            let title = item.title ?? "Unknown"
-            let imageURL = item.iTunes?.iTunesImage?.attributes?.href
-            let pubDate = item.pubDate
+        for feedEpisode in feedEpisodes {
+            let episodeId = Self.parseEpisodeId(from: feedEpisode.guid)
+            let title = feedEpisode.title
+            let imageURL = feedEpisode.imageURL
+            let pubDate = feedEpisode.pubDate
 
             do {
                 if let existing = try await Episode.find(episodeId, on: db) {
