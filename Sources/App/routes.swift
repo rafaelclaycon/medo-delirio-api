@@ -287,6 +287,11 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "anniversary-banner", ":password", use: dynamicBannerController.postSetAnniversaryBannerDataHandlerV4)
     app.post(api, v4, "promo-banner", ":password", use: dynamicBannerController.postSetPromoBannerDataHandlerV4)
 
+    let episodeHighlightController = EpisodeHighlightController()
+    app.get(api, v4, "episode-highlight", use: episodeHighlightController.getHandlerV4)
+    app.post(api, v4, "episode-highlight", ":password", use: episodeHighlightController.postHandlerV4)
+    app.delete(api, v4, "episode-highlight", ":password", use: episodeHighlightController.deleteHandlerV4)
+
     let electionController = ElectionController()
     app.get(api, v4, "election", "live", use: electionController.getLiveHandlerV4)
     app.get(api, v4, "election", "status", ":password", use: electionController.getStatusHandlerV4)
