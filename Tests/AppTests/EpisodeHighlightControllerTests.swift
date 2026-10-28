@@ -36,37 +36,45 @@ final class EpisodeHighlightControllerTests: XCTestCase {
         }
     }
 
-    func testLabelIsOptional() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: nil)) { res async in
-            XCTAssertEqual(res.status, .ok)
+    func testMissingLabel_isRejected() async throws {
+        try await app.test(.POST, protectedPath, beforeRequest: { req async throws in
+            try req.content.encode(["episodeId": "ep-123", "style": "lulaWin"])
+        }) { res async in
+            XCTAssertEqual(res.status, .badRequest)
+        }
+    }
+
+    func testLabelOverThirtyCharacters_isRejected() async throws {
+        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: String(repeating: "a", count: 31))) { res async in
+            XCTAssertEqual(res.status, .badRequest)
         }
     }
 
     func testWrongPassword_isForbidden() async throws {
         try await app.test(.POST, "\(path)/wrong", beforeRequest: { req async throws in
-            try req.content.encode(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: nil))
+            try req.content.encode(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito"))
         }) { res async in
             XCTAssertEqual(res.status, .forbidden)
         }
     }
 
     func testUnknownStyle_isRejected() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "confetti", label: nil)) { res async in
+        try await set(EpisodeHighlight(episodeId: "ep-123", style: "confetti", label: "Lula eleito")) { res async in
             XCTAssertEqual(res.status, .badRequest)
         }
     }
 
     func testEmptyEpisodeIdOrLabel_isRejected() async throws {
-        try await set(EpisodeHighlight(episodeId: " ", style: "lulaWin", label: nil)) { res async in
+        try await set(EpisodeHighlight(episodeId: " ", style: "lulaWin", label: "Lula eleito")) { res async in
             XCTAssertEqual(res.status, .badRequest)
         }
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "")) { res async in
+        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: " ")) { res async in
             XCTAssertEqual(res.status, .badRequest)
         }
     }
 
     func testDelete_takesTheHighlightOff() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: nil)) { res async in
+        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito")) { res async in
             XCTAssertEqual(res.status, .ok)
         }
         try await app.test(.DELETE, protectedPath) { res async in

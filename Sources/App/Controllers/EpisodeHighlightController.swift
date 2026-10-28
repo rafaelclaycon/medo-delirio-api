@@ -8,7 +8,7 @@
 import Vapor
 
 /// One episode the app dresses up in its Episodes list, like the one about Lula's win:
-/// which episode, how (`style`, a look the app knows) and, optionally, the badge's text.
+/// which episode, how (`style`, a look the app knows) and the badge's text.
 /// The app draws nothing for a style it doesn't know, so new styles are safe to add here
 /// before the app that draws them is out.
 struct EpisodeHighlight: Content, Equatable {
@@ -18,7 +18,7 @@ struct EpisodeHighlight: Content, Equatable {
 
     let episodeId: String
     let style: String
-    let label: String?
+    let label: String
 }
 
 struct EpisodeHighlightController {
@@ -37,8 +37,8 @@ struct EpisodeHighlightController {
         return highlight
     }
 
-    /// `{"episodeId": "...", "style": "lulaWin", "label": "Lula eleito"}`, `label` optional.
-    /// Replaces whatever was highlighted before.
+    /// `{"episodeId": "...", "style": "lulaWin", "label": "Lula eleito"}`. Replaces whatever
+    /// was highlighted before.
     func postHandlerV4(req: Request) async throws -> EpisodeHighlight {
         try checkPassword(req)
         let highlight = try req.content.decode(EpisodeHighlight.self)
@@ -48,13 +48,15 @@ struct EpisodeHighlightController {
         guard EpisodeHighlight.styles.contains(highlight.style) else {
             throw Abort(.badRequest, reason: "style must be one of \(EpisodeHighlight.styles.joined(separator: ", "))")
         }
-        if let label = highlight.label, label.isEmpty || label.count > EpisodeHighlight.maxLabelLength {
-            throw Abort(.badRequest, reason: "label must have 1 to \(EpisodeHighlight.maxLabelLength) characters, or be left out")
+        let label = highlight.label.trimmingCharacters(in: .whitespaces)
+        guard !label.isEmpty, label.count <= EpisodeHighlight.maxLabelLength else {
+            throw Abort(.badRequest, reason: "label must have 1 to \(EpisodeHighlight.maxLabelLength) characters")
         }
-        let value = String(decoding: try JSONEncoder().encode(highlight), as: UTF8.self)
+        let stored = EpisodeHighlight(episodeId: highlight.episodeId, style: highlight.style, label: label)
+        let value = String(decoding: try JSONEncoder().encode(stored), as: UTF8.self)
         try await ServerSettingRepository.set(key: Self.settingKey, value: value, db: req.db)
-        req.logger.info("Episode highlight set: \(highlight.episodeId) as \(highlight.style)")
-        return highlight
+        req.logger.info("Episode highlight set: \(stored.episodeId) as \(stored.style), \"\(stored.label)\"")
+        return stored
     }
 
     /// Takes the highlight off. The setting is emptied rather than deleted, which reads the same.
