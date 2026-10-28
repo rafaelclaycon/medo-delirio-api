@@ -36,11 +36,21 @@ final class EpisodeHighlightControllerTests: XCTestCase {
         }
     }
 
-    func testMissingLabel_isRejected() async throws {
+    func testMissingLabel_comesBackEmpty() async throws {
         try await app.test(.POST, protectedPath, beforeRequest: { req async throws in
             try req.content.encode(["episodeId": "ep-123", "style": "lulaWin"])
         }) { res async in
-            XCTAssertEqual(res.status, .badRequest)
+            XCTAssertEqual(res.status, .ok)
+        }
+        try await app.test(.GET, path) { res async throws in
+            XCTAssertEqual(try res.content.decode(EpisodeHighlight.self).label, "")
+        }
+    }
+
+    func testBlankLabel_isSavedEmpty() async throws {
+        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "  ")) { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try res.content.decode(EpisodeHighlight.self).label, "")
         }
     }
 
@@ -64,11 +74,8 @@ final class EpisodeHighlightControllerTests: XCTestCase {
         }
     }
 
-    func testEmptyEpisodeIdOrLabel_isRejected() async throws {
+    func testEmptyEpisodeId_isRejected() async throws {
         try await set(EpisodeHighlight(episodeId: " ", style: "lulaWin", label: "Lula eleito")) { res async in
-            XCTAssertEqual(res.status, .badRequest)
-        }
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: " ")) { res async in
             XCTAssertEqual(res.status, .badRequest)
         }
     }
