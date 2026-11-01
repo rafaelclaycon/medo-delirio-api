@@ -58,7 +58,7 @@ struct AuthorsController {
         return .ok
     }
 
-    func putUpdateAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func putUpdateAuthorHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
         }
@@ -68,67 +68,65 @@ struct AuthorsController {
 
         let author = try req.content.decode(Author.self)
 
-        return Author.find(author.id, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { existingAuthor in
-                existingAuthor.name = author.name
-                existingAuthor.photo = author.photo
-                existingAuthor.description = author.description
-                existingAuthor.externalLinks = author.externalLinks
-                // Only when the request carries a number: a MedoHelper from before the
-                // field existed doesn't send it, and that shouldn't take anyone out of
-                // the row. 0 (or less) takes the author out; a missing key and an
-                // explicit null look the same to Fluent, so neither can.
-                if let featuredRank = author.featuredRank {
-                    existingAuthor.featuredRank = featuredRank > 0 ? featuredRank : nil
-                }
+        guard let existingAuthor = try await Author.find(author.id, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        existingAuthor.name = author.name
+        existingAuthor.photo = author.photo
+        existingAuthor.description = author.description
+        existingAuthor.externalLinks = author.externalLinks
+        // Only when the request carries a number: a MedoHelper from before the
+        // field existed doesn't send it, and that shouldn't take anyone out of
+        // the row. 0 (or less) takes the author out; a missing key and an
+        // explicit null look the same to Fluent, so neither can.
+        if let featuredRank = author.featuredRank {
+            existingAuthor.featuredRank = featuredRank > 0 ? featuredRank : nil
+        }
 
-                let updateEvent = UpdateEvent(
-                    contentId: author.id!.uuidString,
-                    dateTime: Date().iso8601withFractionalSeconds,
-                    mediaType: .author,
-                    eventType: .metadataUpdated,
-                    visible: true
-                )
+        let updateEvent = UpdateEvent(
+            contentId: try existingAuthor.requireID().uuidString,
+            dateTime: Date().iso8601withFractionalSeconds,
+            mediaType: .author,
+            eventType: .metadataUpdated,
+            visible: true
+        )
 
-                return existingAuthor.save(on: req.db)
-                    .and(updateEvent.save(on: req.db))
-                    .transform(to: .ok)
-            }
+        try await existingAuthor.save(on: req.db)
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
 
-    func getAuthorHandlerV3(req: Request) throws -> EventLoopFuture<Author> {
+    func getAuthorHandlerV3(req: Request) async throws -> Author {
         guard let authorId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
-        print(authorId)
         guard let authorIdAsUUID = UUID(uuidString: authorId) else {
             throw Abort(.internalServerError)
         }
 
-        return Author.query(on: req.db)
+        guard let author = try await Author.query(on: req.db)
             .filter(\.$id == authorIdAsUUID)
             .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { author in
-                return req.eventLoop.makeSucceededFuture(author)
-            }
+        else {
+            throw Abort(.notFound)
+        }
+        return author
     }
 
-    func getAuthorLinksHandlerV4(req: Request) throws -> EventLoopFuture<[Author]> {
-        Author.query(on: req.db)
+    func getAuthorLinksHandlerV4(req: Request) async throws -> [Author] {
+        try await Author.query(on: req.db)
             .filter(\.$isHidden == false)
             .filter(\.$externalLinks != nil)
             .all()
     }
 
-    func getAllAuthorsHandlerV3(req: Request) throws -> EventLoopFuture<[Author]> {
-        Author.query(on: req.db)
+    func getAllAuthorsHandlerV3(req: Request) async throws -> [Author] {
+        try await Author.query(on: req.db)
             .filter(\.$isHidden == false)
             .all()
     }
     
-    func deleteAuthorHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteAuthorHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -139,24 +137,25 @@ struct AuthorsController {
         guard let authorId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
-        print(authorId)
         guard let authorIdAsUUID = UUID(uuidString: authorId) else {
             throw Abort(.internalServerError)
         }
-        return Author.query(on: req.db)
+
+        guard let content = try await Author.query(on: req.db)
             .filter(\.$id == authorIdAsUUID)
             .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                content.isHidden = true
-                return content.save(on: req.db).flatMap {
-                    let updateEvent = UpdateEvent(contentId: authorId,
-                                                  dateTime: Date().iso8601withFractionalSeconds,
-                                                  mediaType: .author,
-                                                  eventType: .deleted,
-                                                  visible: true)
-                    return updateEvent.save(on: req.db).transform(to: .ok)
-                }
-            }
+        else {
+            throw Abort(.notFound)
+        }
+        content.isHidden = true
+        try await content.save(on: req.db)
+
+        let updateEvent = UpdateEvent(contentId: authorId,
+                                      dateTime: Date().iso8601withFractionalSeconds,
+                                      mediaType: .author,
+                                      eventType: .deleted,
+                                      visible: true)
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
 }

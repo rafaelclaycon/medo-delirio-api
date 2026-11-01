@@ -122,7 +122,7 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 |---|---|---|
 | `StatisticsController` | 59 | Share, play and episode rankings |
 | `ReactionsController` | 10 | ❌ none |
-| `AuthorsController` | 5 | 🟡 `AuthorsControllerTests` (get, all, update; not delete or author links) |
+| `AuthorsController` | ~~5~~ ✅ 0 | ✅ `AuthorsControllerTests`, every handler (converted Nov 1) |
 | `UpdateEventsController` | 5 | ❌ none |
 | `MusicGenresController` | 3 | ❌ none |
 | `SongsController` | 2 | ❌ none |
