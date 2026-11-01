@@ -973,34 +973,32 @@ struct StatisticsController {
 
     // MARK: - POST
 
-    func postShareCountStatHandlerV1(req: Request) throws -> EventLoopFuture<ShareCountStat> {
+    func postShareCountStatHandlerV1(req: Request) async throws -> ShareCountStat {
         let stat = try req.content.decode(ShareCountStat.self)
         guard let contentUUID = UUID(uuidString: stat.contentId) else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Invalid contentId."))
+            throw Abort(.badRequest, reason: "Invalid contentId.")
         }
-        return MedoContent.query(on: req.db)
+        guard let content = try await MedoContent.query(on: req.db)
             .filter(\.$id == contentUUID)
             .first()
-            .flatMap { content in
-                guard let content = content else {
-                    return req.eventLoop.makeFailedFuture(Abort(.notFound, reason: "Unknown contentId."))
-                }
-                guard let normalizedContentType = Self.normalizedShareCountStatContentType(
-                    reportedContentType: stat.contentType,
-                    medoContentType: content.contentType
-                ) else {
-                    return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Invalid contentType."))
-                }
-                stat.contentType = normalizedContentType
-                return stat.save(on: req.db).map { stat }
-            }
+        else {
+            throw Abort(.notFound, reason: "Unknown contentId.")
+        }
+        guard let normalizedContentType = Self.normalizedShareCountStatContentType(
+            reportedContentType: stat.contentType,
+            medoContentType: content.contentType
+        ) else {
+            throw Abort(.badRequest, reason: "Invalid contentType.")
+        }
+        stat.contentType = normalizedContentType
+        try await stat.save(on: req.db)
+        return stat
     }
 
-    func postSharedToBundleIdHandlerV1(req: Request) throws -> EventLoopFuture<ShareBundleIdLog> {
+    func postSharedToBundleIdHandlerV1(req: Request) async throws -> ShareBundleIdLog {
         let log = try req.content.decode(ShareBundleIdLog.self)
-        return log.save(on: req.db).map {
-            log
-        }
+        try await log.save(on: req.db)
+        return log
     }
 }
 
