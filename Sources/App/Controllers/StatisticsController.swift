@@ -305,7 +305,7 @@ struct StatisticsController {
         )
     }
 
-    func getActiveUsersCountFromHandlerV3(req: Request) throws -> EventLoopFuture<ActiveUsersResponse> {
+    func getActiveUsersCountFromHandlerV3(req: Request) async throws -> ActiveUsersResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -315,27 +315,21 @@ struct StatisticsController {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                SELECT COUNT(DISTINCT installId) as activeUsersCount
-                FROM StillAliveSignal
-                WHERE dateTime >= '\(date)'
-            """
-
-            return sqlite.query(query).flatMapThrowing { rows in
-                guard let row = rows.first else {
-                    return ActiveUsersResponse(activeUsers: 0, date: date)
-                }
-                let count = row.column("activeUsersCount")?.integer ?? 0
-                return ActiveUsersResponse(activeUsers: count, date: date)
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture(ActiveUsersResponse(activeUsers: 0, date: date))
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return ActiveUsersResponse(activeUsers: 0, date: date)
         }
+
+        let query = """
+            SELECT COUNT(DISTINCT installId) as activeUsersCount
+            FROM StillAliveSignal
+            WHERE dateTime >= ?
+        """
+        let rows = try await sqlite.query(query, [.text(date)])
+        let count = rows.first?.column("activeUsersCount")?.integer ?? 0
+        return ActiveUsersResponse(activeUsers: count, date: date)
     }
 
-    func getSessionsCountFromHandlerV3(req: Request) throws -> EventLoopFuture<SessionsResponse> {
+    func getSessionsCountFromHandlerV3(req: Request) async throws -> SessionsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -345,27 +339,21 @@ struct StatisticsController {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                SELECT COUNT(*) as sessionsCount
-                FROM StillAliveSignal
-                WHERE dateTime >= '\(date)'
-            """
-
-            return sqlite.query(query).flatMapThrowing { rows in
-                guard let row = rows.first else {
-                    return SessionsResponse(sessionsCount: 0, date: date)
-                }
-                let count = row.column("sessionsCount")?.integer ?? 0
-                return SessionsResponse(sessionsCount: count, date: date)
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture(SessionsResponse(sessionsCount: 0, date: date))
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return SessionsResponse(sessionsCount: 0, date: date)
         }
+
+        let query = """
+            SELECT COUNT(*) as sessionsCount
+            FROM StillAliveSignal
+            WHERE dateTime >= ?
+        """
+        let rows = try await sqlite.query(query, [.text(date)])
+        let count = rows.first?.column("sessionsCount")?.integer ?? 0
+        return SessionsResponse(sessionsCount: count, date: date)
     }
 
-    func getActiveUsersDailyLast30DaysHandlerV3(req: Request) throws -> EventLoopFuture<[DailyActiveUsersResponse]> {
+    func getActiveUsersDailyLast30DaysHandlerV3(req: Request) async throws -> [DailyActiveUsersResponse] {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -392,36 +380,21 @@ struct StatisticsController {
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             // Return array with 0 counts for all dates if not SQLite
-            return req.eventLoop.makeSucceededFuture(
-                dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
-            )
+            return dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
         }
 
-        // Query each date and collect results
-        var futures: [EventLoopFuture<DailyActiveUsersResponse>] = []
-        
+        let query = """
+            SELECT COUNT(DISTINCT installId) as activeUsersCount
+            FROM StillAliveSignal
+            WHERE date(dateTime) = date(?)
+        """
+        var results: [DailyActiveUsersResponse] = []
         for dateString in dates {
-            let query = """
-                SELECT COUNT(DISTINCT installId) as activeUsersCount
-                FROM StillAliveSignal
-                WHERE date(dateTime) = date('\(dateString)')
-            """
-            
-            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
-                guard let row = rows.first else {
-                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
-                }
-                let count = row.column("activeUsersCount")?.integer ?? 0
-                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
-            }
-            
-            futures.append(future)
+            let rows = try await sqlite.query(query, [.text(dateString)])
+            let count = rows.first?.column("activeUsersCount")?.integer ?? 0
+            results.append(DailyActiveUsersResponse(date: dateString, activeUsers: count))
         }
-        
-        // Wait for all queries to complete, then sort by date to ensure chronological order
-        return EventLoopFuture.whenAllSucceed(futures, on: req.eventLoop).map { results in
-            results.sorted { $0.date < $1.date }
-        }
+        return results
     }
 
     /// Distinct installs seen in the last 7 days, the last 30 days and ever.
@@ -447,7 +420,7 @@ struct StatisticsController {
                 COUNT(DISTINCT CASE WHEN dateTime >= ? THEN installId END) AS lastMonth,
                 COUNT(DISTINCT installId) AS allTime
             FROM StillAliveSignal
-            """, [.text(weekStart), .text(monthStart)]).get()
+            """, [.text(weekStart), .text(monthStart)])
         let row = rows.first
 
         return UniqueUsersResponse(

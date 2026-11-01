@@ -88,6 +88,23 @@ final class ActiveUsersStatsTests: XCTestCase {
         }
     }
 
+    func testADateCantChangeTheQuery() async throws {
+        try await signal("install-1", at: "2026-10-01T10:00:00.000Z")
+        try await signal("install-2", at: "2026-10-02T10:00:00.000Z")
+        // Spliced into the SQL, this would read `>= '2099-01-01' OR '1'='1'` and count everything.
+        let date = "2099-01-01' OR '1'='1"
+        let encoded = date.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
+
+        try await app.test(.GET, "api/v3/active-users-count-from/\(encoded)/\(TestEnvironment.testPassword)") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try res.content.decode(ActiveUsersResponse.self).activeUsers, 0)
+        }
+        try await app.test(.GET, "api/v3/sessions-count-from/\(encoded)/\(TestEnvironment.testPassword)") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try res.content.decode(SessionsResponse.self).sessionsCount, 0)
+        }
+    }
+
     func testEveryEndpointRejectsAWrongPassword() async throws {
         for path in [
             "api/v3/active-users-count-from/2026-10-01/wrong",
