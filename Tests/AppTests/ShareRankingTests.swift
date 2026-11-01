@@ -189,6 +189,38 @@ final class ShareRankingTests: XCTestCase {
         }
     }
 
+    func testSongAllTimeReturnsTheChartJSONWithTheGenreAsAuthor() async throws {
+        try await app.test(.GET, "api/v3/song-share-count-stats-all-time") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(res.body.readableBytesView)) as? [[String: Any]])
+            XCTAssertEqual(list.count, 1)
+            let json = try XCTUnwrap(list.first)
+            XCTAssertEqual(Set(json.keys), ["id", "rankNumber", "contentId", "contentName", "contentAuthorId", "contentAuthorName", "shareCount"])
+            XCTAssertEqual(json["contentId"] as? String, self.song.uuidString)
+            XCTAssertEqual(json["rankNumber"] as? String, "")
+            XCTAssertEqual(json["contentName"] as? String, "Test")
+            XCTAssertEqual(json["contentAuthorId"] as? String, "")
+            XCTAssertEqual(json["contentAuthorName"] as? String, "Rock")
+            XCTAssertEqual(json["shareCount"] as? Int, 6)
+        }
+    }
+
+    /// The charts join on MusicGenre, so a song without a known genre never shows up.
+    func testSongChartsLeaveOutSongsWithoutAGenre() async throws {
+        let orphan = UUID()
+        try await Self.makeContent(id: orphan, type: .song, musicGenre: nil).create(on: app.db)
+        try await addShare(orphan, type: .song, count: 50, dateTime: "2026-03-10T12:00:00.000Z")
+
+        for path in [
+            "api/v3/song-share-count-stats-all-time",
+            "api/v3/song-share-count-stats-from/2026-01-01",
+            "api/v3/song-share-count-stats-from-to/2026-01-01/2026-12-31",
+        ] {
+            let items = try await getChart(path)
+            XCTAssertEqual(items.map(\.contentId), [song.uuidString], path)
+        }
+    }
+
     // MARK: - Helpers
 
     private func getChart(_ path: String) async throws -> [TopChartItem] {

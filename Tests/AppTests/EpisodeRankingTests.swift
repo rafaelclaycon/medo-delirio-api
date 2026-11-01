@@ -68,6 +68,68 @@ final class EpisodeRankingTests: XCTestCase {
         XCTAssertEqual(items.map(\.episodeId), ["ep-a"])
     }
 
+    // MARK: - Behaviour pinned before the async/await conversion
+
+    func testReturnsTheEpisodeChartJSON() async throws {
+        try await addPlays([
+            ("install-1", "Episódio A", "2026-10-01T12:00:00.000Z"),
+            ("install-2", "Episódio A", "2026-10-01T12:00:00.000Z")
+        ])
+
+        try await app.test(.GET, "api/v4/episode-play-count-stats-all-time") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(res.body.readableBytesView)) as? [[String: Any]])
+            XCTAssertEqual(list.count, 1)
+            let json = try XCTUnwrap(list.first)
+            XCTAssertEqual(Set(json.keys), ["id", "rankNumber", "episodeId", "episodeName", "playCount", "uniqueListeners"])
+            XCTAssertEqual(json["rankNumber"] as? String, "")
+            XCTAssertEqual(json["episodeId"] as? String, "ep-a")
+            XCTAssertEqual(json["episodeName"] as? String, "Episódio A")
+            XCTAssertEqual(json["playCount"] as? Int, 2)
+            XCTAssertEqual(json["uniqueListeners"] as? Int, 2)
+        }
+    }
+
+    func testLeavesOutPlaysOfUnknownEpisodesAndOtherMetrics() async throws {
+        try await addPlays([
+            ("install-1", "Episódio A", "2026-10-01T12:00:00.000Z"),
+            ("install-1", "Episódio que não existe", "2026-10-01T12:00:00.000Z")
+        ])
+        try await UsageMetric(
+            customInstallId: "install-1",
+            originatingScreen: "EpisodePlayer",
+            destinationScreen: "didPauseEpisode(Episódio B)",
+            systemName: "iOS",
+            isiOSAppOnMac: false,
+            appVersion: "13.4",
+            dateTime: "2026-10-01T12:00:00.000Z",
+            currentTimeZone: "BRT"
+        ).create(on: app.db)
+
+        for path in [
+            "api/v4/episode-play-count-stats-all-time",
+            "api/v4/episode-play-count-stats-from/2026-01-01",
+            "api/v4/episode-play-count-stats-from-to/2026-01-01/2026-12-31",
+        ] {
+            let items = try await get(path)
+            XCTAssertEqual(items.map(\.episodeId), ["ep-a"], path)
+        }
+    }
+
+    func testKeepsTheTopTen() async throws {
+        var plays: [(installId: String, title: String, dateTime: String)] = []
+        for index in 1...11 {
+            try await Episode(id: "ep-\(index)", title: "Episódio \(index)").create(on: app.db)
+            for listener in 0..<index {
+                plays.append(("install-\(listener)", "Episódio \(index)", "2026-10-01T12:00:00.000Z"))
+            }
+        }
+        try await addPlays(plays)
+
+        let items = try await get("api/v4/episode-play-count-stats-all-time")
+        XCTAssertEqual(items.map(\.uniqueListeners), Array((2...11).reversed()))
+    }
+
     // MARK: - Helpers
 
     private func get(_ path: String) async throws -> [TopEpisodeItem] {
