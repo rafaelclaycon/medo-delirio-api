@@ -113,6 +113,84 @@ final class SoundsControllerTests: XCTestCase {
         })
     }
 
+    // MARK: - Behaviour pinned before the async/await conversion
+
+    func testAllSoundsReturnsTheSoundJSON() async throws {
+        let id = try await createContent()
+
+        try await app.test(.GET, "api/v3/all-sounds", afterResponse: { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(res.body.readableBytesView)) as? [[String: Any]])
+            XCTAssertEqual(list.count, 1)
+            let json = try XCTUnwrap(list.first)
+            // authorName is always nil here, so the key is left out entirely.
+            XCTAssertEqual(Set(json.keys), ["id", "title", "authorId", "description", "filename", "dateAdded", "duration", "isOffensive", "isFromServer"])
+            XCTAssertEqual(json["id"] as? String, id.uuidString)
+            XCTAssertEqual(json["title"] as? String, "Som")
+            XCTAssertEqual(json["authorId"] as? String, "BBBBBBBB-0000-0000-0000-000000000001")
+            XCTAssertEqual(json["description"] as? String, "Descrição")
+            XCTAssertEqual(json["filename"] as? String, "arquivo-Som.mp3")
+            XCTAssertEqual(json["dateAdded"] as? String, "2026-10-01T12:34:56Z")
+            XCTAssertEqual(json["duration"] as? Double, 2.5)
+            XCTAssertEqual(json["isOffensive"] as? Bool, true)
+            XCTAssertEqual(json["isFromServer"] as? Bool, true)
+        })
+    }
+
+    func testAllSoundsLeavesOutSongsAndHiddenSounds() async throws {
+        let visible = try await createContent(title: "Visível")
+        _ = try await createContent(title: "Escondido", isHidden: true)
+        _ = try await createContent(title: "Música", contentType: .song)
+
+        try await app.test(.GET, "api/v3/all-sounds", afterResponse: { res async throws in
+            XCTAssertEqual(try res.content.decode([Sound].self).map(\.id), [visible.uuidString])
+        })
+    }
+
+    /// The query doesn't filter by content type, so a song's id comes back shaped as a
+    /// sound. Pinned so changing it is a deliberate decision.
+    func testGetSoundAlsoReturnsSongsShapedAsSounds() async throws {
+        let id = try await createContent(title: "Música", contentType: .song)
+
+        try await app.test(.GET, "api/v3/sound/\(id.uuidString)", afterResponse: { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try res.content.decode(Sound.self).title, "Música")
+        })
+    }
+
+    func testGetSoundIsNotFoundForAnUnknownId() async throws {
+        try await app.test(.GET, "api/v3/sound/\(UUID().uuidString)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .notFound)
+        })
+    }
+
+    /// Arguably should be 400; pinned so changing it is a deliberate decision.
+    func testGetSoundWithAnInvalidIdIsAServerError() async throws {
+        try await app.test(.GET, "api/v3/sound/not-a-uuid", afterResponse: { res async in
+            XCTAssertEqual(res.status, .internalServerError)
+        })
+    }
+
+    private func createContent(
+        title: String = "Som",
+        contentType: ContentType = .sound,
+        isHidden: Bool = false
+    ) async throws -> UUID {
+        let content = MedoContent()
+        content.title = title
+        content.authorId = "BBBBBBBB-0000-0000-0000-000000000001"
+        content.description = "Descrição"
+        content.fileId = "arquivo-\(title)"
+        content.creationDate = "2026-10-01T12:34:56.789Z"
+        content.duration = 2.5
+        content.isOffensive = true
+        content.musicGenre = nil
+        content.contentType = contentType
+        content.isHidden = isHidden
+        try await content.save(on: app.db)
+        return try XCTUnwrap(content.id)
+    }
+
     private func createSound() async throws -> String {
         var createdId = ""
         try await app.test(.POST, "api/v3/create-sound/\(TestEnvironment.testPassword)", beforeRequest: { req async throws in
