@@ -58,7 +58,7 @@ struct MusicGenresController {
         return .ok
     }
 
-    func getMusicGenreHandlerV3(req: Request) throws -> EventLoopFuture<MusicGenre> {
+    func getMusicGenreHandlerV3(req: Request) async throws -> MusicGenre {
         guard let genreId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
@@ -67,22 +67,22 @@ struct MusicGenresController {
             throw Abort(.internalServerError)
         }
 
-        return MusicGenre.query(on: req.db)
+        guard let genre = try await MusicGenre.query(on: req.db)
             .filter(\.$id == genreIdAsUUID)
             .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { genre in
-                return req.eventLoop.makeSucceededFuture(genre)
-            }
+        else {
+            throw Abort(.notFound)
+        }
+        return genre
     }
 
-    func getAllMusicGenresHandlerV3(req: Request) throws -> EventLoopFuture<[MusicGenre]> {
-        MusicGenre.query(on: req.db)
+    func getAllMusicGenresHandlerV3(req: Request) async throws -> [MusicGenre] {
+        try await MusicGenre.query(on: req.db)
             .filter(\.$isHidden == false)
             .all()
     }
 
-    func deleteMusicGenreHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteMusicGenreHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -97,20 +97,22 @@ struct MusicGenresController {
         guard let genreIdAsUUID = UUID(uuidString: genreId) else {
             throw Abort(.internalServerError)
         }
-        return MusicGenre.query(on: req.db)
+
+        guard let content = try await MusicGenre.query(on: req.db)
             .filter(\.$id == genreIdAsUUID)
             .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                content.isHidden = true
-                return content.save(on: req.db).flatMap {
-                    let updateEvent = UpdateEvent(contentId: genreId,
-                                                  dateTime: Date().iso8601withFractionalSeconds,
-                                                  mediaType: .musicGenre,
-                                                  eventType: .deleted,
-                                                  visible: true)
-                    return updateEvent.save(on: req.db).transform(to: .ok)
-                }
-            }
+        else {
+            throw Abort(.notFound)
+        }
+        content.isHidden = true
+        try await content.save(on: req.db)
+
+        let updateEvent = UpdateEvent(contentId: genreId,
+                                      dateTime: Date().iso8601withFractionalSeconds,
+                                      mediaType: .musicGenre,
+                                      eventType: .deleted,
+                                      visible: true)
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
 }
