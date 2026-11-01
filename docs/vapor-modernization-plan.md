@@ -11,8 +11,8 @@ Already modern before this plan started: async `@main` entrypoint using `Applica
 | Phase | What | Status |
 |---|---|---|
 | 1 | Swift 6 language mode and `Sendable` cleanup | ✅ Done, observed in production Oct 12–26 |
-| 2 | Background jobs: async RSS fetch, cancellable `Task` loops | 🚀 Implemented, awaiting deploy |
-| 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ⏳ |
+| 2 | Background jobs: async RSS fetch, cancellable `Task` loops | ✅ Done, observed in production Oct 26 – Nov 1 |
+| 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ⏳ Next |
 | 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency | ⏳ |
 | 5 | Move admin passwords out of URL paths (breaking API change) | 💬 Needs an app-side plan |
 
@@ -101,7 +101,7 @@ To roll back only the toolchain requirement, reverting `3a40188` is enough. The 
 - [x] Unit tests for parsing the feed from `Data` (`RSSPollingServiceTests`). They use inline Spreaker-shaped XML instead of a fixture file and cover a valid feed, too few items, a latest item without a GUID, and invalid XML.
 - [x] Unit tests for the "next Friday 18:00 BRT" calculation (`WeeklyHighlightsScheduleTests`), covering just before and just after 18:00 on a Friday and a server clock in UTC.
 - [x] One-off check of the full poll against the live feed in the testing environment (in-memory database, no push): 901 episodes synced, and a second run correctly found nothing new.
-- [ ] After deploy, watch one full RSS cycle (20 min) and one Friday send.
+- [x] After deploy (`fde8909`, Oct 26): the first poll ran 6 s after boot, the next one exactly 20 minutes later, and the Friday weekly highlights and new-episode notifications went out as usual.
 
 **What was done (Oct 26):**
 
@@ -122,7 +122,7 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 |---|---|---|
 | `StatisticsController` | 59 | Share, play and episode rankings |
 | `ReactionsController` | 10 | ❌ none |
-| `AuthorsController` | 5 | ❌ none |
+| `AuthorsController` | 5 | 🟡 `AuthorsControllerTests` (get, all, update; not delete or author links) |
 | `UpdateEventsController` | 5 | ❌ none |
 | `MusicGenresController` | 3 | ❌ none |
 | `SongsController` | 2 | ❌ none |
