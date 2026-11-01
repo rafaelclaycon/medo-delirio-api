@@ -126,7 +126,7 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 | `UpdateEventsController` | 5 | ❌ none |
 | `MusicGenresController` | ~~3~~ ✅ 0 | ✅ `MusicGenresControllerTests` (converted Nov 1) |
 | `SongsController` | ~~2~~ ✅ 0 | ✅ `SongsControllerTests` (converted Nov 1) |
-| `SoundsController` | 2 | ✅ `SoundsControllerTests` |
+| `SoundsController` | ~~2~~ ✅ 0 | ✅ `SoundsControllerTests` (converted Nov 1) |
 | `StatusCheckController` | ~~1~~ ✅ 0 | ✅ `StatusCheckControllerTests` (converted Nov 1) |
 
 **Approach:**

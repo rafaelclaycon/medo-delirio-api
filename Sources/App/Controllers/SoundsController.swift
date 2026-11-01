@@ -74,7 +74,7 @@ struct SoundsController {
         return Response(status: .created, body: Response.Body(data: data))
     }
     
-    func getSoundHandlerV3(req: Request) throws -> EventLoopFuture<Sound> {
+    func getSoundHandlerV3(req: Request) async throws -> Sound {
         guard let soundId = req.parameters.get("id", as: String.self) else {
             throw Abort(.badRequest)
         }
@@ -84,27 +84,22 @@ struct SoundsController {
 
         // Deleted content must 404 so a client retrying an old `created` event
         // can't bring it back.
-        return MedoContent.query(on: req.db)
+        guard let content = try await MedoContent.query(on: req.db)
             .filter(\.$id == soundIdAsUUID)
             .filter(\.$isHidden == false)
             .first()
-            .unwrap(or: Abort(.notFound))
-            .flatMap { content in
-                let sound = Sound(content: content)
-                return req.eventLoop.makeSucceededFuture(sound)
-            }
+        else {
+            throw Abort(.notFound)
+        }
+        return Sound(content: content)
     }
     
-    func getAllSoundsHandlerV3(req: Request) throws -> EventLoopFuture<[Sound]> {
-        let query = MedoContent.query(on: req.db)
+    func getAllSoundsHandlerV3(req: Request) async throws -> [Sound] {
+        try await MedoContent.query(on: req.db)
             .filter(\.$contentType == .sound)
             .filter(\.$isHidden == false)
-        
-        return query.all().flatMapThrowing { medoContentList in
-            medoContentList.map { content in
-                return Sound(content: content)
-            }
-        }
+            .all()
+            .map { Sound(content: $0) }
     }
     
     func deleteSoundHandlerV3(req: Request) async throws -> HTTPStatus {
