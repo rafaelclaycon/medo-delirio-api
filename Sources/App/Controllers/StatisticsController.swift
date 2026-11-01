@@ -1144,9 +1144,9 @@ extension StatisticsController {
 
 extension StatisticsController {
 
-    func getTop3ReactionsHandlerV4(req: Request) throws -> EventLoopFuture<[Reaction]> {
+    func getTop3ReactionsHandlerV4(req: Request) async throws -> [Reaction] {
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
+            return []
         }
 
         let query = """
@@ -1164,24 +1164,12 @@ extension StatisticsController {
             limit 3
         """
 
-        return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-            req.eventLoop.makeSucceededFuture(
-                Reaction(
-                    id: UUID(uuidString: row.column("id")?.string ?? ""),
-                    title: row.column("title")?.string ?? "",
-                    position: row.column("position")?.integer ?? 0,
-                    image: row.column("image")?.string ?? "",
-                    lastUpdate: row.column("lastUpdate")?.string ?? "",
-                    attributionText: row.column("attributionText")?.string,
-                    attributionURL: row.column("attributionURL")?.string
-                )
-            )
-        }
+        return try await sqlite.query(query).map(Self.reaction(from:))
     }
 
-    func getReactionPopularityStatsHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartReaction]> {
+    func getReactionPopularityStatsHandlerV3(req: Request) async throws -> [TopChartReaction] {
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
+            return []
         }
 
         let todaysTopReaction = """
@@ -1228,63 +1216,35 @@ extension StatisticsController {
             limit 1
         """
 
-        let todaysFuture = sqlite.query(todaysTopReaction)
-        let lastWeekFuture = sqlite.query(lastWeeksTopReaction)
-        let allTimeFuture = sqlite.query(allTimeTopReaction)
+        let todaysRows = try await sqlite.query(todaysTopReaction)
+        let lastWeekRows = try await sqlite.query(lastWeeksTopReaction)
+        let allTimeRows = try await sqlite.query(allTimeTopReaction)
 
-        return todaysFuture.and(lastWeekFuture).and(allTimeFuture).flatMap { results in
-            let (todaysRows, lastWeekRows, allTimeRows) = (results.0.0, results.0.1, results.1)
-
-            let today = todaysRows.compactMap { row in
-                TopChartReaction(
-                    position: "1",
-                    reaction: Reaction(
-                        id: UUID(uuidString: row.column("id")?.string ?? ""),
-                        title: row.column("title")?.string ?? "",
-                        position: row.column("position")?.integer ?? 0,
-                        image: row.column("image")?.string ?? "",
-                        lastUpdate: row.column("lastUpdate")?.string ?? "",
-                        attributionText: row.column("attributionText")?.string,
-                        attributionURL: row.column("attributionURL")?.string
-                    ),
-                    description: "hoje"
-                )
-            }
-
-            let lastWeek = lastWeekRows.compactMap { row in
-                TopChartReaction(
-                    position: "2",
-                    reaction: Reaction(
-                        id: UUID(uuidString: row.column("id")?.string ?? ""),
-                        title: row.column("title")?.string ?? "",
-                        position: row.column("position")?.integer ?? 0,
-                        image: row.column("image")?.string ?? "",
-                        lastUpdate: row.column("lastUpdate")?.string ?? "",
-                        attributionText: row.column("attributionText")?.string,
-                        attributionURL: row.column("attributionURL")?.string
-                    ),
-                    description: "última semana"
-                )
-            }
-
-            let allTime = allTimeRows.compactMap { row in
-                TopChartReaction(
-                    position: "3",
-                    reaction: Reaction(
-                        id: UUID(uuidString: row.column("id")?.string ?? ""),
-                        title: row.column("title")?.string ?? "",
-                        position: row.column("position")?.integer ?? 0,
-                        image: row.column("image")?.string ?? "",
-                        lastUpdate: row.column("lastUpdate")?.string ?? "",
-                        attributionText: row.column("attributionText")?.string,
-                        attributionURL: row.column("attributionURL")?.string
-                    ),
-                    description: "todos os tempos"
-                )
-            }
-
-            return req.eventLoop.makeSucceededFuture(today + lastWeek + allTime)
+        let today = todaysRows.map {
+            TopChartReaction(position: "1", reaction: Self.reaction(from: $0), description: "hoje")
         }
+        let lastWeek = lastWeekRows.map {
+            TopChartReaction(position: "2", reaction: Self.reaction(from: $0), description: "última semana")
+        }
+        let allTime = allTimeRows.map {
+            TopChartReaction(position: "3", reaction: Self.reaction(from: $0), description: "todos os tempos")
+        }
+
+        return today + lastWeek + allTime
+    }
+
+    /// A reaction from a row that selects `r.*`. A view that matched no reaction gives
+    /// an empty one.
+    private static func reaction(from row: SQLiteRow) -> Reaction {
+        Reaction(
+            id: UUID(uuidString: row.column("id")?.string ?? ""),
+            title: row.column("title")?.string ?? "",
+            position: row.column("position")?.integer ?? 0,
+            image: row.column("image")?.string ?? "",
+            lastUpdate: row.column("lastUpdate")?.string ?? "",
+            attributionText: row.column("attributionText")?.string,
+            attributionURL: row.column("attributionURL")?.string
+        )
     }
 }
 
