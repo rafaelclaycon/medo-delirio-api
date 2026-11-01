@@ -12,47 +12,48 @@ import Fluent
 
 struct ReactionsController {
 
-    func getReactionHandlerV4(req: Request) throws -> EventLoopFuture<Reaction> {
+    func getReactionHandlerV4(req: Request) async throws -> Reaction {
         guard
             let rawId = req.parameters.get("reactionId", as: String.self),
             let reactionId = UUID(uuidString: rawId)
         else {
             throw Abort(.badRequest)
         }
-        return Reaction.query(on: req.db)
+        guard let reaction = try await Reaction.query(on: req.db)
             .filter(\.$id == reactionId)
             .first()
-            .unwrap(or: Abort(.notFound))
+        else {
+            throw Abort(.notFound)
+        }
+        return reaction
     }
 
-    func getReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<[ReactionSound]> {
+    func getReactionSoundsHandlerV4(req: Request) async throws -> [ReactionSound] {
         guard let reactionId = req.parameters.get("reactionId", as: String.self) else {
             throw Abort(.badRequest)
         }
-        return ReactionSound.query(on: req.db)
+        return try await ReactionSound.query(on: req.db)
             .filter(\.$reactionId == reactionId)
             .all()
     }
 
-    func getAllReactionsHandlerV4(req: Request) throws -> EventLoopFuture<[Reaction]> {
-        Reaction.query(on: req.db)
+    func getAllReactionsHandlerV4(req: Request) async throws -> [Reaction] {
+        try await Reaction.query(on: req.db)
             .all()
     }
 
-    func getReactionsForSoundHandler(req: Request) throws -> EventLoopFuture<[Reaction]> {
+    func getReactionsForSoundHandler(req: Request) async throws -> [Reaction] {
         guard let soundId = req.parameters.get("soundId", as: String.self) else {
             throw Abort(.badRequest)
         }
-        return ReactionSound.query(on: req.db)
+        let reactions = try await ReactionSound.query(on: req.db)
             .filter(\.$soundId == soundId)
             .all()
-            .flatMap { reactions in
-                let reactionIds = reactions.compactMap { UUID(uuidString: $0.reactionId) }
+        let reactionIds = reactions.compactMap { UUID(uuidString: $0.reactionId) }
 
-                return Reaction.query(on: req.db)
-                    .filter(\.$id ~~ reactionIds)
-                    .all()
-            }
+        return try await Reaction.query(on: req.db)
+            .filter(\.$id ~~ reactionIds)
+            .all()
     }
 }
 
@@ -101,7 +102,7 @@ extension ReactionsController {
 
 extension ReactionsController {
 
-    func putUpdateReactionHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func putUpdateReactionHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
         }
@@ -111,19 +112,18 @@ extension ReactionsController {
 
         let reaction = try req.content.decode(Reaction.self)
 
-        return Reaction.find(reaction.id, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { existingReaction in
-                existingReaction.title = reaction.title
-                existingReaction.position = reaction.position
-                existingReaction.image = reaction.image
-                existingReaction.lastUpdate = reaction.lastUpdate
-                existingReaction.attributionText = reaction.attributionText
-                existingReaction.attributionURL = reaction.attributionURL
+        guard let existingReaction = try await Reaction.find(reaction.id, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        existingReaction.title = reaction.title
+        existingReaction.position = reaction.position
+        existingReaction.image = reaction.image
+        existingReaction.lastUpdate = reaction.lastUpdate
+        existingReaction.attributionText = reaction.attributionText
+        existingReaction.attributionURL = reaction.attributionURL
 
-                return existingReaction.save(on: req.db)
-                    .transform(to: .ok)
-            }
+        try await existingReaction.save(on: req.db)
+        return .ok
     }
 }
 
@@ -132,39 +132,41 @@ extension ReactionsController {
 
 extension ReactionsController {
 
-    func deleteAllReactionsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteAllReactionsHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
         guard password == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
-        return Reaction.query(on: req.db).delete().flatMap {
-            return req.eventLoop.makeSucceededFuture(.ok)
-        }.flatMapError { error in
+        do {
+            try await Reaction.query(on: req.db).delete()
+        } catch {
             req.logger.error("Failed to delete reactions: \(error.localizedDescription)")
-            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete Reactions."))
+            throw Abort(.internalServerError, reason: "Failed to delete Reactions.")
         }
+        return .ok
     }
 
     /// Deletes all sounds for all Reactions.
-    func deleteAllReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteAllReactionSoundsHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
         guard password == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
-        return ReactionSound.query(on: req.db).delete().flatMap {
-            return req.eventLoop.makeSucceededFuture(.ok)
-        }.flatMapError { error in
+        do {
+            try await ReactionSound.query(on: req.db).delete()
+        } catch {
             req.logger.error("Failed to delete reaction sounds: \(error.localizedDescription)")
-            return req.eventLoop.makeFailedFuture(Abort(.internalServerError, reason: "Failed to delete Reaction sounds."))
+            throw Abort(.internalServerError, reason: "Failed to delete Reaction sounds.")
         }
+        return .ok
     }
 
     /// Deletes all sounds for a specific Reaction.
-    func deleteReactionSoundsHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteReactionSoundsHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -176,18 +178,16 @@ extension ReactionsController {
             throw Abort(.badRequest)
         }
 
-        return ReactionSound.query(on: req.db)
+        let contents = try await ReactionSound.query(on: req.db)
             .filter(\.$reactionId == reactionId)
             .all()
-            .flatMap { contents in
-                let deleteFutures = contents.map { content in
-                    content.delete(on: req.db)
-                }
-                return EventLoopFuture.andAllSucceed(deleteFutures, on: req.eventLoop).transform(to: .ok)
-            }
+        for content in contents {
+            try await content.delete(on: req.db)
+        }
+        return .ok
     }
 
-    func deleteReactionHandlerV4(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func deleteReactionHandlerV4(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -200,9 +200,9 @@ extension ReactionsController {
         else {
             throw Abort(.badRequest)
         }
-        return Reaction.query(on: req.db)
+        try await Reaction.query(on: req.db)
             .filter(\.$id == reactionId)
             .delete()
-            .transform(to: .ok)
+        return .ok
     }
 }
