@@ -467,6 +467,40 @@ struct StatisticsController {
         }
     }
 
+    /// Distinct installs seen in the last 7 days, the last 30 days and ever.
+    ///
+    /// Like `active-users-count-from`: every signal counts.
+    func getUniqueUsersHandlerV4(req: Request) async throws -> UniqueUsersResponse {
+        guard req.parameters.get("password") == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            throw Abort(.internalServerError, reason: "Database is not SQLite")
+        }
+        return try await Self.uniqueUsers(on: sqlite, now: .now)
+    }
+
+    static func uniqueUsers(on sqlite: SQLiteDatabase, now: Date) async throws -> UniqueUsersResponse {
+        let weekStart = now.addingTimeInterval(-7 * 24 * 60 * 60).iso8601withFractionalSeconds
+        let monthStart = now.addingTimeInterval(-30 * 24 * 60 * 60).iso8601withFractionalSeconds
+
+        let rows = try await sqlite.query("""
+            SELECT
+                COUNT(DISTINCT CASE WHEN dateTime >= ? THEN installId END) AS lastWeek,
+                COUNT(DISTINCT CASE WHEN dateTime >= ? THEN installId END) AS lastMonth,
+                COUNT(DISTINCT installId) AS allTime
+            FROM StillAliveSignal
+            """, [.text(weekStart), .text(monthStart)]).get()
+        let row = rows.first
+
+        return UniqueUsersResponse(
+            lastWeek: row?.column("lastWeek")?.integer ?? 0,
+            lastMonth: row?.column("lastMonth")?.integer ?? 0,
+            allTime: row?.column("allTime")?.integer ?? 0,
+            generatedAt: now.iso8601withFractionalSeconds
+        )
+    }
+
     func getDeviceAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<DeviceAnalyticsResponse> {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
