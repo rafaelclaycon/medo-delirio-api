@@ -1,0 +1,40 @@
+{
+  "name": "Medo e Delírio",
+  "subtitle": "O app do Medo e Delírio em Brasília",
+  "description": "Fonte oficial do app Medo e Delírio para a AltStore PAL.",
+  "website": "https://github.com/rafaelclaycon/MedoDelirioBrasilia",
+  "iconURL": "https://api.medodelirioios.club/altstore/icon.png",
+  "nsfw": false,
+  "apps": [
+    {
+      "name": "Medo e Delírio",
+      "bundleIdentifier": "com.rafaelschmitt.MedoDelirioBrasilia",
+      "marketplaceID": "APPLE_ID_FROM_APP_STORE_CONNECT",
+      "developerName": "Rafael Schmitt",
+      "localizedDescription": "Sons, reações e episódios do podcast Medo e Delírio em Brasília.",
+      "iconURL": "https://api.medodelirioios.club/altstore/icon.png",
+      "appPermissions": {
+        "entitlements": [
+          "aps-environment",
+          "com.apple.developer.associated-domains",
+          "com.apple.developer.ubiquity-kvstore-identifier",
+          "com.apple.security.application-groups"
+        ],
+        "privacy": {
+          "NSPhotoLibraryUsageDescription": "Medo e Delírio requer acesso a sua biblioteca de fotos para salvar imagens e vídeos."
+        }
+      },
+      "versions": [
+        {
+          "version": "MARKETING_VERSION",
+          "buildVersion": "BUILD_NUMBER",
+          "date": "2026-10-29",
+          "localizedDescription": "WHATS_NEW",
+          "downloadURL": "https://api.medodelirioios.club/altstore/adp/MARKETING_VERSION/manifest.json",
+          "size": 0
+        }
+      ]
+    }
+  ],
+  "news": []
+}
