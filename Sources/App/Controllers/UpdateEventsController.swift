@@ -10,46 +10,33 @@ import SQLiteNIO
 
 struct UpdateEventsController {
     
-    func getUpdateEventsHandlerV3(req: Request) throws -> EventLoopFuture<[UpdateEvent]> {
+    func getUpdateEventsHandlerV3(req: Request) async throws -> [UpdateEvent] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest)
         }
         
         if date == "all" {
-            return UpdateEvent.query(on: req.db).filter("visible", .equal, true).all()
+            return try await UpdateEvent.query(on: req.db).filter("visible", .equal, true).all()
         }
         
         guard date.isUTCDateString() else {
             throw Abort(.badRequest)
         }
         
-        print(date)
-        
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select *
-                from UpdateEvent
-                where dateTime > '\(date)'
-                and visible == true
-                order by dateTime
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    UpdateEvent(id: row.column("id")?.string ?? "",
-                                contentId: row.column("contentId")?.string ?? "",
-                                dateTime: row.column("dateTime")?.string ?? "",
-                                mediaType: row.column("mediaType")?.integer ?? 0,
-                                eventType: row.column("eventType")?.integer ?? 0,
-                                visible: row.column("visible")?.bool ?? false)
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select *
+            from UpdateEvent
+            where dateTime > ?
+            and visible == true
+            order by dateTime
+        """
+        return try await sqlite.query(query, [.text(date)]).map(Self.updateEvent(from:))
     }
 
-    func getUpdateEventsForDisplayHandlerV3(req: Request) throws -> EventLoopFuture<[UpdateEvent]> {
+    func getUpdateEventsForDisplayHandlerV3(req: Request) async throws -> [UpdateEvent] {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -57,31 +44,29 @@ struct UpdateEventsController {
             throw Abort(.forbidden)
         }
         // TODO: - Finish this
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select *
-                from UpdateEvent
-                left join MedoContent
-                where visible == true
-                order by dateTime desc
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    UpdateEvent(id: row.column("id")?.string ?? "",
-                                contentId: row.column("contentId")?.string ?? "",
-                                dateTime: row.column("dateTime")?.string ?? "",
-                                mediaType: row.column("mediaType")?.integer ?? 0,
-                                eventType: row.column("eventType")?.integer ?? 0,
-                                visible: row.column("visible")?.bool ?? false)
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select *
+            from UpdateEvent
+            left join MedoContent
+            where visible == true
+            order by dateTime desc
+        """
+        return try await sqlite.query(query).map(Self.updateEvent(from:))
     }
 
-    func putChangeUpdateVisibilityHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    private static func updateEvent(from row: SQLiteRow) -> UpdateEvent {
+        UpdateEvent(id: row.column("id")?.string ?? "",
+                    contentId: row.column("contentId")?.string ?? "",
+                    dateTime: row.column("dateTime")?.string ?? "",
+                    mediaType: row.column("mediaType")?.integer ?? 0,
+                    eventType: row.column("eventType")?.integer ?? 0,
+                    visible: row.column("visible")?.bool ?? false)
+    }
+
+    func putChangeUpdateVisibilityHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let uuidString = req.parameters.get("updateId"), !uuidString.isEmpty else {
             throw Abort(.badRequest)
         }
@@ -103,19 +88,18 @@ struct UpdateEventsController {
         }
         let visibleValue = newValueAsString == "1" ? true : false
 
-        return UpdateEvent.find(UUID(uuidString: uuidString), on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { updateEvent in
-                if visibleValue {
-                    updateEvent.dateTime = Date().iso8601withFractionalSeconds
-                }
-                updateEvent.visible = visibleValue
-                return updateEvent.save(on: req.db)
-            }
-            .transform(to: .ok)
+        guard let updateEvent = try await UpdateEvent.find(UUID(uuidString: uuidString), on: req.db) else {
+            throw Abort(.notFound)
+        }
+        if visibleValue {
+            updateEvent.dateTime = Date().iso8601withFractionalSeconds
+        }
+        updateEvent.visible = visibleValue
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
     
-    func putUpdateContentHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func putUpdateContentHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
         }
@@ -125,33 +109,32 @@ struct UpdateEventsController {
 
         let medoContent = try req.content.decode(MedoContent.self)
 
-        return MedoContent.find(medoContent.id, on: req.db)
-            .unwrap(or: Abort(.notFound))
-            .flatMap { existingMedoContent in
-                existingMedoContent.title = medoContent.title
-                existingMedoContent.authorId = medoContent.authorId
-                existingMedoContent.description = medoContent.description
-                //existingMedoContent.fileId = medoContent.fileId
-                existingMedoContent.duration = medoContent.duration
-                existingMedoContent.isOffensive = medoContent.isOffensive
-                existingMedoContent.musicGenre = medoContent.musicGenre
-                existingMedoContent.contentType = medoContent.contentType
-                
-                let updateEvent = UpdateEvent(
-                    contentId: medoContent.id!.uuidString,
-                    dateTime: Date().iso8601withFractionalSeconds,
-                    mediaType: medoContent.contentType == .sound ? .sound : .song,
-                    eventType: .metadataUpdated,
-                    visible: true
-                )
-                
-                return existingMedoContent.save(on: req.db)
-                    .and(updateEvent.save(on: req.db))
-                    .transform(to: .ok)
-            }
+        guard let existingMedoContent = try await MedoContent.find(medoContent.id, on: req.db) else {
+            throw Abort(.notFound)
+        }
+        existingMedoContent.title = medoContent.title
+        existingMedoContent.authorId = medoContent.authorId
+        existingMedoContent.description = medoContent.description
+        //existingMedoContent.fileId = medoContent.fileId
+        existingMedoContent.duration = medoContent.duration
+        existingMedoContent.isOffensive = medoContent.isOffensive
+        existingMedoContent.musicGenre = medoContent.musicGenre
+        existingMedoContent.contentType = medoContent.contentType
+        
+        let updateEvent = UpdateEvent(
+            contentId: try existingMedoContent.requireID().uuidString,
+            dateTime: Date().iso8601withFractionalSeconds,
+            mediaType: medoContent.contentType == .sound ? .sound : .song,
+            eventType: .metadataUpdated,
+            visible: true
+        )
+        
+        try await existingMedoContent.save(on: req.db)
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
     
-    func postUpdateContentFileHandlerV3(req: Request) throws -> EventLoopFuture<HTTPStatus> {
+    func postUpdateContentFileHandlerV3(req: Request) async throws -> HTTPStatus {
         guard let password = req.parameters.get("password") else {
             throw Abort(.badRequest)
         }
@@ -175,6 +158,7 @@ struct UpdateEventsController {
             eventType: .fileUpdated,
             visible: true
         )
-        return updateEvent.save(on: req.db).transform(to: .ok)
+        try await updateEvent.save(on: req.db)
+        return .ok
     }
 }
