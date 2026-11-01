@@ -120,7 +120,7 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 
 | Controller | `EventLoopFuture` | Test coverage |
 |---|---|---|
-| `StatisticsController` | ~~59~~ 50 | 🟡 In batches. Batch 1 (sound share rankings, device counts) converted Nov 1 |
+| `StatisticsController` | ~~59~~ 44 | 🟡 In batches. Batch 1 (sound share rankings, device counts) and batch 2 (song share and episode play charts) converted Nov 1 |
 | `ReactionsController` | ~~10~~ ✅ 0 | ✅ `ReactionsControllerTests` (converted Nov 1) |
 | `AuthorsController` | ~~5~~ ✅ 0 | ✅ `AuthorsControllerTests`, every handler (converted Nov 1) |
 | `UpdateEventsController` | ~~5~~ ✅ 0 | ✅ `UpdateEventsControllerTests` (converted Nov 1) |

@@ -1066,108 +1066,79 @@ extension StatisticsController {
 
 extension StatisticsController {
 
-    func getSongShareCountStatsAllTimeHandlerV3(req: Request) -> EventLoopFuture<[TopChartItem]> {
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join MusicGenre mg on mg.id = c.musicGenre
-                where c.contentType = 1
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: "",
-                        contentAuthorName: row.column("musicGenre")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+    func getSongShareCountStatsAllTimeHandlerV3(req: Request) async throws -> [TopChartItem] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join MusicGenre mg on mg.id = c.musicGenre
+            where c.contentType = 1
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query).map(Self.songChartItem(from:))
     }
 
-    func getSongShareCountStatsFromHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+    func getSongShareCountStatsFromHandlerV3(req: Request) async throws -> [TopChartItem] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join MusicGenre mg on mg.id = c.musicGenre
-                where c.contentType = 1
-                and s.dateTime > ?
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: "",
-                        contentAuthorName: row.column("musicGenre")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join MusicGenre mg on mg.id = c.musicGenre
+            where c.contentType = 1
+            and s.dateTime > ?
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query, [.text(date)]).map(Self.songChartItem(from:))
     }
 
-    func getSongShareCountStatsFromToHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+    func getSongShareCountStatsFromToHandlerV3(req: Request) async throws -> [TopChartItem] {
         guard
             let firstDate = req.parameters.get("firstDate"),
             let secondDate = req.parameters.get("secondDate")
         else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join MusicGenre mg on mg.id = c.musicGenre
-                where c.contentType = 1
-                -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
-                and s.dateTime >= ? and s.dateTime < ?
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: "",
-                        contentAuthorName: row.column("musicGenre")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, c.title as contentName, mg.name as musicGenre, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join MusicGenre mg on mg.id = c.musicGenre
+            where c.contentType = 1
+            -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+            and s.dateTime >= ? and s.dateTime < ?
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).map(Self.songChartItem(from:))
+    }
+
+    /// A song chart row. Songs have no author, so the genre's name stands in for it.
+    private static func songChartItem(from row: SQLiteRow) -> TopChartItem {
+        TopChartItem(
+            rankNumber: "",
+            contentId: row.column("contentId")?.string ?? "",
+            contentName: row.column("contentName")?.string ?? "",
+            contentAuthorId: "",
+            contentAuthorName: row.column("musicGenre")?.string ?? "",
+            shareCount: row.column("totalShareCount")?.integer ?? 0
+        )
     }
 }
 
@@ -2373,120 +2344,92 @@ extension StatisticsController {
         }
     }
 
-    func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) -> EventLoopFuture<[TopEpisodeItem]> {
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                SELECT
-                    e.id AS episodeId,
-                    e.title AS episodeName,
-                    COUNT(*) AS playCount,
-                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
-                FROM UsageMetric um
-                -- Strips only the wrapper, so titles with their own parentheses still match.
-                -- 'didPlayEpisode(' is 15 characters.
-                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
-                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                GROUP BY e.id
-                ORDER BY uniqueListeners DESC, playCount DESC
-                LIMIT 10
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopEpisodeItem(
-                        rankNumber: "",
-                        episodeId: row.column("episodeId")?.string ?? "",
-                        episodeName: row.column("episodeName")?.string ?? "",
-                        playCount: row.column("playCount")?.integer ?? 0,
-                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+    func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) async throws -> [TopEpisodeItem] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            SELECT
+                e.id AS episodeId,
+                e.title AS episodeName,
+                COUNT(*) AS playCount,
+                COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+            FROM UsageMetric um
+            -- Strips only the wrapper, so titles with their own parentheses still match.
+            -- 'didPlayEpisode(' is 15 characters.
+            INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
+            WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+            GROUP BY e.id
+            ORDER BY uniqueListeners DESC, playCount DESC
+            LIMIT 10
+        """
+        return try await sqlite.query(query).map(Self.topEpisodeItem(from:))
     }
 
-    func getEpisodePlayCountStatsFromHandlerV4(req: Request) throws -> EventLoopFuture<[TopEpisodeItem]> {
+    func getEpisodePlayCountStatsFromHandlerV4(req: Request) async throws -> [TopEpisodeItem] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                SELECT
-                    e.id AS episodeId,
-                    e.title AS episodeName,
-                    COUNT(*) AS playCount,
-                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
-                FROM UsageMetric um
-                -- Strips only the wrapper, so titles with their own parentheses still match.
-                -- 'didPlayEpisode(' is 15 characters.
-                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
-                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                  AND um.dateTime >= ?
-                GROUP BY e.id
-                ORDER BY uniqueListeners DESC, playCount DESC
-                LIMIT 10
-            """
-
-            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopEpisodeItem(
-                        rankNumber: "",
-                        episodeId: row.column("episodeId")?.string ?? "",
-                        episodeName: row.column("episodeName")?.string ?? "",
-                        playCount: row.column("playCount")?.integer ?? 0,
-                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            SELECT
+                e.id AS episodeId,
+                e.title AS episodeName,
+                COUNT(*) AS playCount,
+                COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+            FROM UsageMetric um
+            -- Strips only the wrapper, so titles with their own parentheses still match.
+            -- 'didPlayEpisode(' is 15 characters.
+            INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
+            WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+              AND um.dateTime >= ?
+            GROUP BY e.id
+            ORDER BY uniqueListeners DESC, playCount DESC
+            LIMIT 10
+        """
+        return try await sqlite.query(query, [.text(date)]).map(Self.topEpisodeItem(from:))
     }
 
-    func getEpisodePlayCountStatsFromToHandlerV4(req: Request) throws -> EventLoopFuture<[TopEpisodeItem]> {
+    func getEpisodePlayCountStatsFromToHandlerV4(req: Request) async throws -> [TopEpisodeItem] {
         guard
             let firstDate = req.parameters.get("firstDate"),
             let secondDate = req.parameters.get("secondDate")
         else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                SELECT
-                    e.id AS episodeId,
-                    e.title AS episodeName,
-                    COUNT(*) AS playCount,
-                    COUNT(DISTINCT um.customInstallId) AS uniqueListeners
-                FROM UsageMetric um
-                -- Strips only the wrapper, so titles with their own parentheses still match.
-                -- 'didPlayEpisode(' is 15 characters.
-                INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
-                WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
-                  -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
-                  AND um.dateTime >= ? AND um.dateTime < ?
-                GROUP BY e.id
-                ORDER BY uniqueListeners DESC, playCount DESC
-                LIMIT 10
-            """
-
-            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopEpisodeItem(
-                        rankNumber: "",
-                        episodeId: row.column("episodeId")?.string ?? "",
-                        episodeName: row.column("episodeName")?.string ?? "",
-                        playCount: row.column("playCount")?.integer ?? 0,
-                        uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            SELECT
+                e.id AS episodeId,
+                e.title AS episodeName,
+                COUNT(*) AS playCount,
+                COUNT(DISTINCT um.customInstallId) AS uniqueListeners
+            FROM UsageMetric um
+            -- Strips only the wrapper, so titles with their own parentheses still match.
+            -- 'didPlayEpisode(' is 15 characters.
+            INNER JOIN Episode e ON e.title = substr(um.destinationScreen, 16, length(um.destinationScreen) - 16)
+            WHERE um.destinationScreen LIKE 'didPlayEpisode(%)'
+              -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+              AND um.dateTime >= ? AND um.dateTime < ?
+            GROUP BY e.id
+            ORDER BY uniqueListeners DESC, playCount DESC
+            LIMIT 10
+        """
+        return try await sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).map(Self.topEpisodeItem(from:))
+    }
+
+    private static func topEpisodeItem(from row: SQLiteRow) -> TopEpisodeItem {
+        TopEpisodeItem(
+            rankNumber: "",
+            episodeId: row.column("episodeId")?.string ?? "",
+            episodeName: row.column("episodeName")?.string ?? "",
+            playCount: row.column("playCount")?.integer ?? 0,
+            uniqueListeners: row.column("uniqueListeners")?.integer ?? 0
+        )
     }
 }
 
