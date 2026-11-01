@@ -431,7 +431,7 @@ struct StatisticsController {
         )
     }
 
-    func getDeviceAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<DeviceAnalyticsResponse> {
+    func getDeviceAnalyticsHandlerV3(req: Request) async throws -> DeviceAnalyticsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -440,14 +440,12 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                DeviceAnalyticsResponse(
-                    top_ios_versions: [],
-                    top_device_models: [],
-                    top_device_types: [],
-                    top_timezones: [],
-                    total_timezones_count: 0
-                )
+            return DeviceAnalyticsResponse(
+                top_ios_versions: [],
+                top_device_models: [],
+                top_device_types: [],
+                top_timezones: [],
+                total_timezones_count: 0
             )
         }
 
@@ -526,81 +524,55 @@ struct StatisticsController {
               AND \(Self.excludeSimulatorsClause)
         """
 
-        let iosVersionsFuture = sqlite.query(iosVersionsQuery).flatMapThrowing { rows -> [DeviceAnalyticsIOSVersion] in
-            rows.map { row in
-                let majorVersion = row.column("major_version")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                return DeviceAnalyticsIOSVersion(
-                    id: majorVersion,
-                    major_version: majorVersion,
-                    count: count
-                )
-            }
+        let iosVersions = try await sqlite.query(iosVersionsQuery).map { row in
+            let majorVersion = row.column("major_version")?.string ?? ""
+            return DeviceAnalyticsIOSVersion(
+                id: majorVersion,
+                major_version: majorVersion,
+                count: row.column("count")?.integer ?? 0
+            )
         }
 
-        let deviceModelsFuture = sqlite.query(deviceModelsQuery).flatMapThrowing { rows -> [DeviceAnalyticsDeviceModel] in
-            rows.map { row in
-                let modelName = row.column("model_name")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                return DeviceAnalyticsDeviceModel(
-                    id: modelName,
-                    model_name: modelName,
-                    count: count
-                )
-            }
+        let deviceModels = try await sqlite.query(deviceModelsQuery).map { row in
+            let modelName = row.column("model_name")?.string ?? ""
+            return DeviceAnalyticsDeviceModel(
+                id: modelName,
+                model_name: modelName,
+                count: row.column("count")?.integer ?? 0
+            )
         }
 
-        let deviceTypesFuture = sqlite.query(deviceTypesQuery).flatMapThrowing { rows -> [DeviceAnalyticsDeviceType] in
-            rows.map { row in
-                let deviceType = row.column("device_type")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                return DeviceAnalyticsDeviceType(
-                    id: deviceType,
-                    device_type: deviceType,
-                    count: count
-                )
-            }
+        let deviceTypes = try await sqlite.query(deviceTypesQuery).map { row in
+            let deviceType = row.column("device_type")?.string ?? ""
+            return DeviceAnalyticsDeviceType(
+                id: deviceType,
+                device_type: deviceType,
+                count: row.column("count")?.integer ?? 0
+            )
         }
 
-        let timezonesFuture = sqlite.query(timezonesQuery).flatMapThrowing { rows -> [DeviceAnalyticsTimezone] in
-            rows.map { row in
-                let timezone = row.column("timezone")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                return DeviceAnalyticsTimezone(
-                    id: timezone,
-                    timezone: timezone,
-                    count: count
-                )
-            }
+        let timezones = try await sqlite.query(timezonesQuery).map { row in
+            let timezone = row.column("timezone")?.string ?? ""
+            return DeviceAnalyticsTimezone(
+                id: timezone,
+                timezone: timezone,
+                count: row.column("count")?.integer ?? 0
+            )
         }
 
-        let totalTimezonesFuture = sqlite.query(totalTimezonesQuery).flatMapThrowing { rows -> Int in
-            guard let row = rows.first else {
-                return 0
-            }
-            return row.column("total_timezones_count")?.integer ?? 0
-        }
+        let totalTimezones = try await sqlite.query(totalTimezonesQuery)
+            .first?.column("total_timezones_count")?.integer ?? 0
 
-        // Execute all queries in parallel and combine results
-        return iosVersionsFuture.and(deviceModelsFuture).and(deviceTypesFuture).and(timezonesFuture).and(totalTimezonesFuture)
-            .flatMapThrowing { results in
-                let iosVersions = results.0.0.0.0
-                let deviceModels = results.0.0.0.1
-                let deviceTypes = results.0.0.1
-                let timezones = results.0.1
-                let totalTimezones = results.1
-                
-                return DeviceAnalyticsResponse(
-                    top_ios_versions: iosVersions,
-                    top_device_models: deviceModels,
-                    top_device_types: deviceTypes,
-                    top_timezones: timezones,
-                    total_timezones_count: totalTimezones
-                )
-            }
+        return DeviceAnalyticsResponse(
+            top_ios_versions: iosVersions,
+            top_device_models: deviceModels,
+            top_device_types: deviceTypes,
+            top_timezones: timezones,
+            total_timezones_count: totalTimezones
+        )
     }
 
-    func getDeviceModelHistoryHandlerV3(req: Request) throws -> EventLoopFuture<DeviceModelHistoryResponse> {
+    func getDeviceModelHistoryHandlerV3(req: Request) async throws -> DeviceModelHistoryResponse {
         guard let modelName = req.parameters.get("modelName") else {
             throw Abort(.internalServerError)
         }
@@ -612,9 +584,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                DeviceModelHistoryResponse(model_name: modelName, history: [])
-            )
+            return DeviceModelHistoryResponse(model_name: modelName, history: [])
         }
 
         let modelCountsQuery = """
@@ -628,37 +598,20 @@ struct StatisticsController {
             ORDER BY month ASC
         """
 
-        let modelCountsFuture = sqlite.query(modelCountsQuery, [SQLiteData.text(modelName)]).flatMapThrowing { rows -> [String: Int] in
-            var dict: [String: Int] = [:]
-            for row in rows {
-                let month = row.column("month")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                dict[month] = count
-            }
-            return dict
-        }
+        let countsByMonth = try await Self.countsByMonth(on: sqlite, query: modelCountsQuery, binding: modelName)
+        let totalsByMonth = try await Self.totalUniqueInstallsByMonth(on: sqlite)
 
-        let totalsFuture = sqlite.query(Self.totalUniqueInstallsByMonthQuery).flatMapThrowing { rows -> [(String, Int)] in
-            rows.compactMap { row -> (String, Int)? in
-                guard let month = row.column("month")?.string else { return nil }
-                let total = row.column("total")?.integer ?? 0
-                return (month, total)
-            }
+        let history = totalsByMonth.map { month, total in
+            DeviceModelMonthlyCount(
+                month: month,
+                count: countsByMonth[month] ?? 0,
+                total: total
+            )
         }
-
-        return modelCountsFuture.and(totalsFuture).flatMapThrowing { countsByMonth, totalsByMonth in
-            let history = totalsByMonth.map { month, total in
-                DeviceModelMonthlyCount(
-                    month: month,
-                    count: countsByMonth[month] ?? 0,
-                    total: total
-                )
-            }
-            return DeviceModelHistoryResponse(model_name: modelName, history: history)
-        }
+        return DeviceModelHistoryResponse(model_name: modelName, history: history)
     }
 
-    func getAllDeviceModelNamesHandlerV3(req: Request) throws -> EventLoopFuture<[String]> {
+    func getAllDeviceModelNamesHandlerV3(req: Request) async throws -> [String] {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -667,7 +620,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
+            return []
         }
 
         let query = """
@@ -678,12 +631,10 @@ struct StatisticsController {
             ORDER BY modelName ASC
         """
 
-        return sqlite.query(query).flatMapThrowing { rows -> [String] in
-            rows.compactMap { $0.column("modelName")?.string }
-        }
+        return try await sqlite.query(query).compactMap { $0.column("modelName")?.string }
     }
 
-    func getIOSVersionHistoryHandlerV3(req: Request) throws -> EventLoopFuture<IOSVersionHistoryResponse> {
+    func getIOSVersionHistoryHandlerV3(req: Request) async throws -> IOSVersionHistoryResponse {
         guard let majorVersion = req.parameters.get("majorVersion") else {
             throw Abort(.internalServerError)
         }
@@ -695,9 +646,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                IOSVersionHistoryResponse(major_version: majorVersion, history: [])
-            )
+            return IOSVersionHistoryResponse(major_version: majorVersion, history: [])
         }
 
         let versionCountsQuery = """
@@ -711,37 +660,20 @@ struct StatisticsController {
             ORDER BY month ASC
         """
 
-        let versionCountsFuture = sqlite.query(versionCountsQuery, [SQLiteData.text(majorVersion)]).flatMapThrowing { rows -> [String: Int] in
-            var dict: [String: Int] = [:]
-            for row in rows {
-                let month = row.column("month")?.string ?? ""
-                let count = row.column("count")?.integer ?? 0
-                dict[month] = count
-            }
-            return dict
-        }
+        let countsByMonth = try await Self.countsByMonth(on: sqlite, query: versionCountsQuery, binding: majorVersion)
+        let totalsByMonth = try await Self.totalUniqueInstallsByMonth(on: sqlite)
 
-        let totalsFuture = sqlite.query(Self.totalUniqueInstallsByMonthQuery).flatMapThrowing { rows -> [(String, Int)] in
-            rows.compactMap { row -> (String, Int)? in
-                guard let month = row.column("month")?.string else { return nil }
-                let total = row.column("total")?.integer ?? 0
-                return (month, total)
-            }
+        let history = totalsByMonth.map { month, total in
+            IOSVersionMonthlyCount(
+                month: month,
+                count: countsByMonth[month] ?? 0,
+                total: total
+            )
         }
-
-        return versionCountsFuture.and(totalsFuture).flatMapThrowing { countsByMonth, totalsByMonth in
-            let history = totalsByMonth.map { month, total in
-                IOSVersionMonthlyCount(
-                    month: month,
-                    count: countsByMonth[month] ?? 0,
-                    total: total
-                )
-            }
-            return IOSVersionHistoryResponse(major_version: majorVersion, history: history)
-        }
+        return IOSVersionHistoryResponse(major_version: majorVersion, history: history)
     }
 
-    func getAllIOSVersionsHandlerV3(req: Request) throws -> EventLoopFuture<[String]> {
+    func getAllIOSVersionsHandlerV3(req: Request) async throws -> [String] {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -750,7 +682,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
+            return []
         }
 
         let query = """
@@ -761,12 +693,10 @@ struct StatisticsController {
             ORDER BY CAST(major_version AS INTEGER) ASC
         """
 
-        return sqlite.query(query).flatMapThrowing { rows -> [String] in
-            rows.compactMap { $0.column("major_version")?.string }
-        }
+        return try await sqlite.query(query).compactMap { $0.column("major_version")?.string }
     }
 
-    func getIOSVersionDeviceBreakdownHandlerV3(req: Request) throws -> EventLoopFuture<IOSVersionDeviceBreakdownResponse> {
+    func getIOSVersionDeviceBreakdownHandlerV3(req: Request) async throws -> IOSVersionDeviceBreakdownResponse {
         guard let majorVersion = req.parameters.get("majorVersion") else {
             throw Abort(.internalServerError)
         }
@@ -778,9 +708,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: [])
-            )
+            return IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: [])
         }
 
         let allMonthsQuery = """
@@ -802,39 +730,47 @@ struct StatisticsController {
             ORDER BY model_name, month ASC
         """
 
-        let allMonthsFuture = sqlite.query(allMonthsQuery).flatMapThrowing { rows -> [String] in
-            rows.compactMap { $0.column("month")?.string }
+        let allMonths = try await sqlite.query(allMonthsQuery).compactMap { $0.column("month")?.string }
+
+        var modelData: [String: [String: Int]] = [:]
+        var modelTotals: [String: Int] = [:]
+
+        for row in try await sqlite.query(deviceCountsQuery, [.text(majorVersion)]) {
+            guard let modelName = row.column("model_name")?.string,
+                  let month = row.column("month")?.string else { continue }
+            let count = row.column("count")?.integer ?? 0
+            modelData[modelName, default: [:]][month] = count
+            modelTotals[modelName, default: 0] += count
         }
 
-        let deviceCountsFuture = sqlite.query(deviceCountsQuery, [SQLiteData.text(majorVersion)]).flatMapThrowing { rows -> [(String, String, Int)] in
-            rows.compactMap { row -> (String, String, Int)? in
-                guard let modelName = row.column("model_name")?.string,
-                      let month = row.column("month")?.string else { return nil }
-                let count = row.column("count")?.integer ?? 0
-                return (modelName, month, count)
+        let sortedModels = modelTotals.sorted { $0.value > $1.value }.map { $0.key }
+
+        let devices = sortedModels.map { modelName -> IOSVersionDeviceHistory in
+            let monthCounts = modelData[modelName] ?? [:]
+            let history = allMonths.map { month in
+                IOSVersionDeviceMonthlyCount(month: month, count: monthCounts[month] ?? 0)
             }
+            return IOSVersionDeviceHistory(model_name: modelName, history: history)
         }
 
-        return allMonthsFuture.and(deviceCountsFuture).flatMapThrowing { allMonths, deviceRows in
-            var modelData: [String: [String: Int]] = [:]
-            var modelTotals: [String: Int] = [:]
+        return IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: devices)
+    }
 
-            for (modelName, month, count) in deviceRows {
-                modelData[modelName, default: [:]][month] = count
-                modelTotals[modelName, default: 0] += count
-            }
+    /// Runs a `month`/`count` query with one bound value, keyed by month.
+    private static func countsByMonth(on sqlite: SQLiteDatabase, query: String, binding value: String) async throws -> [String: Int] {
+        var countsByMonth: [String: Int] = [:]
+        for row in try await sqlite.query(query, [.text(value)]) {
+            let month = row.column("month")?.string ?? ""
+            countsByMonth[month] = row.column("count")?.integer ?? 0
+        }
+        return countsByMonth
+    }
 
-            let sortedModels = modelTotals.sorted { $0.value > $1.value }.map { $0.key }
-
-            let devices = sortedModels.map { modelName -> IOSVersionDeviceHistory in
-                let monthCounts = modelData[modelName] ?? [:]
-                let history = allMonths.map { month in
-                    IOSVersionDeviceMonthlyCount(month: month, count: monthCounts[month] ?? 0)
-                }
-                return IOSVersionDeviceHistory(model_name: modelName, history: history)
-            }
-
-            return IOSVersionDeviceBreakdownResponse(major_version: majorVersion, devices: devices)
+    /// Every month with signals and its distinct installs, oldest first.
+    private static func totalUniqueInstallsByMonth(on sqlite: SQLiteDatabase) async throws -> [(String, Int)] {
+        try await sqlite.query(totalUniqueInstallsByMonthQuery).compactMap { row -> (String, Int)? in
+            guard let month = row.column("month")?.string else { return nil }
+            return (month, row.column("total")?.integer ?? 0)
         }
     }
 
