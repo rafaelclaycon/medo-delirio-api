@@ -81,13 +81,13 @@ struct StatisticsController {
 
     // MARK: - GET
 
-    func getAllClientDeviceInfoHandlerV1(req: Request) -> EventLoopFuture<[ClientDeviceInfo]> {
-        return ClientDeviceInfo.query(on: req.db).all()
+    func getAllClientDeviceInfoHandlerV1(req: Request) async throws -> [ClientDeviceInfo] {
+        try await ClientDeviceInfo.query(on: req.db).all()
     }
 
-    func getAllSoundShareCountStatsHandlerV1(req: Request) -> EventLoopFuture<[ShareCountStat]> {
+    func getAllSoundShareCountStatsHandlerV1(req: Request) async throws -> [ShareCountStat] {
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
+            return []
         }
         let query = """
             SELECT s.id, s.installId, s.contentId, s.contentType, s.shareCount, s.dateTime
@@ -95,257 +95,214 @@ struct StatisticsController {
             INNER JOIN MedoContent c ON c.id = s.contentId
             WHERE c.contentType = 0
             """
-        return sqlite.query(query).flatMapThrowing { rows in
-            rows.map { row in
-                ShareCountStat(
-                    id: UUID(uuidString: row.column("id")?.string ?? ""),
-                    installId: row.column("installId")?.string ?? "",
-                    contentId: row.column("contentId")?.string ?? "",
-                    contentType: row.column("contentType")?.integer ?? 0,
-                    shareCount: row.column("shareCount")?.integer ?? 0,
-                    dateTime: row.column("dateTime")?.string ?? Date().iso8601withFractionalSeconds
-                )
-            }
+        return try await sqlite.query(query).map { row in
+            ShareCountStat(
+                id: UUID(uuidString: row.column("id")?.string ?? ""),
+                installId: row.column("installId")?.string ?? "",
+                contentId: row.column("contentId")?.string ?? "",
+                contentType: row.column("contentType")?.integer ?? 0,
+                shareCount: row.column("shareCount")?.integer ?? 0,
+                dateTime: row.column("dateTime")?.string ?? Date().iso8601withFractionalSeconds
+            )
         }
     }
 
-    func getInstallIdCountHandlerV1(req: Request) -> EventLoopFuture<[Int]> {
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select count(c.installId) totalCount
-                from ClientDeviceInfo c
-                where c.installId not in ("0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","A93E5354-41F9-5170-AFD9-817FAE37D037","F60AF930-0CBA-41FF-A80E-1E6007ED6AE8","F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4","FC2ADC6B-B70E-4B69-BC69-CCCADB64903F","F32538E4-6422-4D6F-9490-0984C17B7D80","285EAE4D-FBDE-482B-B8F2-705A68A67FDC","C78A6C1E-4EE0-521F-9C9E-F9AD9CA6C51D","04BCE1A6-5885-47D7-AD61-A14D6D6B61B7","C0821365-0003-4986-91EE-F9F79CDF4E7A","7CC49574-5275-4490-864B-65551784131F","DFD4128B-65C3-4251-9948-DC85D6E83FBE","E8120B41-E486-4170-95E0-5F13737A85AB","173BF7C0-CDF9-4A8D-A1B9-F91611AA12FF","93AC7BAB-9E30-4219-A0E8-04B4AD8F009C","AE87DEEA-23BD-4FFD-B918-63B572CD165C")
-                and c.modelName not like '%Simulator%';
-            """
-            
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(row.column("totalCount")?.integer ?? 0)
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([0])
+    func getInstallIdCountHandlerV1(req: Request) async throws -> [Int] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return [0]
+        }
+        let query = """
+            select count(c.installId) totalCount
+            from ClientDeviceInfo c
+            where c.installId not in ("0A4D4541-BC16-4C15-842E-DA6ACF957027","0F1DF136-BECC-4216-ABF5-BC05C91FBB5B","A93E5354-41F9-5170-AFD9-817FAE37D037","F60AF930-0CBA-41FF-A80E-1E6007ED6AE8","F4B0E5C6-32AA-4EA3-BD32-01EE9AD611F4","FC2ADC6B-B70E-4B69-BC69-CCCADB64903F","F32538E4-6422-4D6F-9490-0984C17B7D80","285EAE4D-FBDE-482B-B8F2-705A68A67FDC","C78A6C1E-4EE0-521F-9C9E-F9AD9CA6C51D","04BCE1A6-5885-47D7-AD61-A14D6D6B61B7","C0821365-0003-4986-91EE-F9F79CDF4E7A","7CC49574-5275-4490-864B-65551784131F","DFD4128B-65C3-4251-9948-DC85D6E83FBE","E8120B41-E486-4170-95E0-5F13737A85AB","173BF7C0-CDF9-4A8D-A1B9-F91611AA12FF","93AC7BAB-9E30-4219-A0E8-04B4AD8F009C","AE87DEEA-23BD-4FFD-B918-63B572CD165C")
+            and c.modelName not like '%Simulator%';
+        """
+        return try await sqlite.query(query).map { row in
+            row.column("totalCount")?.integer ?? 0
         }
     }
 
-    func getSoundShareCountStatsAllTimeHandlerV2(req: Request) -> EventLoopFuture<[ShareCountStat]> {
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                where c.contentType = 0
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-            
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(ShareCountStat(installId: "", contentId: row.column("contentId")?.string ?? "", contentType: 0, shareCount: row.column("totalShareCount")?.integer ?? 0, dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds))
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([ShareCountStat]())
+    func getSoundShareCountStatsAllTimeHandlerV2(req: Request) async throws -> [ShareCountStat] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            where c.contentType = 0
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query).map(Self.soundShareCountStat(from:))
     }
 
-    func getSoundShareCountStatsFromHandlerV2(req: Request) throws -> EventLoopFuture<[ShareCountStat]> {
+    func getSoundShareCountStatsFromHandlerV2(req: Request) async throws -> [ShareCountStat] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-        
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                where c.contentType = 0
-                and s.dateTime > ?
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-            
-            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    ShareCountStat(
-                        installId: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentType: 0,
-                        shareCount: row.column("totalShareCount")?.integer ?? 0,
-                        dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            where c.contentType = 0
+            and s.dateTime > ?
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query, [.text(date)]).map(Self.soundShareCountStat(from:))
     }
 
-    func getSoundShareCountStatsAllTimeHandlerV3(req: Request) -> EventLoopFuture<[TopChartItem]> {
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join Author a on c.authorId = a.id
-                where c.contentType = 0
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: row.column("authorId")?.string ?? "",
-                        contentAuthorName: row.column("authorName")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
+    /// A v2 chart row. The queries have no date column, so `dateTime` is always now.
+    private static func soundShareCountStat(from row: SQLiteRow) -> ShareCountStat {
+        ShareCountStat(
+            installId: "",
+            contentId: row.column("contentId")?.string ?? "",
+            contentType: 0,
+            shareCount: row.column("totalShareCount")?.integer ?? 0,
+            dateTime: row.column("date")?.string ?? Date().iso8601withFractionalSeconds
+        )
     }
 
-    func getSoundShareCountStatsFromHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+    func getSoundShareCountStatsAllTimeHandlerV3(req: Request) async throws -> [TopChartItem] {
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
+        }
+        let query = """
+            select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join Author a on c.authorId = a.id
+            where c.contentType = 0
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query).map(Self.topChartItem(from:))
+    }
+
+    func getSoundShareCountStatsFromHandlerV3(req: Request) async throws -> [TopChartItem] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join Author a on c.authorId = a.id
-                where c.contentType = 0
-                and s.dateTime > ?
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query, [.text(date)]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: row.column("authorId")?.string ?? "",
-                        contentAuthorName: row.column("authorName")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join Author a on c.authorId = a.id
+            where c.contentType = 0
+            and s.dateTime > ?
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query, [.text(date)]).map(Self.topChartItem(from:))
     }
 
-    func getSoundShareCountStatsFromToHandlerV3(req: Request) throws -> EventLoopFuture<[TopChartItem]> {
+    func getSoundShareCountStatsFromToHandlerV3(req: Request) async throws -> [TopChartItem] {
         guard 
             let firstDate = req.parameters.get("firstDate"),
             let secondDate = req.parameters.get("secondDate")
         else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let query = """
-                select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
-                from ShareCountStat s
-                inner join MedoContent c on c.id = s.contentId
-                inner join Author a on c.authorId = a.id
-                where c.contentType = 0
-                -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
-                and s.dateTime >= ? and s.dateTime < ?
-                group by s.contentId
-                order by totalShareCount desc
-                limit 10
-            """
-
-            return sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).flatMapEach(on: req.eventLoop) { row in
-                req.eventLoop.makeSucceededFuture(
-                    TopChartItem(
-                        rankNumber: "",
-                        contentId: row.column("contentId")?.string ?? "",
-                        contentName: row.column("contentName")?.string ?? "",
-                        contentAuthorId: row.column("authorId")?.string ?? "",
-                        contentAuthorName: row.column("authorName")?.string ?? "",
-                        shareCount: row.column("totalShareCount")?.integer ?? 0
-                    )
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture([])
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return []
         }
+        let query = """
+            select s.contentId, c.title as contentName, a.id as authorId, a.name as authorName, sum(s.shareCount) totalShareCount
+            from ShareCountStat s
+            inner join MedoContent c on c.id = s.contentId
+            inner join Author a on c.authorId = a.id
+            where c.contentType = 0
+            -- '~' sorts after every character in an ISO 8601 timestamp, so this keeps all of secondDate's day.
+            and s.dateTime >= ? and s.dateTime < ?
+            group by s.contentId
+            order by totalShareCount desc
+            limit 10
+        """
+        return try await sqlite.query(query, [.text(firstDate), .text(secondDate + "~")]).map(Self.topChartItem(from:))
     }
 
-    func getSoundShareCountStatsForSoundIdHandler(req: Request) -> EventLoopFuture<ContentShareCountStats> {
+    /// A chart row from a query selecting `contentId`, `contentName`, `authorId`,
+    /// `authorName` and `totalShareCount`.
+    private static func topChartItem(from row: SQLiteRow) -> TopChartItem {
+        TopChartItem(
+            rankNumber: "",
+            contentId: row.column("contentId")?.string ?? "",
+            contentName: row.column("contentName")?.string ?? "",
+            contentAuthorId: row.column("authorId")?.string ?? "",
+            contentAuthorName: row.column("authorName")?.string ?? "",
+            shareCount: row.column("totalShareCount")?.integer ?? 0
+        )
+    }
+
+    func getSoundShareCountStatsForSoundIdHandler(req: Request) async throws -> ContentShareCountStats {
         guard let soundId = req.parameters.get("soundId") else {
-            return req.eventLoop.makeFailedFuture(Abort(.badRequest, reason: "Missing soundId parameter"))
+            throw Abort(.badRequest, reason: "Missing soundId parameter")
         }
-
-        if let sqlite = req.db as? SQLiteDatabase {
-            let shareCountQuery = """
-                SELECT
-                    SUM(CASE WHEN s.dateTime >= date('now', '-7 days') THEN s.shareCount ELSE 0 END) AS lastWeekShareCount,
-                    SUM(s.shareCount) AS totalShareCount
-                FROM ShareCountStat s
-                INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
-                WHERE s.contentId = ?
-            """
-
-            let monthYearQuery = """
-                SELECT
-                    strftime('%Y', s.dateTime) AS year,
-                    strftime('%m', s.dateTime) AS month,
-                    SUM(s.shareCount) AS totalShareCount
-                FROM ShareCountStat s
-                INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
-                WHERE s.contentId = ?
-                GROUP BY year, month
-                ORDER BY totalShareCount DESC
-                LIMIT 1
-            """
-
-            let shareCountFuture = sqlite.query(shareCountQuery, [.text(soundId)])
-            let monthYearFuture = sqlite.query(monthYearQuery, [.text(soundId)])
-
-            return shareCountFuture.and(monthYearFuture).flatMapThrowing { shareCountRows, monthYearRows in
-                // Processing the all-time and last-week share counts
-                guard let shareCountRow = shareCountRows.first else {
-                    throw Abort(.notFound, reason: "No stats found for soundId \(soundId)")
-                }
-                let totalShareCount = shareCountRow.column("totalShareCount")?.integer ?? 0
-                let lastWeekShareCount = shareCountRow.column("lastWeekShareCount")?.integer ?? 0
-
-                // Processing the month and year with the most share counts
-                guard let monthYearRow = monthYearRows.first else {
-                    throw Abort(.notFound, reason: "No month-year stats found for soundId \(soundId)")
-                }
-                let year = monthYearRow.column("year")?.string ?? ""
-                let month = monthYearRow.column("month")?.string ?? ""
-
-                return ContentShareCountStats(
-                    totalShareCount: totalShareCount,
-                    lastWeekShareCount: lastWeekShareCount,
-                    topMonth: month,
-                    topYear: year
-                )
-            }
-        } else {
-            return req.eventLoop.makeSucceededFuture(
-                ContentShareCountStats(
-                    totalShareCount: 0,
-                    lastWeekShareCount: 0,
-                    topMonth: "",
-                    topYear: ""
-                )
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            return ContentShareCountStats(
+                totalShareCount: 0,
+                lastWeekShareCount: 0,
+                topMonth: "",
+                topYear: ""
             )
         }
+
+        let shareCountQuery = """
+            SELECT
+                SUM(CASE WHEN s.dateTime >= date('now', '-7 days') THEN s.shareCount ELSE 0 END) AS lastWeekShareCount,
+                SUM(s.shareCount) AS totalShareCount
+            FROM ShareCountStat s
+            INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
+            WHERE s.contentId = ?
+        """
+
+        let monthYearQuery = """
+            SELECT
+                strftime('%Y', s.dateTime) AS year,
+                strftime('%m', s.dateTime) AS month,
+                SUM(s.shareCount) AS totalShareCount
+            FROM ShareCountStat s
+            INNER JOIN MedoContent c ON c.id = s.contentId AND c.contentType = 0
+            WHERE s.contentId = ?
+            GROUP BY year, month
+            ORDER BY totalShareCount DESC
+            LIMIT 1
+        """
+
+        let shareCountRows = try await sqlite.query(shareCountQuery, [.text(soundId)])
+        let monthYearRows = try await sqlite.query(monthYearQuery, [.text(soundId)])
+
+        // Processing the all-time and last-week share counts
+        guard let shareCountRow = shareCountRows.first else {
+            throw Abort(.notFound, reason: "No stats found for soundId \(soundId)")
+        }
+        let totalShareCount = shareCountRow.column("totalShareCount")?.integer ?? 0
+        let lastWeekShareCount = shareCountRow.column("lastWeekShareCount")?.integer ?? 0
+
+        // Processing the month and year with the most share counts
+        guard let monthYearRow = monthYearRows.first else {
+            throw Abort(.notFound, reason: "No month-year stats found for soundId \(soundId)")
+        }
+        let year = monthYearRow.column("year")?.string ?? ""
+        let month = monthYearRow.column("month")?.string ?? ""
+
+        return ContentShareCountStats(
+            totalShareCount: totalShareCount,
+            lastWeekShareCount: lastWeekShareCount,
+            topMonth: month,
+            topYear: year
+        )
     }
 
     func getActiveUsersCountFromHandlerV3(req: Request) throws -> EventLoopFuture<ActiveUsersResponse> {
