@@ -110,6 +110,85 @@ final class ShareRankingTests: XCTestCase {
         XCTAssertEqual(items, [])
     }
 
+    // MARK: - Behaviour pinned before the async/await conversion
+
+    func testSoundAllTimeV3ReturnsTheChartJSON() async throws {
+        try await app.test(.GET, "api/v3/sound-share-count-stats-all-time") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(res.body.readableBytesView)) as? [[String: Any]])
+            XCTAssertEqual(list.map { $0["contentId"] as? String }, [self.soundB.uuidString, self.soundA.uuidString])
+            let json = try XCTUnwrap(list.first)
+            XCTAssertEqual(Set(json.keys), ["id", "rankNumber", "contentId", "contentName", "contentAuthorId", "contentAuthorName", "shareCount"])
+            XCTAssertEqual(json["rankNumber"] as? String, "")
+            XCTAssertEqual(json["contentName"] as? String, "Test")
+            XCTAssertEqual(json["contentAuthorId"] as? String, self.authorId.uuidString)
+            XCTAssertEqual(json["contentAuthorName"] as? String, "Autor")
+            XCTAssertEqual(json["shareCount"] as? Int, 5)
+        }
+    }
+
+    func testSoundAllTimeV3KeepsTheTopTen() async throws {
+        for index in 0..<11 {
+            let id = UUID()
+            try await Self.makeContent(id: id, type: .sound, authorId: authorId.uuidString).create(on: app.db)
+            try await addShare(id, type: .sound, count: 100 + index, dateTime: "2026-03-10T12:00:00.000Z")
+        }
+
+        let items = try await getChart("api/v3/sound-share-count-stats-all-time")
+        XCTAssertEqual(items.map(\.shareCount), Array((101...110).reversed()))
+    }
+
+    func testSoundAllTimeV2() async throws {
+        try await app.test(.GET, "api/v2/sound-share-count-stats-all-time") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let stats = try res.content.decode([ShareCountStat].self)
+            XCTAssertEqual(stats.map(\.contentId), [self.soundB.uuidString, self.soundA.uuidString])
+            XCTAssertEqual(stats.map(\.shareCount), [5, 3])
+            XCTAssertEqual(stats.map(\.installId), ["", ""])
+            XCTAssertEqual(stats.map(\.contentType), [0, 0])
+            // The query has no date column, so every row carries the time of the request.
+            XCTAssertTrue(stats.allSatisfy { $0.dateTime?.isUTCDateString() == true })
+        }
+    }
+
+    func testAllSoundShareCountStatsV1ReturnsEachSoundShareRow() async throws {
+        try await app.test(.GET, "api/v1/all-sound-share-count-stats") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let list = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(res.body.readableBytesView)) as? [[String: Any]])
+            XCTAssertEqual(Set(list.compactMap { $0["contentId"] as? String }), [self.soundA.uuidString, self.soundB.uuidString])
+            let json = try XCTUnwrap(list.first { $0["contentId"] as? String == self.soundB.uuidString })
+            XCTAssertEqual(Set(json.keys), ["id", "installId", "contentId", "contentType", "shareCount", "dateTime"])
+            XCTAssertNotNil(UUID(uuidString: json["id"] as? String ?? ""))
+            XCTAssertEqual(json["installId"] as? String, "install-1")
+            XCTAssertEqual(json["contentType"] as? Int, 0)
+            XCTAssertEqual(json["shareCount"] as? Int, 5)
+            XCTAssertEqual(json["dateTime"] as? String, "2025-06-10T12:00:00.000Z")
+        }
+    }
+
+    func testStatsForOneSoundCountsTheLastWeek() async throws {
+        try await addShare(soundB, type: .sound, count: 7, dateTime: Date().iso8601withFractionalSeconds)
+
+        try await app.test(.GET, "api/v3/sound-share-count-stats-for/\(soundB.uuidString)") { res async throws in
+            XCTAssertEqual(res.status, .ok)
+            let stats = try res.content.decode(ContentShareCountStats.self)
+            XCTAssertEqual(stats.totalShareCount, 12)
+            XCTAssertEqual(stats.lastWeekShareCount, 7)
+        }
+    }
+
+    func testStatsForASoundWithoutSharesIsNotFound() async throws {
+        try await app.test(.GET, "api/v3/sound-share-count-stats-for/\(UUID().uuidString)") { res async in
+            XCTAssertEqual(res.status, .notFound)
+        }
+    }
+
+    func testStatsForASongIsNotFound() async throws {
+        try await app.test(.GET, "api/v3/sound-share-count-stats-for/\(song.uuidString)") { res async in
+            XCTAssertEqual(res.status, .notFound)
+        }
+    }
+
     // MARK: - Helpers
 
     private func getChart(_ path: String) async throws -> [TopChartItem] {
