@@ -64,7 +64,7 @@ struct MusicGenresController {
         }
 
         guard let genreIdAsUUID = UUID(uuidString: genreId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         guard let genre = try await MusicGenre.query(on: req.db)
@@ -95,7 +95,7 @@ struct MusicGenresController {
         }
 
         guard let genreIdAsUUID = UUID(uuidString: genreId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         guard let content = try await MusicGenre.query(on: req.db)

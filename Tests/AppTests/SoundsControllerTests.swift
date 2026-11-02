@@ -164,10 +164,15 @@ final class SoundsControllerTests: XCTestCase {
         })
     }
 
-    /// Arguably should be 400; pinned so changing it is a deliberate decision.
-    func testGetSoundWithAnInvalidIdIsAServerError() async throws {
+    func testGetSoundWithAnInvalidIdIsABadRequest() async throws {
         try await app.test(.GET, "api/v3/sound/not-a-uuid", afterResponse: { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .badRequest)
+        })
+    }
+
+    func testDeleteSoundWithAnInvalidIdIsABadRequest() async throws {
+        try await app.test(.DELETE, "api/v3/sound/not-a-uuid/\(TestEnvironment.testPassword)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .badRequest)
         })
     }
 

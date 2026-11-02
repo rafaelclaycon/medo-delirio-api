@@ -101,7 +101,7 @@ struct AuthorsController {
             throw Abort(.badRequest)
         }
         guard let authorIdAsUUID = UUID(uuidString: authorId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         guard let author = try await Author.query(on: req.db)
@@ -138,7 +138,7 @@ struct AuthorsController {
             throw Abort(.badRequest)
         }
         guard let authorIdAsUUID = UUID(uuidString: authorId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         guard let content = try await Author.query(on: req.db)

@@ -54,10 +54,9 @@ final class MusicGenresControllerTests: XCTestCase {
         })
     }
 
-    /// Arguably should be 400; pinned so changing it is a deliberate decision.
-    func testGetMusicGenreWithAnInvalidIdIsAServerError() async throws {
+    func testGetMusicGenreWithAnInvalidIdIsABadRequest() async throws {
         try await app.test(.GET, "api/v3/music-genre/not-a-uuid", afterResponse: { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .badRequest)
         })
     }
 
@@ -120,9 +119,9 @@ final class MusicGenresControllerTests: XCTestCase {
         XCTAssertEqual(saved?.isHidden, false)
     }
 
-    func testDeleteMusicGenreWithAnInvalidIdIsAServerError() async throws {
+    func testDeleteMusicGenreWithAnInvalidIdIsABadRequest() async throws {
         try await app.test(.DELETE, "api/v3/music-genre/not-a-uuid/\(TestEnvironment.testPassword)", afterResponse: { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .badRequest)
         })
     }
 }

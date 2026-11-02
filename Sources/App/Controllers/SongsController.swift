@@ -87,7 +87,7 @@ struct SongsController {
         }
 
         guard let songIdAsUUID = UUID(uuidString: songId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         // Deleted content must 404 so a client retrying an old `created` event
@@ -115,7 +115,7 @@ struct SongsController {
         }
 
         guard let songIdAsUUID = UUID(uuidString: songId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
         guard let content = try await MedoContent.find(songIdAsUUID, on: req.db) else {
             throw Abort(.notFound)

@@ -141,10 +141,9 @@ final class AuthorsControllerTests: XCTestCase {
         })
     }
 
-    /// Arguably should be 400; pinned so changing it is a deliberate decision.
-    func testGetAuthorWithAnInvalidIdIsAServerError() async throws {
+    func testGetAuthorWithAnInvalidIdIsABadRequest() async throws {
         try await app.test(.GET, "api/v3/author/not-a-uuid", afterResponse: { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .badRequest)
         })
     }
 
@@ -273,9 +272,9 @@ final class AuthorsControllerTests: XCTestCase {
         XCTAssertEqual(saved?.isHidden, false)
     }
 
-    func testDeleteAuthorWithAnInvalidIdIsAServerError() async throws {
+    func testDeleteAuthorWithAnInvalidIdIsABadRequest() async throws {
         try await app.test(.DELETE, "api/v3/author/not-a-uuid/\(TestEnvironment.testPassword)", afterResponse: { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .badRequest)
         })
     }
 }

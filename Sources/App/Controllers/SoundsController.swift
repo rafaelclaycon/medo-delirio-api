@@ -79,7 +79,7 @@ struct SoundsController {
             throw Abort(.badRequest)
         }
         guard let soundIdAsUUID = UUID(uuidString: soundId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
 
         // Deleted content must 404 so a client retrying an old `created` event
@@ -114,7 +114,7 @@ struct SoundsController {
             throw Abort(.badRequest)
         }
         guard let soundIdAsUUID = UUID(uuidString: soundId) else {
-            throw Abort(.internalServerError)
+            throw Abort(.badRequest, reason: "Invalid id.")
         }
         guard let content = try await MedoContent.find(soundIdAsUUID, on: req.db) else {
             throw Abort(.notFound)
