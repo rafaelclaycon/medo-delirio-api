@@ -75,20 +75,31 @@ final class ReactionStatsTests: XCTestCase {
         }
     }
 
-    /// Views are matched to reactions by title after stripping the wrapper and every
-    /// ")" in it, so a view of a deleted reaction, or of a title with its own
-    /// parentheses, comes back as an empty reaction.
-    func testTop3ReturnsAnEmptyReactionForViewsThatMatchNoReaction() async throws {
-        try await createReaction("Hmm (sério)")
-        try await addViews("didViewReaction(Hmm (sério))", count: 2)
+    /// Old app versions keep logging views of reactions that were deleted since. Those
+    /// used to take a slot as an empty reaction; now the next reaction fills it.
+    func testTop3SkipsViewsOfDeletedReactions() async throws {
+        let hmm = try await createReaction("Hmm", position: 1)
+        let rindo = try await createReaction("Rindo", position: 2)
+        let chocado = try await createReaction("Chocado", position: 3)
+        try await addViews("didViewReaction(Apagada)", count: 9)
+        try await addViews("didViewReaction(Hmm)", count: 3)
+        try await addViews("didViewReaction(Rindo)", count: 2)
+        try await addViews("didViewReaction(Chocado)", count: 1)
 
         try await app.test(.GET, "api/v4/top-3-reactions") { res async throws in
             XCTAssertEqual(res.status, .ok)
+            XCTAssertEqual(try res.content.decode([Reaction].self).map(\.id), [hmm, rindo, chocado])
+        }
+    }
+
+    func testTop3MatchesTitlesWithTheirOwnParentheses() async throws {
+        let serio = try await createReaction("Hmm (sério)")
+        try await addViews("didViewReaction(Hmm (sério))", count: 2)
+
+        try await app.test(.GET, "api/v4/top-3-reactions") { res async throws in
             let reactions = try res.content.decode([Reaction].self)
-            XCTAssertEqual(reactions.count, 1)
-            XCTAssertNil(reactions.first?.id)
-            XCTAssertEqual(reactions.first?.title, "")
-            XCTAssertEqual(reactions.first?.position, 0)
+            XCTAssertEqual(reactions.map(\.id), [serio])
+            XCTAssertEqual(reactions.first?.title, "Hmm (sério)")
         }
     }
 
@@ -124,6 +135,18 @@ final class ReactionStatsTests: XCTestCase {
             let reaction = try XCTUnwrap(first["reaction"] as? [String: Any])
             XCTAssertEqual(reaction["title"] as? String, "Hoje")
             XCTAssertEqual(reaction["position"] as? Int, 1)
+        }
+    }
+
+    func testPopularitySkipsViewsOfDeletedReactions() async throws {
+        let semana = try await createReaction("Semana")
+        try await addViews("didViewReaction(Apagada)", count: 9, daysAgo: 3)
+        try await addViews("didViewReaction(Semana)", count: 1, daysAgo: 3)
+
+        try await app.test(.GET, "api/v3/reaction-popularity-stats") { res async throws in
+            let stats = try res.content.decode([TopChartReaction].self)
+            XCTAssertEqual(stats.map(\.position), ["2", "3"])
+            XCTAssertEqual(stats.map(\.reaction.id), [semana, semana])
         }
     }
 

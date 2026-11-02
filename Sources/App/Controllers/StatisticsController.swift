@@ -1041,20 +1041,7 @@ extension StatisticsController {
             return []
         }
 
-        let query = """
-            select
-                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
-                count(*) as reactionCount,
-                r.*
-            from UsageMetric um
-            left join Reaction r on r.title = reaction
-            where destinationScreen like 'didViewReaction%'
-                and destinationScreen != 'didViewReactionsTab'
-                and dateTime >= date('now')
-            group by reaction
-            order by reactionCount desc
-            limit 3
-        """
+        let query = Self.topReactionsQuery(since: "date('now')", limit: 3)
 
         return try await sqlite.query(query).map(Self.reaction(from:))
     }
@@ -1064,49 +1051,11 @@ extension StatisticsController {
             return []
         }
 
-        let todaysTopReaction = """
-            select
-                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
-                count(*) as reactionCount,
-                r.*
-            from UsageMetric um
-            left join Reaction r on r.title = reaction
-            where destinationScreen like 'didViewReaction%'
-                and destinationScreen != 'didViewReactionsTab'
-                and dateTime >= date('now')
-            group by reaction
-            order by reactionCount desc
-            limit 1
-        """
+        let todaysTopReaction = Self.topReactionsQuery(since: "date('now')", limit: 1)
 
-        let lastWeeksTopReaction = """
-            select
-                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
-                count(*) as reactionCount,
-                r.*
-            from UsageMetric um
-            left join Reaction r on r.title = reaction
-            where destinationScreen like 'didViewReaction%'
-                and destinationScreen != 'didViewReactionsTab'
-                and dateTime >= datetime('now', '-7 days')
-            group by reaction
-            order by reactionCount desc
-            limit 1
-        """
+        let lastWeeksTopReaction = Self.topReactionsQuery(since: "datetime('now', '-7 days')", limit: 1)
 
-        let allTimeTopReaction = """
-            select
-                replace(replace(destinationScreen, 'didViewReaction(', ''), ')', '') as reaction,
-                count(*) as reactionCount,
-                r.*
-            from UsageMetric um
-            left join Reaction r on r.title = reaction
-            where destinationScreen like 'didViewReaction%'
-            and destinationScreen != 'didViewReactionsTab'
-            group by reaction
-            order by reactionCount desc
-            limit 1
-        """
+        let allTimeTopReaction = Self.topReactionsQuery(since: nil, limit: 1)
 
         let todaysRows = try await sqlite.query(todaysTopReaction)
         let lastWeekRows = try await sqlite.query(lastWeeksTopReaction)
@@ -1127,6 +1076,25 @@ extension StatisticsController {
 
     /// A reaction from a row that selects `r.*`. A view that matched no reaction gives
     /// an empty one.
+    /// The most viewed reactions since `since`, a SQL date expression (nil for all time).
+    ///
+    /// Views name the reaction by title, as "didViewReaction(<title>)", so the title is
+    /// what sits between the prefix (16 characters) and the final ")". It may contain
+    /// parentheses of its own. Views of reactions deleted since are left out.
+    private static func topReactionsQuery(since: String?, limit: Int) -> String {
+        let dateFilter = since.map { "and um.dateTime >= \($0)" } ?? ""
+        return """
+            select count(*) as reactionCount, r.*
+            from UsageMetric um
+            join Reaction r on r.title = substr(um.destinationScreen, 17, length(um.destinationScreen) - 17)
+            where um.destinationScreen like 'didViewReaction(%'
+                \(dateFilter)
+            group by r.id
+            order by reactionCount desc
+            limit \(limit)
+        """
+    }
+
     private static func reaction(from row: SQLiteRow) -> Reaction {
         Reaction(
             id: UUID(uuidString: row.column("id")?.string ?? ""),
