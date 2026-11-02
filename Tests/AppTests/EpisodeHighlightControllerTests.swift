@@ -1,94 +1,102 @@
 @testable import App
-import XCTVapor
+import Testing
+import VaporTesting
 import Foundation
 
-final class EpisodeHighlightControllerTests: XCTestCase {
-    var app: Application!
+struct EpisodeHighlightControllerTests {
 
     private let path = "api/v4/episode-highlight"
     private var protectedPath: String { "\(path)/\(TestEnvironment.testPassword)" }
 
-    override func setUp() async throws {
-        TestEnvironment.configurePasswords()
-        app = try await Application.make(.testing)
-        try await configure(app)
-    }
-
-    override func tearDown() async throws {
-        try await app.asyncShutdown()
-    }
-
-    func testWithNothingSet_returnsNotFound() async throws {
-        try await app.test(.GET, path) { res async in
-            XCTAssertEqual(res.status, .notFound)
+    @Test func `With nothing set returns not found`() async throws {
+        try await withTestApp { app in
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .notFound)
+            }
         }
     }
 
-    func testSetThenGet_returnsTheHighlight() async throws {
-        let highlight = EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito")
+    @Test func `Set then get returns the highlight`() async throws {
+        try await withTestApp { app in
+            let highlight = EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito")
 
-        try await set(highlight) { res async throws in
-            XCTAssertEqual(res.status, .ok)
-        }
-        try await app.test(.GET, path) { res async throws in
-            XCTAssertEqual(res.status, .ok)
-            XCTAssertEqual(try res.content.decode(EpisodeHighlight.self), highlight)
+            try await set(highlight, on: app) { res async throws in
+                #expect(res.status == .ok)
+            }
+            try await app.testing().test(.GET, path) { res async throws in
+                #expect(res.status == .ok)
+                #expect(try res.content.decode(EpisodeHighlight.self) == highlight)
+            }
         }
     }
 
-    func testMissingLabel_comesBackEmpty() async throws {
-        try await app.test(.POST, protectedPath, beforeRequest: { req async throws in
-            try req.content.encode(["episodeId": "ep-123", "style": "lulaWin"])
-        }) { res async in
-            XCTAssertEqual(res.status, .ok)
-        }
-        try await app.test(.GET, path) { res async throws in
-            XCTAssertEqual(try res.content.decode(EpisodeHighlight.self).label, "")
-        }
-    }
-
-    func testBlankLabel_isSavedEmpty() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "  ")) { res async throws in
-            XCTAssertEqual(res.status, .ok)
-            XCTAssertEqual(try res.content.decode(EpisodeHighlight.self).label, "")
+    @Test func `Missing label comes back empty`() async throws {
+        try await withTestApp { app in
+            try await app.testing().test(.POST, protectedPath, beforeRequest: { req async throws in
+                try req.content.encode(["episodeId": "ep-123", "style": "lulaWin"])
+            }) { res async in
+                #expect(res.status == .ok)
+            }
+            try await app.testing().test(.GET, path) { res async throws in
+                #expect(try res.content.decode(EpisodeHighlight.self).label == "")
+            }
         }
     }
 
-    func testLabelOverThirtyCharacters_isRejected() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: String(repeating: "a", count: 31))) { res async in
-            XCTAssertEqual(res.status, .badRequest)
+    @Test func `Blank label is saved empty`() async throws {
+        try await withTestApp { app in
+            try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "  "), on: app) { res async throws in
+                #expect(res.status == .ok)
+                #expect(try res.content.decode(EpisodeHighlight.self).label == "")
+            }
         }
     }
 
-    func testWrongPassword_isForbidden() async throws {
-        try await app.test(.POST, "\(path)/wrong", beforeRequest: { req async throws in
-            try req.content.encode(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito"))
-        }) { res async in
-            XCTAssertEqual(res.status, .forbidden)
+    @Test func `Label over thirty characters is rejected`() async throws {
+        try await withTestApp { app in
+            try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: String(repeating: "a", count: 31)), on: app) { res async in
+                #expect(res.status == .badRequest)
+            }
         }
     }
 
-    func testUnknownStyle_isRejected() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "confetti", label: "Lula eleito")) { res async in
-            XCTAssertEqual(res.status, .badRequest)
+    @Test func `Wrong password is forbidden`() async throws {
+        try await withTestApp { app in
+            try await app.testing().test(.POST, "\(path)/wrong", beforeRequest: { req async throws in
+                try req.content.encode(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito"))
+            }) { res async in
+                #expect(res.status == .forbidden)
+            }
         }
     }
 
-    func testEmptyEpisodeId_isRejected() async throws {
-        try await set(EpisodeHighlight(episodeId: " ", style: "lulaWin", label: "Lula eleito")) { res async in
-            XCTAssertEqual(res.status, .badRequest)
+    @Test func `Unknown style is rejected`() async throws {
+        try await withTestApp { app in
+            try await set(EpisodeHighlight(episodeId: "ep-123", style: "confetti", label: "Lula eleito"), on: app) { res async in
+                #expect(res.status == .badRequest)
+            }
         }
     }
 
-    func testDelete_takesTheHighlightOff() async throws {
-        try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito")) { res async in
-            XCTAssertEqual(res.status, .ok)
+    @Test func `Empty episode id is rejected`() async throws {
+        try await withTestApp { app in
+            try await set(EpisodeHighlight(episodeId: " ", style: "lulaWin", label: "Lula eleito"), on: app) { res async in
+                #expect(res.status == .badRequest)
+            }
         }
-        try await app.test(.DELETE, protectedPath) { res async in
-            XCTAssertEqual(res.status, .noContent)
-        }
-        try await app.test(.GET, path) { res async in
-            XCTAssertEqual(res.status, .notFound)
+    }
+
+    @Test func `Delete takes the highlight off`() async throws {
+        try await withTestApp { app in
+            try await set(EpisodeHighlight(episodeId: "ep-123", style: "lulaWin", label: "Lula eleito"), on: app) { res async in
+                #expect(res.status == .ok)
+            }
+            try await app.testing().test(.DELETE, protectedPath) { res async in
+                #expect(res.status == .noContent)
+            }
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .notFound)
+            }
         }
     }
 
@@ -96,9 +104,10 @@ final class EpisodeHighlightControllerTests: XCTestCase {
 
     private func set(
         _ highlight: EpisodeHighlight,
+        on app: Application,
         afterResponse: @escaping (TestingHTTPResponse) async throws -> Void
     ) async throws {
-        try await app.test(.POST, protectedPath, beforeRequest: { req async throws in
+        try await app.testing().test(.POST, protectedPath, beforeRequest: { req async throws in
             try req.content.encode(highlight)
         }, afterResponse: afterResponse)
     }

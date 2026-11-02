@@ -165,7 +165,10 @@ None of these change behaviour. Do them when convenient.
 
 - **Declare JWTKit explicitly.** `ReleaseConfigs.swift` imports `JWTKit`, but it is only available through APNS. Add `.package(url: "https://github.com/vapor/jwt-kit.git", from: "4.13.0")` and the `JWTKit` product to the `App` target.
 - **`RouteCollection`.** All 141 routes are registered by hand in `routes.swift`. Make each controller conform to `RouteCollection` and register its own routes under `api/v1`, `api/v2` and `api/v3` groups. Keep every path identical; an existing-routes test helps.
-- **Swift Testing.** Move from `XCTVapor` + `XCTestCase` to `VaporTesting` + `@Test`, starting with new tests. Existing XCTest suites can stay as they are.
+- ✅ **Swift Testing (Nov 2).** All 327 tests moved from `XCTVapor` + `XCTestCase` to `VaporTesting` + `@Test`, one to one, and `XCTVapor` is gone from `Package.swift`.
+  - **App lifecycle:** each test runs inside `withTestApp`, built on Vapor's `withApp`. It shuts the app down even when the test throws.
+  - **Parallel by default:** tests now run in parallel, so the suite takes about 5 s instead of 17 s. Each app has its own in-memory database. The password environment variables are set once per process, because `setenv` isn't safe alongside concurrent reads.
+  - **Test-only change:** nothing ships to the server.
 - **Package layout.** The current Vapor template uses a single `executableTarget` instead of the `App` + `Run` split, and drops the `-cross-module-optimization` `unsafeFlags`. This is cosmetic; only change it alongside a release-build benchmark.
 
 ---

@@ -1,3 +1,5 @@
+@testable import App
+import VaporTesting
 import Foundation
 
 /// `ReleaseConfigs.Passwords.*` crash the process via `fatalError` if their
@@ -8,6 +10,12 @@ enum TestEnvironment {
     static let testPassword = "test-password"
 
     static func configurePasswords() {
+        _ = passwordsConfigured
+    }
+
+    /// Set once per process: `setenv` isn't safe while other threads read the
+    /// environment, and Swift Testing runs tests in parallel.
+    private static let passwordsConfigured: Void = {
         for key in [
             "SEND_NOTIFICATION_PASSWORD",
             "SET_DONOR_NAMES_PASSWORD",
@@ -19,5 +27,13 @@ enum TestEnvironment {
         ] {
             setenv(key, testPassword, 1)
         }
-    }
+    }()
+}
+
+/// Runs `test` against a freshly configured app with its own in-memory database,
+/// and shuts the app down afterwards, even when the test throws.
+@discardableResult
+func withTestApp<T>(_ test: (Application) async throws -> T) async throws -> T {
+    TestEnvironment.configurePasswords()
+    return try await withApp(configure: configure, test)
 }

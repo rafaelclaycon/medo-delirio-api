@@ -1,67 +1,75 @@
 @testable import App
-import XCTVapor
+import Testing
+import VaporTesting
+import Foundation
 
-final class RSSPollingServiceTests: XCTestCase {
+struct RSSPollingServiceTests {
 
-    func testSpreakerStyleURLReturnsLastPathComponent() {
+    @Test func `Spreaker style URL returns last path component`() {
         let guid = "https://api.spreaker.com/episode/69980761"
-        XCTAssertEqual(RSSPollingService.parseEpisodeId(from: guid), "69980761")
+        #expect(RSSPollingService.parseEpisodeId(from: guid) == "69980761")
     }
 
-    func testWordPressStyleQueryReturnsPValue() {
+    @Test func `WordPress style query returns p value`() {
         let guid = "https://example.com/?p=40097"
-        XCTAssertEqual(RSSPollingService.parseEpisodeId(from: guid), "40097")
+        #expect(RSSPollingService.parseEpisodeId(from: guid) == "40097")
     }
 
-    func testWordPressStyleQueryAmongOtherParams() {
+    @Test func `WordPress style query among other params`() {
         let guid = "https://example.com/?utm_source=rss&p=12345"
-        XCTAssertEqual(RSSPollingService.parseEpisodeId(from: guid), "12345")
+        #expect(RSSPollingService.parseEpisodeId(from: guid) == "12345")
     }
 
-    func testPlainGUIDIsUsedAsIs() {
+    @Test func `Plain GUID is used as is`() {
         let guid = "not-a-url-just-a-guid"
-        XCTAssertEqual(RSSPollingService.parseEpisodeId(from: guid), guid)
+        #expect(RSSPollingService.parseEpisodeId(from: guid) == guid)
     }
 
-    func testURLWithNoUsablePathOrQueryFallsBackToFullGUID() {
+    @Test func `URL with no usable path or query falls back to full GUID`() {
         let guid = "https://example.com/"
-        XCTAssertEqual(RSSPollingService.parseEpisodeId(from: guid), guid)
+        #expect(RSSPollingService.parseEpisodeId(from: guid) == guid)
     }
 
     // MARK: - Feed parsing
 
-    func testParseFeedReturnsLatestEpisodeAndAllItems() throws {
+    @Test func `Parse feed returns latest episode and all items`() throws {
         let snapshot = try RSSPollingService.parseFeed(Self.feed(itemCount: 6))
 
-        XCTAssertEqual(snapshot.latest.guid, "https://api.spreaker.com/episode/1006")
-        XCTAssertEqual(snapshot.latest.title, "II - 2026.6 - Episódio 6")
-        XCTAssertEqual(snapshot.latest.imageURL, "https://images.example.com/1006.jpg")
-        XCTAssertEqual(snapshot.episodes.map(\.guid).last, "https://api.spreaker.com/episode/1001")
-        XCTAssertEqual(snapshot.episodes.count, 6)
+        #expect(snapshot.latest.guid == "https://api.spreaker.com/episode/1006")
+        #expect(snapshot.latest.title == "II - 2026.6 - Episódio 6")
+        #expect(snapshot.latest.imageURL == "https://images.example.com/1006.jpg")
+        #expect(snapshot.episodes.map(\.guid).last == "https://api.spreaker.com/episode/1001")
+        #expect(snapshot.episodes.count == 6)
     }
 
-    func testParseFeedRejectsFeedWithTooFewItems() {
-        XCTAssertThrowsError(try RSSPollingService.parseFeed(Self.feed(itemCount: 2))) { error in
-            guard case .tooFewItems(2) = error as? RSSPollingService.FeedError else {
-                return XCTFail("Expected tooFewItems(2), got \(error)")
-            }
+    @Test func `Parse feed rejects feed with too few items`() {
+        let error = #expect(throws: RSSPollingService.FeedError.self) {
+            try RSSPollingService.parseFeed(Self.feed(itemCount: 2))
+        }
+        guard case .tooFewItems(2) = error else {
+            Issue.record("Expected tooFewItems(2), got \(String(describing: error))")
+            return
         }
     }
 
-    func testParseFeedRejectsLatestItemWithoutGUID() {
+    @Test func `Parse feed rejects latest item without GUID`() {
         let data = Self.feed(itemCount: 5, latestHasGUID: false)
-        XCTAssertThrowsError(try RSSPollingService.parseFeed(data)) { error in
-            guard case .missingLatestGUID = error as? RSSPollingService.FeedError else {
-                return XCTFail("Expected missingLatestGUID, got \(error)")
-            }
+        let error = #expect(throws: RSSPollingService.FeedError.self) {
+            try RSSPollingService.parseFeed(data)
+        }
+        guard case .missingLatestGUID = error else {
+            Issue.record("Expected missingLatestGUID, got \(String(describing: error))")
+            return
         }
     }
 
-    func testParseFeedRejectsInvalidXML() {
-        XCTAssertThrowsError(try RSSPollingService.parseFeed(Data("<html>Bad Gateway".utf8))) { error in
-            guard case .parse = error as? RSSPollingService.FeedError else {
-                return XCTFail("Expected parse, got \(error)")
-            }
+    @Test func `Parse feed rejects invalid XML`() {
+        let error = #expect(throws: RSSPollingService.FeedError.self) {
+            try RSSPollingService.parseFeed(Data("<html>Bad Gateway".utf8))
+        }
+        guard case .parse = error else {
+            Issue.record("Expected parse, got \(String(describing: error))")
+            return
         }
     }
 

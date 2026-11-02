@@ -1,31 +1,26 @@
 @testable import App
-import XCTVapor
+import Testing
+import VaporTesting
+import Foundation
 
-final class StatusCheckControllerTests: XCTestCase {
-    var app: Application!
+struct StatusCheckControllerTests {
 
-    override func setUp() async throws {
-        TestEnvironment.configurePasswords()
-        app = try await Application.make(.testing)
-        try await configure(app)
+    @Test func `Status check V1 returns a plain text message`() async throws {
+        try await withTestApp { app in
+            try await app.testing().test(.GET, "api/v1/status-check", afterResponse: { res async in
+                #expect(res.status == .ok)
+                #expect(res.headers.contentType == .plainText)
+                #expect(res.body.string == "Conexão com o servidor OK.")
+            })
+        }
     }
 
-    override func tearDown() async throws {
-        try await app.asyncShutdown()
-    }
-
-    func testStatusCheckV1ReturnsAPlainTextMessage() async throws {
-        try await app.test(.GET, "api/v1/status-check", afterResponse: { res async in
-            XCTAssertEqual(res.status, .ok)
-            XCTAssertEqual(res.headers.contentType, .plainText)
-            XCTAssertEqual(res.body.string, "Conexão com o servidor OK.")
-        })
-    }
-
-    func testStatusCheckV2ReturnsAnEmptyOK() async throws {
-        try await app.test(.GET, "api/v2/status-check", afterResponse: { res async in
-            XCTAssertEqual(res.status, .ok)
-            XCTAssertEqual(res.body.readableBytes, 0)
-        })
+    @Test func `Status check V2 returns an empty OK`() async throws {
+        try await withTestApp { app in
+            try await app.testing().test(.GET, "api/v2/status-check", afterResponse: { res async in
+                #expect(res.status == .ok)
+                #expect(res.body.readableBytes == 0)
+            })
+        }
     }
 }
