@@ -30,18 +30,11 @@ final class ClientDeviceStatsTests: XCTestCase {
         }
     }
 
-    /// Broken: the query lists the test install ids in double quotes, which SQLite reads
-    /// as column names. sqlite-nio is built without the legacy fallback that treated
-    /// them as strings (`SQLITE_DQS=0`), so it fails with "no such column". Pinned so
-    /// fixing it is a deliberate change.
-    func testInstallIdCountIsAServerError() async throws {
-        try await ClientDeviceInfo(installId: "INSTALL-1", modelName: "iPhone 17").create(on: app.db)
-        try await ClientDeviceInfo(installId: "INSTALL-2", modelName: "iPad Pro").create(on: app.db)
-        try await ClientDeviceInfo(installId: "INSTALL-3", modelName: "iPhone 17 Pro Simulator").create(on: app.db)
-        try await ClientDeviceInfo(installId: "0A4D4541-BC16-4C15-842E-DA6ACF957027", modelName: "iPhone 17").create(on: app.db)
-
+    /// Removed in Nov 2026: it always failed (double-quoted ids read as column names
+    /// under `SQLITE_DQS=0`), and no client called it.
+    func testInstallIdCountIsGone() async throws {
         try await app.test(.GET, "api/v1/install-id-count") { res async in
-            XCTAssertEqual(res.status, .internalServerError)
+            XCTAssertEqual(res.status, .notFound)
         }
     }
 }

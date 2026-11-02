@@ -50,7 +50,6 @@ func routes(_ app: Application) throws {
     let statisticsController = StatisticsController()
     app.get(api, v1, "all-client-device-info", use: statisticsController.getAllClientDeviceInfoHandlerV1)
     app.get(api, v1, "all-sound-share-count-stats", use: statisticsController.getAllSoundShareCountStatsHandlerV1)
-    app.get(api, v1, "install-id-count", use: statisticsController.getInstallIdCountHandlerV1)
     app.get(api, v2, "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV2)
     app.get(api, v2, "sound-share-count-stats-from", ":date", use: statisticsController.getSoundShareCountStatsFromHandlerV2)
     app.get(api, v3, "sound-share-count-stats-all-time", use: statisticsController.getSoundShareCountStatsAllTimeHandlerV3)
@@ -236,7 +235,6 @@ func routes(_ app: Application) throws {
 
     let updateEventsController = UpdateEventsController()
     app.get(api, v3, "update-events", ":date", use: updateEventsController.getUpdateEventsHandlerV3)
-    app.get(api, v3, "update-events-for-display", ":password", use: updateEventsController.getUpdateEventsForDisplayHandlerV3)
     app.put(api, v3, "change-update-visibility", ":updateId", ":newValue", ":password", use: updateEventsController.putChangeUpdateVisibilityHandlerV3)
     app.put(api, v3, "update-content", ":password", use: updateEventsController.putUpdateContentHandlerV3)
     app.post(api, v3, "update-content-file", ":type", ":id", ":password", use: updateEventsController.postUpdateContentFileHandlerV3)

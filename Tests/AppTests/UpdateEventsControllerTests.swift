@@ -103,32 +103,10 @@ final class UpdateEventsControllerTests: XCTestCase {
 
     // MARK: - update-events-for-display
 
-    /// The query joins MedoContent without an ON clause, so every event comes back once
-    /// per content row (or once when there's no content at all), newest first. Pinned
-    /// as it is; the handler is marked unfinished.
-    func testForDisplayRepeatsEachVisibleEventOncePerContentRow() async throws {
-        let older = try await createEvent(contentId: "OLDER", dateTime: "2026-10-01T10:00:00.000Z")
-        let newer = try await createEvent(contentId: "NEWER", dateTime: "2026-10-02T10:00:00.000Z")
-        try await createEvent(contentId: "HIDDEN", dateTime: "2026-10-03T10:00:00.000Z", visible: false)
-
-        try await app.test(.GET, "api/v3/update-events-for-display/\(TestEnvironment.testPassword)", afterResponse: { res async throws in
-            XCTAssertEqual(res.status, .ok)
-            let list = try self.jsonList(res)
-            XCTAssertEqual(list.map { $0["contentId"] as? String }, ["NEWER", "OLDER"])
-            XCTAssertEqual(list.map { $0["id"] as? String }, [newer.id?.uuidString, older.id?.uuidString])
-        })
-
-        _ = try await createContent()
-        _ = try await createContent()
-
-        try await app.test(.GET, "api/v3/update-events-for-display/\(TestEnvironment.testPassword)", afterResponse: { res async throws in
-            XCTAssertEqual(try self.jsonList(res).map { $0["contentId"] as? String }, ["NEWER", "NEWER", "OLDER", "OLDER"])
-        })
-    }
-
-    func testForDisplayRejectsAWrongPassword() async throws {
-        try await app.test(.GET, "api/v3/update-events-for-display/wrong", afterResponse: { res async in
-            XCTAssertEqual(res.status, .forbidden)
+    /// Removed in Nov 2026: unfinished, and no client called it.
+    func testForDisplayIsGone() async throws {
+        try await app.test(.GET, "api/v3/update-events-for-display/\(TestEnvironment.testPassword)", afterResponse: { res async in
+            XCTAssertEqual(res.status, .notFound)
         })
     }
 

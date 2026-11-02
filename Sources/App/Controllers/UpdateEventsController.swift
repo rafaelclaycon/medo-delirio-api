@@ -36,27 +36,6 @@ struct UpdateEventsController {
         return try await sqlite.query(query, [.text(date)]).map(Self.updateEvent(from:))
     }
 
-    func getUpdateEventsForDisplayHandlerV3(req: Request) async throws -> [UpdateEvent] {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
-            throw Abort(.forbidden)
-        }
-        // TODO: - Finish this
-        guard let sqlite = req.db as? SQLiteDatabase else {
-            return []
-        }
-        let query = """
-            select *
-            from UpdateEvent
-            left join MedoContent
-            where visible == true
-            order by dateTime desc
-        """
-        return try await sqlite.query(query).map(Self.updateEvent(from:))
-    }
-
     private static func updateEvent(from row: SQLiteRow) -> UpdateEvent {
         UpdateEvent(id: row.column("id")?.string ?? "",
                     contentId: row.column("contentId")?.string ?? "",
