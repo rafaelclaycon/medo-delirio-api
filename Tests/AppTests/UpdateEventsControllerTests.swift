@@ -87,14 +87,13 @@ struct UpdateEventsControllerTests {
         }
     }
 
-    @Test func `Date in any other format is a bad request`() async throws {
+    @Test(arguments: ["2026-10-01", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00.000Z' OR '1'='1"])
+    func `Date in any other format is a bad request`(date: String) async throws {
         try await withTestApp { app in
-            for date in ["2026-10-01", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00.000Z' OR '1'='1"] {
-                let path = "api/v3/update-events/" + (date.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? date)
-                try await app.testing().test(.GET, path, afterResponse: { res async in
-                    #expect(res.status == .badRequest, "\(date)")
-                })
-            }
+            let path = "api/v3/update-events/" + (date.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? date)
+            try await app.testing().test(.GET, path, afterResponse: { res async in
+                #expect(res.status == .badRequest)
+            })
         }
     }
 
@@ -242,17 +241,16 @@ struct UpdateEventsControllerTests {
 
     // MARK: - update-content-file
 
-    @Test func `Update content file records a file updated event`() async throws {
+    @Test(arguments: [("sound", MediaType.sound), ("author", .author), ("song", .song), ("musicGenre", .musicGenre)])
+    func `Update content file records a file updated event`(type: String, mediaType: MediaType) async throws {
         try await withTestApp { app in
-            for (type, mediaType) in [("sound", MediaType.sound), ("author", .author), ("song", .song), ("musicGenre", .musicGenre)] {
-                try await app.testing().test(.POST, "api/v3/update-content-file/\(type)/ANY-ID-\(type)/\(TestEnvironment.testPassword)", afterResponse: { res async in
-                    #expect(res.status == .ok, "\(type)")
-                })
-                let event = try await UpdateEvent.query(on: app.db).filter(\.$contentId == "ANY-ID-\(type)").first()
-                #expect(event?.mediaType == mediaType, "\(type)")
-                #expect(event?.eventType == .fileUpdated, "\(type)")
-                #expect(event?.visible == true, "\(type)")
-            }
+            try await app.testing().test(.POST, "api/v3/update-content-file/\(type)/ANY-ID-\(type)/\(TestEnvironment.testPassword)", afterResponse: { res async in
+                #expect(res.status == .ok)
+            })
+            let event = try await UpdateEvent.query(on: app.db).filter(\.$contentId == "ANY-ID-\(type)").first()
+            #expect(event?.mediaType == mediaType)
+            #expect(event?.eventType == .fileUpdated)
+            #expect(event?.visible == true)
         }
     }
 

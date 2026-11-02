@@ -238,12 +238,11 @@ struct ContentAnalyticsTests {
 
     // MARK: - Passwords
 
-    @Test func `Every route rejects a wrong password`() async throws {
+    @Test(arguments: ["api/v4/episode-analytics/wrong", "api/v4/share-clip-analytics/wrong", "api/v4/chapters-usage-analytics/wrong"])
+    func `Every route rejects a wrong password`(path: String) async throws {
         try await withTestApp { app in
-            for path in ["api/v4/episode-analytics/wrong", "api/v4/share-clip-analytics/wrong", "api/v4/chapters-usage-analytics/wrong"] {
-                try await app.testing().test(.GET, path) { res async in
-                    #expect(res.status == .forbidden, "\(path)")
-                }
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .forbidden)
             }
         }
     }

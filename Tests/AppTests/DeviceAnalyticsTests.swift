@@ -229,20 +229,18 @@ struct DeviceAnalyticsTests {
 
     // MARK: - Passwords
 
-    @Test func `Every device route rejects a wrong password`() async throws {
+    @Test(arguments: [
+        "api/v3/device-analytics/wrong",
+        "api/v3/device-model-history/iPhone17,1/wrong",
+        "api/v3/all-device-model-names/wrong",
+        "api/v3/ios-version-history/26/wrong",
+        "api/v3/all-ios-versions/wrong",
+        "api/v3/ios-version-device-breakdown/26/wrong"
+    ])
+    func `Every device route rejects a wrong password`(path: String) async throws {
         try await withTestApp { app in
-            let paths = [
-                "api/v3/device-analytics/wrong",
-                "api/v3/device-model-history/iPhone17,1/wrong",
-                "api/v3/all-device-model-names/wrong",
-                "api/v3/ios-version-history/26/wrong",
-                "api/v3/all-ios-versions/wrong",
-                "api/v3/ios-version-device-breakdown/26/wrong"
-            ]
-            for path in paths {
-                try await app.testing().test(.GET, path) { res async in
-                    #expect(res.status == .forbidden, "\(path)")
-                }
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .forbidden)
             }
         }
     }

@@ -134,12 +134,11 @@ struct VersionAndNavigationAnalyticsTests {
         }
     }
 
-    @Test func `Version signals hourly rejects a bad date`() async throws {
+    @Test(arguments: ["2026-10-1", "01-10-2026", "2026-10-01'%20OR%20'1'='1", "yesterday"])
+    func `Version signals hourly rejects a bad date`(date: String) async throws {
         try await withTestApp { app in
-            for date in ["2026-10-1", "01-10-2026", "2026-10-01'%20OR%20'1'='1", "yesterday"] {
-                try await app.testing().test(.GET, "api/v4/version-signals-hourly/\(date)/\(TestEnvironment.testPassword)") { res async in
-                    #expect(res.status == .badRequest, "\(date)")
-                }
+            try await app.testing().test(.GET, "api/v4/version-signals-hourly/\(date)/\(TestEnvironment.testPassword)") { res async in
+                #expect(res.status == .badRequest)
             }
         }
     }
@@ -183,13 +182,17 @@ struct VersionAndNavigationAnalyticsTests {
         }
     }
 
-    @Test func `Version adoption daily rejects bad days`() async throws {
+    @Test(arguments: ["0", "366", "-1", "week", "3%20days"])
+    func `Version adoption daily rejects bad days`(days: String) async throws {
         try await withTestApp { app in
-            for days in ["0", "366", "-1", "week", "3%20days"] {
-                try await app.testing().test(.GET, "api/v4/version-adoption-daily/\(days)/\(TestEnvironment.testPassword)") { res async in
-                    #expect(res.status == .badRequest, "\(days)")
-                }
+            try await app.testing().test(.GET, "api/v4/version-adoption-daily/\(days)/\(TestEnvironment.testPassword)") { res async in
+                #expect(res.status == .badRequest)
             }
+        }
+    }
+
+    @Test func `Version adoption daily accepts up to 365 days`() async throws {
+        try await withTestApp { app in
             try await app.testing().test(.GET, "api/v4/version-adoption-daily/365/\(TestEnvironment.testPassword)") { res async in
                 #expect(res.status == .ok)
             }
@@ -235,18 +238,16 @@ struct VersionAndNavigationAnalyticsTests {
 
     // MARK: - Passwords
 
-    @Test func `Every route rejects a wrong password`() async throws {
+    @Test(arguments: [
+        "api/v3/navigation-analytics/wrong",
+        "api/v4/version-signals-hourly/2026-10-01/wrong",
+        "api/v4/version-adoption-daily/7/wrong",
+        "api/v4/version-distribution/wrong"
+    ])
+    func `Every route rejects a wrong password`(path: String) async throws {
         try await withTestApp { app in
-            let paths = [
-                "api/v3/navigation-analytics/wrong",
-                "api/v4/version-signals-hourly/2026-10-01/wrong",
-                "api/v4/version-adoption-daily/7/wrong",
-                "api/v4/version-distribution/wrong"
-            ]
-            for path in paths {
-                try await app.testing().test(.GET, path) { res async in
-                    #expect(res.status == .forbidden, "\(path)")
-                }
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .forbidden)
             }
         }
     }

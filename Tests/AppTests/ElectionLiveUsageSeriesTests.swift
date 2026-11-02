@@ -203,17 +203,16 @@ struct ElectionLiveSeriesRouteTests {
         }
     }
 
-    @Test func `Rejects bad parameters`() async throws {
+    @Test(arguments: [
+        "bucketMinutes=7",
+        "since=2026-10-04T20:00:00Z&until=2026-10-04T19:00:00Z",
+        "since=2026-10-01T00:00:00Z&until=2026-10-04T00:00:00Z",
+        "since=yesterday"
+    ])
+    func `Rejects bad parameters`(query: String) async throws {
         try await withTestApp { app in
-            for query in [
-                "bucketMinutes=7",
-                "since=2026-10-04T20:00:00Z&until=2026-10-04T19:00:00Z",
-                "since=2026-10-01T00:00:00Z&until=2026-10-04T00:00:00Z",
-                "since=yesterday"
-            ] {
-                try await app.testing().test(.GET, path(query)) { res async in
-                    #expect(res.status == .badRequest, "\(query)")
-                }
+            try await app.testing().test(.GET, path(query)) { res async in
+                #expect(res.status == .badRequest)
             }
         }
     }

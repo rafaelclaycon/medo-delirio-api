@@ -103,16 +103,15 @@ struct ActiveUsersStatsTests {
         }
     }
 
-    @Test func `Every endpoint rejects a wrong password`() async throws {
+    @Test(arguments: [
+        "api/v3/active-users-count-from/2026-10-01/wrong",
+        "api/v3/sessions-count-from/2026-10-01/wrong",
+        "api/v3/active-users-daily-last-30-days/wrong",
+    ])
+    func `Every endpoint rejects a wrong password`(path: String) async throws {
         try await withTestApp { app in
-            for path in [
-                "api/v3/active-users-count-from/2026-10-01/wrong",
-                "api/v3/sessions-count-from/2026-10-01/wrong",
-                "api/v3/active-users-daily-last-30-days/wrong",
-            ] {
-                try await app.testing().test(.GET, path) { res async in
-                    #expect(res.status == .forbidden, "\(path)")
-                }
+            try await app.testing().test(.GET, path) { res async in
+                #expect(res.status == .forbidden)
             }
         }
     }
