@@ -774,7 +774,7 @@ struct StatisticsController {
         }
     }
 
-    func getNavigationAnalyticsHandlerV3(req: Request) throws -> EventLoopFuture<NavigationAnalyticsResponse> {
+    func getNavigationAnalyticsHandlerV3(req: Request) async throws -> NavigationAnalyticsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -783,12 +783,7 @@ struct StatisticsController {
         }
 
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                NavigationAnalyticsResponse(
-                    top_screens: [],
-                    total_views: 0
-                )
-            )
+            return NavigationAnalyticsResponse(top_screens: [], total_views: 0)
         }
 
         // Date filter for last 30 days
@@ -824,35 +819,19 @@ struct StatisticsController {
               AND LOWER(originatingScreen) NOT LIKE '%retro%'
         """
 
-        let screensFuture = sqlite.query(screensQuery).flatMapThrowing { rows -> [NavigationAnalyticsScreen] in
-            rows.map { row in
-                let screenName = row.column("screen_name")?.string ?? ""
-                let viewCount = row.column("view_count")?.integer ?? 0
-                return NavigationAnalyticsScreen(
-                    id: screenName,
-                    screen_name: screenName,
-                    view_count: viewCount
-                )
-            }
+        let screens = try await sqlite.query(screensQuery).map { row in
+            let screenName = row.column("screen_name")?.string ?? ""
+            return NavigationAnalyticsScreen(
+                id: screenName,
+                screen_name: screenName,
+                view_count: row.column("view_count")?.integer ?? 0
+            )
         }
 
-        let totalViewsFuture = sqlite.query(totalViewsQuery).flatMapThrowing { rows -> Int in
-            guard let row = rows.first else {
-                return 0
-            }
-            return row.column("total_views")?.integer ?? 0
-        }
+        let totalViews = try await sqlite.query(totalViewsQuery)
+            .first?.column("total_views")?.integer ?? 0
 
-        // Execute both queries in parallel and combine results
-        return screensFuture.and(totalViewsFuture)
-            .flatMapThrowing { results in
-                let (screens, totalViews) = results
-                
-                return NavigationAnalyticsResponse(
-                    top_screens: screens,
-                    total_views: totalViews
-                )
-            }
+        return NavigationAnalyticsResponse(top_screens: screens, total_views: totalViews)
     }
 
     func getRetro2025ShareCountHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025ShareCountResponse> {
@@ -1595,7 +1574,7 @@ extension StatisticsController {
     
     /// Route 1: Hourly Version Data for a Day
     /// GET /api/v4/version-signals-hourly/:date/:password
-    func getVersionSignalsHourlyHandlerV4(req: Request) throws -> EventLoopFuture<VersionSignalsHourlyResponse> {
+    func getVersionSignalsHourlyHandlerV4(req: Request) async throws -> VersionSignalsHourlyResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -1610,12 +1589,10 @@ extension StatisticsController {
         }
         
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                VersionSignalsHourlyResponse(date: date, hours: [], dayTotals: [])
-            )
+            return VersionSignalsHourlyResponse(date: date, hours: [], dayTotals: [])
         }
         
-        // Query for hourly breakdown (using parameterized date for safety)
+        // Query for hourly breakdown
         let hourlyQuery = """
             SELECT 
                 CAST(strftime('%H', "dateTime") AS INTEGER) as hour,
@@ -1623,7 +1600,7 @@ extension StatisticsController {
                 COUNT(DISTINCT "installId") as unique_users,
                 COUNT(*) as signal_count
             FROM "StillAliveSignal"
-            WHERE DATE("dateTime") = DATE('\(date)')
+            WHERE DATE("dateTime") = DATE(?)
             GROUP BY hour, "appVersion"
             ORDER BY hour, unique_users DESC
         """
@@ -1634,70 +1611,68 @@ extension StatisticsController {
                 "appVersion",
                 COUNT(DISTINCT "installId") as unique_users
             FROM "StillAliveSignal"
-            WHERE DATE("dateTime") = DATE('\(date)')
+            WHERE DATE("dateTime") = DATE(?)
             GROUP BY "appVersion"
             ORDER BY unique_users DESC
         """
         
-        let hourlyFuture = sqlite.query(hourlyQuery)
-        let dayTotalsFuture = sqlite.query(dayTotalsQuery)
+        let hourlyRows = try await sqlite.query(hourlyQuery, [.text(date)])
+        let dayTotalsRows = try await sqlite.query(dayTotalsQuery, [.text(date)])
+
+        // Process hourly data
+        var hourlyData: [Int: [VersionSignal]] = [:]
         
-        return hourlyFuture.and(dayTotalsFuture).flatMapThrowing { hourlyRows, dayTotalsRows in
-            // Process hourly data
-            var hourlyData: [Int: [VersionSignal]] = [:]
+        for row in hourlyRows {
+            let hour = row.column("hour")?.integer ?? 0
+            let appVersion = row.column("appVersion")?.string ?? ""
+            let uniqueUsers = row.column("unique_users")?.integer ?? 0
+            let signalCount = row.column("signal_count")?.integer ?? 0
             
-            for row in hourlyRows {
-                let hour = row.column("hour")?.integer ?? 0
-                let appVersion = row.column("appVersion")?.string ?? ""
-                let uniqueUsers = row.column("unique_users")?.integer ?? 0
-                let signalCount = row.column("signal_count")?.integer ?? 0
-                
-                let versionSignal = VersionSignal(
-                    appVersion: appVersion,
-                    uniqueUsers: uniqueUsers,
-                    signalCount: signalCount
-                )
-                
-                hourlyData[hour, default: []].append(versionSignal)
-            }
+            let versionSignal = VersionSignal(
+                appVersion: appVersion,
+                uniqueUsers: uniqueUsers,
+                signalCount: signalCount
+            )
             
-            // Build hours array (0-23)
-            var hours: [HourlyVersionData] = []
-            for hour in 0...23 {
-                let versions = hourlyData[hour] ?? []
-                hours.append(HourlyVersionData(hour: hour, versions: versions))
-            }
-            
-            // Process day totals (true unique users per version for the entire day)
-            var versionUserCounts: [(String, Int)] = []
-            for row in dayTotalsRows {
-                let appVersion = row.column("appVersion")?.string ?? ""
-                let uniqueUsers = row.column("unique_users")?.integer ?? 0
-                versionUserCounts.append((appVersion, uniqueUsers))
-            }
-            
-            // Calculate percentages for day totals
-            let totalUsers = versionUserCounts.reduce(0) { $0 + $1.1 }
-            let dayTotals = versionUserCounts.map { version, users in
-                let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
-                return VersionTotal(
-                    appVersion: version,
-                    uniqueUsers: users,
-                    percentage: round(percentage * 10) / 10  // Round to 1 decimal
-                )
-            }
-            
-            return VersionSignalsHourlyResponse(
-                date: date,
-                hours: hours,
-                dayTotals: dayTotals
+            hourlyData[hour, default: []].append(versionSignal)
+        }
+        
+        // Build hours array (0-23)
+        var hours: [HourlyVersionData] = []
+        for hour in 0...23 {
+            let versions = hourlyData[hour] ?? []
+            hours.append(HourlyVersionData(hour: hour, versions: versions))
+        }
+        
+        // Process day totals (true unique users per version for the entire day)
+        var versionUserCounts: [(String, Int)] = []
+        for row in dayTotalsRows {
+            let appVersion = row.column("appVersion")?.string ?? ""
+            let uniqueUsers = row.column("unique_users")?.integer ?? 0
+            versionUserCounts.append((appVersion, uniqueUsers))
+        }
+        
+        // Calculate percentages for day totals
+        let totalUsers = versionUserCounts.reduce(0) { $0 + $1.1 }
+        let dayTotals = versionUserCounts.map { version, users in
+            let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
+            return VersionTotal(
+                appVersion: version,
+                uniqueUsers: users,
+                percentage: round(percentage * 10) / 10  // Round to 1 decimal
             )
         }
+        
+        return VersionSignalsHourlyResponse(
+            date: date,
+            hours: hours,
+            dayTotals: dayTotals
+        )
     }
     
     /// Route 2: Daily Version Trend (last N days)
     /// GET /api/v4/version-adoption-daily/:days/:password
-    func getVersionAdoptionDailyHandlerV4(req: Request) throws -> EventLoopFuture<VersionAdoptionDailyResponse> {
+    func getVersionAdoptionDailyHandlerV4(req: Request) async throws -> VersionAdoptionDailyResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -1712,9 +1687,7 @@ extension StatisticsController {
         }
         
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                VersionAdoptionDailyResponse(days: days, data: [])
-            )
+            return VersionAdoptionDailyResponse(days: days, data: [])
         }
         
         let query = """
@@ -1723,55 +1696,48 @@ extension StatisticsController {
                 "appVersion",
                 COUNT(DISTINCT "installId") as unique_users
             FROM "StillAliveSignal"
-            WHERE DATE("dateTime") >= DATE('now', 'utc', '-\(days) days')
+            WHERE DATE("dateTime") >= DATE('now', 'utc', ?)
             GROUP BY date, "appVersion"
             ORDER BY date, unique_users DESC
         """
         
-        return sqlite.query(query).flatMapThrowing { rows in
-            // Group by date
-            var dailyData: [String: [DailyVersionStat]] = [:]
-            
-            for row in rows {
-                let date = row.column("date")?.string ?? ""
-                let appVersion = row.column("appVersion")?.string ?? ""
-                let uniqueUsers = row.column("unique_users")?.integer ?? 0
-                
-                let stat = DailyVersionStat(
-                    appVersion: appVersion,
-                    uniqueUsers: uniqueUsers
-                )
-                
-                dailyData[date, default: []].append(stat)
-            }
-            
-            // Build sorted array of daily data
-            let data = dailyData.map { date, versions in
-                DailyVersionData(date: date, versions: versions)
-            }.sorted { $0.date < $1.date }
-            
-            return VersionAdoptionDailyResponse(days: days, data: data)
+        // Group by date
+        var dailyData: [String: [DailyVersionStat]] = [:]
+
+        for row in try await sqlite.query(query, [.text("-\(days) days")]) {
+            let date = row.column("date")?.string ?? ""
+            let stat = DailyVersionStat(
+                appVersion: row.column("appVersion")?.string ?? "",
+                uniqueUsers: row.column("unique_users")?.integer ?? 0
+            )
+            dailyData[date, default: []].append(stat)
         }
+
+        // Build sorted array of daily data
+        let data = dailyData.map { date, versions in
+            DailyVersionData(date: date, versions: versions)
+        }.sorted { $0.date < $1.date }
+
+        return VersionAdoptionDailyResponse(days: days, data: data)
     }
     
     /// Route 3: Current Version Distribution
     /// GET /api/v4/version-distribution/:password
-    func getVersionDistributionHandlerV4(req: Request) throws -> EventLoopFuture<VersionDistributionResponse> {
+    func getVersionDistributionHandlerV4(req: Request) async throws -> VersionDistributionResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
         guard password == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
-        
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+        let today = dateFormatter.string(from: Date())
+
         guard let sqlite = req.db as? SQLiteDatabase else {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(identifier: "UTC")
-            let today = dateFormatter.string(from: Date())
-            return req.eventLoop.makeSucceededFuture(
-                VersionDistributionResponse(date: today, versions: [], totalUsers: 0)
-            )
+            return VersionDistributionResponse(date: today, versions: [], totalUsers: 0)
         }
         
         let query = """
@@ -1784,37 +1750,30 @@ extension StatisticsController {
             ORDER BY unique_users DESC
         """
         
-        return sqlite.query(query).flatMapThrowing { rows in
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            dateFormatter.timeZone = TimeZone(identifier: "UTC")
-            let today = dateFormatter.string(from: Date())
-            
-            var versionCounts: [(String, Int)] = []
-            var totalUsers = 0
-            
-            for row in rows {
-                let appVersion = row.column("appVersion")?.string ?? ""
-                let uniqueUsers = row.column("unique_users")?.integer ?? 0
-                versionCounts.append((appVersion, uniqueUsers))
-                totalUsers += uniqueUsers
-            }
-            
-            let versions = versionCounts.map { version, users in
-                let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
-                return VersionDistributionStat(
-                    appVersion: version,
-                    uniqueUsers: users,
-                    percentage: round(percentage * 10) / 10  // Round to 1 decimal
-                )
-            }
-            
-            return VersionDistributionResponse(
-                date: today,
-                versions: versions,
-                totalUsers: totalUsers
+        var versionCounts: [(String, Int)] = []
+        var totalUsers = 0
+
+        for row in try await sqlite.query(query) {
+            let appVersion = row.column("appVersion")?.string ?? ""
+            let uniqueUsers = row.column("unique_users")?.integer ?? 0
+            versionCounts.append((appVersion, uniqueUsers))
+            totalUsers += uniqueUsers
+        }
+
+        let versions = versionCounts.map { version, users in
+            let percentage = totalUsers > 0 ? (Double(users) / Double(totalUsers)) * 100.0 : 0.0
+            return VersionDistributionStat(
+                appVersion: version,
+                uniqueUsers: users,
+                percentage: round(percentage * 10) / 10  // Round to 1 decimal
             )
         }
+
+        return VersionDistributionResponse(
+            date: today,
+            versions: versions,
+            totalUsers: totalUsers
+        )
     }
 
     // MARK: - Episode Analytics
