@@ -361,22 +361,7 @@ struct StatisticsController {
             throw Abort(.forbidden)
         }
 
-        // Generate array of last 30 dates (from 30 days ago to today, inclusive)
-        let calendar = Calendar.current
-        let today = Date()
-        var dates: [String] = []
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "UTC")
-        
-        for i in 0..<30 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                dates.append(dateFormatter.string(from: date))
-            }
-        }
-        
-        // Reverse to get oldest first (chronological order)
-        dates.reverse()
+        let dates = Self.last30Days()
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             // Return array with 0 counts for all dates if not SQLite
@@ -388,11 +373,34 @@ struct StatisticsController {
             FROM StillAliveSignal
             WHERE date(dateTime) = date(?)
         """
-        var results: [DailyActiveUsersResponse] = []
-        for dateString in dates {
-            let rows = try await sqlite.query(query, [.text(dateString)])
-            let count = rows.first?.column("activeUsersCount")?.integer ?? 0
-            results.append(DailyActiveUsersResponse(date: dateString, activeUsers: count))
+        return try await Self.dailyCounts(on: sqlite, dates: dates, query: query, column: "activeUsersCount")
+            .map { DailyActiveUsersResponse(date: $0.date, activeUsers: $0.count) }
+    }
+
+    /// The last 30 days as UTC `yyyy-MM-dd` strings, oldest first and ending today.
+    private static func last30Days() -> [String] {
+        let calendar = Calendar.current
+        let today = Date()
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        return (0..<30).reversed().compactMap { i in
+            calendar.date(byAdding: .day, value: -i, to: today).map { dateFormatter.string(from: $0) }
+        }
+    }
+
+    /// Runs `query` once per date, binding the date to its single `?`, and reads `column`.
+    private static func dailyCounts(
+        on sqlite: SQLiteDatabase,
+        dates: [String],
+        query: String,
+        column: String
+    ) async throws -> [(date: String, count: Int)] {
+        var results: [(date: String, count: Int)] = []
+        for date in dates {
+            let rows = try await sqlite.query(query, [.text(date)])
+            results.append((date, rows.first?.column(column)?.integer ?? 0))
         }
         return results
     }
@@ -1778,7 +1786,7 @@ extension StatisticsController {
 
     // MARK: - Episode Analytics
 
-    func getEpisodeAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<EpisodeAnalyticsResponse> {
+    func getEpisodeAnalyticsHandlerV4(req: Request) async throws -> EpisodeAnalyticsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -1786,20 +1794,7 @@ extension StatisticsController {
             throw Abort(.forbidden)
         }
 
-        let calendar = Calendar.current
-        let today = Date()
-        var dates: [String] = []
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "UTC")
-
-        for i in 0..<30 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                dates.append(dateFormatter.string(from: date))
-            }
-        }
-
-        dates.reverse()
+        let dates = Self.last30Days()
 
         let episodeFilter = """
             (destinationScreen LIKE 'didPlayEpisode%'
@@ -1811,39 +1806,25 @@ extension StatisticsController {
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             let emptyDaily = dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
-            return req.eventLoop.makeSucceededFuture(
-                EpisodeAnalyticsResponse(
-                    dailyUniqueUsers: emptyDaily,
-                    totalUniqueUsers: 0,
-                    totalViewers: 0,
-                    usersWhoPlayed: 0,
-                    usersWhoBookmarked: 0,
-                    averagePlaysPerUser: 0,
-                    averageBookmarksPerUser: 0
-                )
+            return EpisodeAnalyticsResponse(
+                dailyUniqueUsers: emptyDaily,
+                totalUniqueUsers: 0,
+                totalViewers: 0,
+                usersWhoPlayed: 0,
+                usersWhoBookmarked: 0,
+                averagePlaysPerUser: 0,
+                averageBookmarksPerUser: 0
             )
         }
 
-        var dailyFutures: [EventLoopFuture<DailyActiveUsersResponse>] = []
-
-        for dateString in dates {
-            let query = """
-                SELECT COUNT(DISTINCT customInstallId) as activeUsersCount
-                FROM UsageMetric
-                WHERE date(dateTime) = date('\(dateString)')
-                  AND \(playFilter)
-                """
-
-            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
-                guard let row = rows.first else {
-                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
-                }
-                let count = row.column("activeUsersCount")?.integer ?? 0
-                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
-            }
-
-            dailyFutures.append(future)
-        }
+        let dailyQuery = """
+            SELECT COUNT(DISTINCT customInstallId) as activeUsersCount
+            FROM UsageMetric
+            WHERE date(dateTime) = date(?)
+              AND \(playFilter)
+            """
+        let dailyResults = try await Self.dailyCounts(on: sqlite, dates: dates, query: dailyQuery, column: "activeUsersCount")
+            .map { DailyActiveUsersResponse(date: $0.date, activeUsers: $0.count) }
 
         let aggregateQuery = """
             SELECT
@@ -1857,42 +1838,34 @@ extension StatisticsController {
               AND \(episodeFilter)
             """
 
-        let aggregateFuture = sqlite.query(aggregateQuery)
+        let row = try await sqlite.query(aggregateQuery).first
 
-        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
-            results.sorted { $0.date < $1.date }
-        }
+        let totalViewers = row?.column("totalViewers")?.integer ?? 0
+        let usersWhoPlayed = row?.column("usersWhoPlayed")?.integer ?? 0
+        let usersWhoBookmarked = row?.column("usersWhoBookmarked")?.integer ?? 0
+        let totalPlays = row?.column("totalPlays")?.integer ?? 0
+        let totalBookmarks = row?.column("totalBookmarks")?.integer ?? 0
 
-        return dailyResultsFuture.and(aggregateFuture).flatMapThrowing { dailyResults, aggregateRows in
-            let row = aggregateRows.first
+        let averagePlaysPerUser = usersWhoPlayed > 0
+            ? Double(totalPlays) / Double(usersWhoPlayed)
+            : 0.0
 
-            let totalViewers = row?.column("totalViewers")?.integer ?? 0
-            let usersWhoPlayed = row?.column("usersWhoPlayed")?.integer ?? 0
-            let usersWhoBookmarked = row?.column("usersWhoBookmarked")?.integer ?? 0
-            let totalPlays = row?.column("totalPlays")?.integer ?? 0
-            let totalBookmarks = row?.column("totalBookmarks")?.integer ?? 0
+        let averageBookmarksPerUser = usersWhoBookmarked > 0
+            ? Double(totalBookmarks) / Double(usersWhoBookmarked)
+            : 0.0
 
-            let averagePlaysPerUser = usersWhoPlayed > 0
-                ? Double(totalPlays) / Double(usersWhoPlayed)
-                : 0.0
-
-            let averageBookmarksPerUser = usersWhoBookmarked > 0
-                ? Double(totalBookmarks) / Double(usersWhoBookmarked)
-                : 0.0
-
-            return EpisodeAnalyticsResponse(
-                dailyUniqueUsers: dailyResults,
-                totalUniqueUsers: usersWhoPlayed,
-                totalViewers: totalViewers,
-                usersWhoPlayed: usersWhoPlayed,
-                usersWhoBookmarked: usersWhoBookmarked,
-                averagePlaysPerUser: averagePlaysPerUser,
-                averageBookmarksPerUser: averageBookmarksPerUser
-            )
-        }
+        return EpisodeAnalyticsResponse(
+            dailyUniqueUsers: dailyResults,
+            totalUniqueUsers: usersWhoPlayed,
+            totalViewers: totalViewers,
+            usersWhoPlayed: usersWhoPlayed,
+            usersWhoBookmarked: usersWhoBookmarked,
+            averagePlaysPerUser: averagePlaysPerUser,
+            averageBookmarksPerUser: averageBookmarksPerUser
+        )
     }
 
-    func getShareClipAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<ShareClipAnalyticsResponse> {
+    func getShareClipAnalyticsHandlerV4(req: Request) async throws -> ShareClipAnalyticsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -1900,20 +1873,7 @@ extension StatisticsController {
             throw Abort(.forbidden)
         }
 
-        let calendar = Calendar.current
-        let today = Date()
-        var dates: [String] = []
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "UTC")
-
-        for i in 0..<30 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                dates.append(dateFormatter.string(from: date))
-            }
-        }
-
-        dates.reverse()
+        let dates = Self.last30Days()
 
         // `destinationScreen` bakes attributes into the action string itself
         // (e.g. "clip_shared(transcript=true)"), there is no structured column
@@ -1922,41 +1882,27 @@ extension StatisticsController {
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             let emptyDaily = dates.map { DailyActiveUsersResponse(date: $0, activeUsers: 0) }
-            return req.eventLoop.makeSucceededFuture(
-                ShareClipAnalyticsResponse(
-                    dailySharesLast30Days: emptyDaily,
-                    tapCount: 0,
-                    sharedCount: 0,
-                    sharedWithTranscriptCount: 0,
-                    sharedWithoutTranscriptCount: 0,
-                    generationFailedCount: 0,
-                    supportPromptShownCount: 0,
-                    whatsNewDismissedCount: 0,
-                    conversionRate: 0
-                )
+            return ShareClipAnalyticsResponse(
+                dailySharesLast30Days: emptyDaily,
+                tapCount: 0,
+                sharedCount: 0,
+                sharedWithTranscriptCount: 0,
+                sharedWithoutTranscriptCount: 0,
+                generationFailedCount: 0,
+                supportPromptShownCount: 0,
+                whatsNewDismissedCount: 0,
+                conversionRate: 0
             )
         }
 
-        var dailyFutures: [EventLoopFuture<DailyActiveUsersResponse>] = []
-
-        for dateString in dates {
-            let query = """
-                SELECT COUNT(*) as sharesCount
-                FROM UsageMetric
-                WHERE date(dateTime) = date('\(dateString)')
-                  AND \(sharedFilter)
-                """
-
-            let future = sqlite.query(query).flatMapThrowing { rows -> DailyActiveUsersResponse in
-                guard let row = rows.first else {
-                    return DailyActiveUsersResponse(date: dateString, activeUsers: 0)
-                }
-                let count = row.column("sharesCount")?.integer ?? 0
-                return DailyActiveUsersResponse(date: dateString, activeUsers: count)
-            }
-
-            dailyFutures.append(future)
-        }
+        let dailyQuery = """
+            SELECT COUNT(*) as sharesCount
+            FROM UsageMetric
+            WHERE date(dateTime) = date(?)
+              AND \(sharedFilter)
+            """
+        let dailyResults = try await Self.dailyCounts(on: sqlite, dates: dates, query: dailyQuery, column: "sharesCount")
+            .map { DailyActiveUsersResponse(date: $0.date, activeUsers: $0.count) }
 
         let aggregateQuery = """
             SELECT
@@ -1977,42 +1923,34 @@ extension StatisticsController {
               )
             """
 
-        let aggregateFuture = sqlite.query(aggregateQuery)
+        let row = try await sqlite.query(aggregateQuery).first
 
-        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
-            results.sorted { $0.date < $1.date }
-        }
+        let tapCount = row?.column("tapCount")?.integer ?? 0
+        let sharedCount = row?.column("sharedCount")?.integer ?? 0
+        let sharedWithTranscriptCount = row?.column("sharedWithTranscriptCount")?.integer ?? 0
+        let sharedWithoutTranscriptCount = row?.column("sharedWithoutTranscriptCount")?.integer ?? 0
+        let generationFailedCount = row?.column("generationFailedCount")?.integer ?? 0
+        let supportPromptShownCount = row?.column("supportPromptShownCount")?.integer ?? 0
+        let whatsNewDismissedCount = row?.column("whatsNewDismissedCount")?.integer ?? 0
 
-        return dailyResultsFuture.and(aggregateFuture).flatMapThrowing { dailyResults, aggregateRows in
-            let row = aggregateRows.first
+        let conversionRate = tapCount > 0
+            ? Double(sharedCount) / Double(tapCount)
+            : 0.0
 
-            let tapCount = row?.column("tapCount")?.integer ?? 0
-            let sharedCount = row?.column("sharedCount")?.integer ?? 0
-            let sharedWithTranscriptCount = row?.column("sharedWithTranscriptCount")?.integer ?? 0
-            let sharedWithoutTranscriptCount = row?.column("sharedWithoutTranscriptCount")?.integer ?? 0
-            let generationFailedCount = row?.column("generationFailedCount")?.integer ?? 0
-            let supportPromptShownCount = row?.column("supportPromptShownCount")?.integer ?? 0
-            let whatsNewDismissedCount = row?.column("whatsNewDismissedCount")?.integer ?? 0
-
-            let conversionRate = tapCount > 0
-                ? Double(sharedCount) / Double(tapCount)
-                : 0.0
-
-            return ShareClipAnalyticsResponse(
-                dailySharesLast30Days: dailyResults,
-                tapCount: tapCount,
-                sharedCount: sharedCount,
-                sharedWithTranscriptCount: sharedWithTranscriptCount,
-                sharedWithoutTranscriptCount: sharedWithoutTranscriptCount,
-                generationFailedCount: generationFailedCount,
-                supportPromptShownCount: supportPromptShownCount,
-                whatsNewDismissedCount: whatsNewDismissedCount,
-                conversionRate: conversionRate
-            )
-        }
+        return ShareClipAnalyticsResponse(
+            dailySharesLast30Days: dailyResults,
+            tapCount: tapCount,
+            sharedCount: sharedCount,
+            sharedWithTranscriptCount: sharedWithTranscriptCount,
+            sharedWithoutTranscriptCount: sharedWithoutTranscriptCount,
+            generationFailedCount: generationFailedCount,
+            supportPromptShownCount: supportPromptShownCount,
+            whatsNewDismissedCount: whatsNewDismissedCount,
+            conversionRate: conversionRate
+        )
     }
 
-    func getChaptersUsageAnalyticsHandlerV4(req: Request) throws -> EventLoopFuture<ChaptersUsageAnalyticsResponse> {
+    func getChaptersUsageAnalyticsHandlerV4(req: Request) async throws -> ChaptersUsageAnalyticsResponse {
         guard let password = req.parameters.get("password") else {
             throw Abort(.internalServerError)
         }
@@ -2020,65 +1958,38 @@ extension StatisticsController {
             throw Abort(.forbidden)
         }
 
-        let calendar = Calendar.current
-        let today = Date()
-        var dates: [String] = []
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone(identifier: "UTC")
-
-        for i in 0..<30 {
-            if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                dates.append(dateFormatter.string(from: date))
-            }
-        }
-
-        dates.reverse()
+        let dates = Self.last30Days()
 
         let tapFilter = Self.chapterTapFilter
 
         guard let sqlite = req.db as? SQLiteDatabase else {
             let emptyDaily = dates.map { DailyChapterTapsResponse(date: $0, tapCount: 0) }
-            return req.eventLoop.makeSucceededFuture(
-                ChaptersUsageAnalyticsResponse(
-                    dailyChapterTapsLast30Days: emptyDaily,
-                    tapCountEpisodeDetail: 0,
-                    tapCountNowPlaying: 0,
-                    previousCount: 0,
-                    nextCount: 0,
-                    loadedCount: 0,
-                    loadFailedCount: 0,
-                    loadFailedFileMissingCount: 0,
-                    loadFailedDecodeFailedCount: 0,
-                    loadFailedNoEntryCount: 0,
-                    loadFailedEmptyListCount: 0,
-                    hiddenCount: 0,
-                    issueReportedCount: 0,
-                    topChapters: []
-                )
+            return ChaptersUsageAnalyticsResponse(
+                dailyChapterTapsLast30Days: emptyDaily,
+                tapCountEpisodeDetail: 0,
+                tapCountNowPlaying: 0,
+                previousCount: 0,
+                nextCount: 0,
+                loadedCount: 0,
+                loadFailedCount: 0,
+                loadFailedFileMissingCount: 0,
+                loadFailedDecodeFailedCount: 0,
+                loadFailedNoEntryCount: 0,
+                loadFailedEmptyListCount: 0,
+                hiddenCount: 0,
+                issueReportedCount: 0,
+                topChapters: []
             )
         }
 
-        var dailyFutures: [EventLoopFuture<DailyChapterTapsResponse>] = []
-
-        for dateString in dates {
-            let query = """
-                SELECT COUNT(*) as tapsCount
-                FROM UsageMetric
-                WHERE date(dateTime) = date('\(dateString)')
-                  AND \(tapFilter)
-                """
-
-            let future = sqlite.query(query).flatMapThrowing { rows -> DailyChapterTapsResponse in
-                guard let row = rows.first else {
-                    return DailyChapterTapsResponse(date: dateString, tapCount: 0)
-                }
-                let count = row.column("tapsCount")?.integer ?? 0
-                return DailyChapterTapsResponse(date: dateString, tapCount: count)
-            }
-
-            dailyFutures.append(future)
-        }
+        let dailyQuery = """
+            SELECT COUNT(*) as tapsCount
+            FROM UsageMetric
+            WHERE date(dateTime) = date(?)
+              AND \(tapFilter)
+            """
+        let dailyResults = try await Self.dailyCounts(on: sqlite, dates: dates, query: dailyQuery, column: "tapsCount")
+            .map { DailyChapterTapsResponse(date: $0.date, tapCount: $0.count) }
 
         let aggregateQuery = """
             SELECT
@@ -2132,42 +2043,32 @@ extension StatisticsController {
             LIMIT 15
             """
 
-        let aggregateFuture = sqlite.query(aggregateQuery)
-        let topChaptersFuture = sqlite.query(topChaptersQuery)
+        let row = try await sqlite.query(aggregateQuery).first
 
-        let dailyResultsFuture = EventLoopFuture.whenAllSucceed(dailyFutures, on: req.eventLoop).map { results in
-            results.sorted { $0.date < $1.date }
-        }
-
-        return dailyResultsFuture.and(aggregateFuture).and(topChaptersFuture).flatMapThrowing { partial, topChaptersRows in
-            let (dailyResults, aggregateRows) = partial
-            let row = aggregateRows.first
-
-            let topChapters = topChaptersRows.map { row in
-                TopChapterItem(
-                    id: row.column("id")?.integer ?? 0,
-                    title: row.column("title")?.string ?? "",
-                    tapCount: row.column("tapCount")?.integer ?? 0
-                )
-            }
-
-            return ChaptersUsageAnalyticsResponse(
-                dailyChapterTapsLast30Days: dailyResults,
-                tapCountEpisodeDetail: row?.column("tapCountEpisodeDetail")?.integer ?? 0,
-                tapCountNowPlaying: row?.column("tapCountNowPlaying")?.integer ?? 0,
-                previousCount: row?.column("previousCount")?.integer ?? 0,
-                nextCount: row?.column("nextCount")?.integer ?? 0,
-                loadedCount: row?.column("loadedCount")?.integer ?? 0,
-                loadFailedCount: row?.column("loadFailedCount")?.integer ?? 0,
-                loadFailedFileMissingCount: row?.column("loadFailedFileMissingCount")?.integer ?? 0,
-                loadFailedDecodeFailedCount: row?.column("loadFailedDecodeFailedCount")?.integer ?? 0,
-                loadFailedNoEntryCount: row?.column("loadFailedNoEntryCount")?.integer ?? 0,
-                loadFailedEmptyListCount: row?.column("loadFailedEmptyListCount")?.integer ?? 0,
-                hiddenCount: row?.column("hiddenCount")?.integer ?? 0,
-                issueReportedCount: row?.column("issueReportedCount")?.integer ?? 0,
-                topChapters: topChapters
+        let topChapters = try await sqlite.query(topChaptersQuery).map { row in
+            TopChapterItem(
+                id: row.column("id")?.integer ?? 0,
+                title: row.column("title")?.string ?? "",
+                tapCount: row.column("tapCount")?.integer ?? 0
             )
         }
+
+        return ChaptersUsageAnalyticsResponse(
+            dailyChapterTapsLast30Days: dailyResults,
+            tapCountEpisodeDetail: row?.column("tapCountEpisodeDetail")?.integer ?? 0,
+            tapCountNowPlaying: row?.column("tapCountNowPlaying")?.integer ?? 0,
+            previousCount: row?.column("previousCount")?.integer ?? 0,
+            nextCount: row?.column("nextCount")?.integer ?? 0,
+            loadedCount: row?.column("loadedCount")?.integer ?? 0,
+            loadFailedCount: row?.column("loadFailedCount")?.integer ?? 0,
+            loadFailedFileMissingCount: row?.column("loadFailedFileMissingCount")?.integer ?? 0,
+            loadFailedDecodeFailedCount: row?.column("loadFailedDecodeFailedCount")?.integer ?? 0,
+            loadFailedNoEntryCount: row?.column("loadFailedNoEntryCount")?.integer ?? 0,
+            loadFailedEmptyListCount: row?.column("loadFailedEmptyListCount")?.integer ?? 0,
+            hiddenCount: row?.column("hiddenCount")?.integer ?? 0,
+            issueReportedCount: row?.column("issueReportedCount")?.integer ?? 0,
+            topChapters: topChapters
+        )
     }
 
     func getEpisodePlayCountStatsAllTimeHandlerV4(req: Request) async throws -> [TopEpisodeItem] {
