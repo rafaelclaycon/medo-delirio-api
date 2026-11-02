@@ -93,8 +93,8 @@ func routes(_ app: Application) throws {
     app.get(api, v3, "reaction-popularity-stats", use: statisticsController.getReactionPopularityStatsHandlerV3)
     app.get(api, v4, "top-3-reactions", use: statisticsController.getTop3ReactionsHandlerV4)
     
-    // Retro2025 Statistics: off until Retro 2026. Before turning them back on, pass their
-    // dates as bound parameters: these handlers still splice them into the SQL.
+    // Retro2025 Statistics: off until Retro 2026. Their dates are bound parameters now, and
+    // Retro2025StatsTests registers these same paths to cover them while they're off.
 
     // Retro2025 Statistics - Daily
     // app.get(api, v4, "retro2025-dashboard", ":date", use: statisticsController.getRetro2025DashboardHandlerV4)

@@ -842,7 +842,7 @@ struct StatisticsController {
         return NavigationAnalyticsResponse(top_screens: screens, total_views: totalViews)
     }
 
-    func getRetro2025ShareCountHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025ShareCountResponse> {
+    func getRetro2025ShareCountHandlerV4(req: Request) async throws -> Retro2025ShareCountResponse {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
@@ -855,15 +855,11 @@ struct StatisticsController {
                 AND date(dateTime) = date(?)
             """
 
-            return sqlite.query(query, [.text(date)]).flatMapThrowing { rows in
-                guard let row = rows.first else {
-                    return Retro2025ShareCountResponse(shareCount: 0, date: date)
-                }
-                let count = row.column("shareCount")?.integer ?? 0
-                return Retro2025ShareCountResponse(shareCount: count, date: date)
-            }
+            let count = try await sqlite.query(query, [.text(date)])
+                .first?.column("shareCount")?.integer ?? 0
+            return Retro2025ShareCountResponse(shareCount: count, date: date)
         } else {
-            return req.eventLoop.makeSucceededFuture(Retro2025ShareCountResponse(shareCount: 0, date: date))
+            return Retro2025ShareCountResponse(shareCount: 0, date: date)
         }
     }
 
@@ -1150,11 +1146,12 @@ extension StatisticsController {
     
     // MARK: - Parsing Helpers
     
-    private func buildDateFilter(startDate: String, endDate: String) -> String {
+    /// The SQL for the day or range and the dates to bind to it.
+    private func buildDateFilter(startDate: String, endDate: String) -> (sql: String, binds: [SQLiteData]) {
         if startDate == endDate {
-            return "date(dateTime) = date('\(startDate)')"
+            return ("date(dateTime) = date(?)", [.text(startDate)])
         } else {
-            return "date(dateTime) >= date('\(startDate)') AND date(dateTime) <= date('\(endDate)')"
+            return ("date(dateTime) >= date(?) AND date(dateTime) <= date(?)", [.text(startDate), .text(endDate)])
         }
     }
     
@@ -1213,360 +1210,244 @@ extension StatisticsController {
     
     // MARK: - Daily Endpoints
     
-    func getRetro2025DashboardHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025DashboardResponse> {
+    func getRetro2025DashboardHandlerV4(req: Request) async throws -> Retro2025DashboardResponse {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
-        return try getRetro2025DashboardForDateRange(req: req, startDate: date, endDate: date)
+        return try await getRetro2025DashboardForDateRange(req: req, startDate: date, endDate: date)
     }
     
-    func getRetro2025TopSoundsHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025SoundStat]> {
+    func getRetro2025TopSoundsHandlerV4(req: Request) async throws -> [Retro2025SoundStat] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
-        return try getRetro2025TopSoundsForDateRange(req: req, startDate: date, endDate: date)
+        return try await getRetro2025TopSoundsForDateRange(req: req, startDate: date, endDate: date)
     }
     
-    func getRetro2025TopAuthorsHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025AuthorStat]> {
+    func getRetro2025TopAuthorsHandlerV4(req: Request) async throws -> [Retro2025AuthorStat] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
-        return try getRetro2025TopAuthorsForDateRange(req: req, startDate: date, endDate: date)
+        return try await getRetro2025TopAuthorsForDateRange(req: req, startDate: date, endDate: date)
     }
     
-    func getRetro2025DayPatternsHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025DayOfWeekStat]> {
+    func getRetro2025DayPatternsHandlerV4(req: Request) async throws -> [Retro2025DayOfWeekStat] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
-        return try getRetro2025DayPatternsForDateRange(req: req, startDate: date, endDate: date)
+        return try await getRetro2025DayPatternsForDateRange(req: req, startDate: date, endDate: date)
     }
     
-    func getRetro2025UserStatsHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025UserStat]> {
+    func getRetro2025UserStatsHandlerV4(req: Request) async throws -> [Retro2025UserStat] {
         guard let date = req.parameters.get("date") else {
             throw Abort(.badRequest, reason: "Missing date parameter.")
         }
         
-        return try getRetro2025UserStatsForDateRange(req: req, startDate: date, endDate: date)
+        return try await getRetro2025UserStatsForDateRange(req: req, startDate: date, endDate: date)
     }
     
     // MARK: - Date Range Endpoints
     
-    func getRetro2025DashboardRangeHandlerV4(req: Request) throws -> EventLoopFuture<Retro2025DashboardResponse> {
+    func getRetro2025DashboardRangeHandlerV4(req: Request) async throws -> Retro2025DashboardResponse {
         guard let startDate = req.parameters.get("startDate"),
               let endDate = req.parameters.get("endDate") else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
         
-        return try getRetro2025DashboardForDateRange(req: req, startDate: startDate, endDate: endDate)
+        return try await getRetro2025DashboardForDateRange(req: req, startDate: startDate, endDate: endDate)
     }
     
-    func getRetro2025TopSoundsRangeHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025SoundStat]> {
+    func getRetro2025TopSoundsRangeHandlerV4(req: Request) async throws -> [Retro2025SoundStat] {
         guard let startDate = req.parameters.get("startDate"),
               let endDate = req.parameters.get("endDate") else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
         
-        return try getRetro2025TopSoundsForDateRange(req: req, startDate: startDate, endDate: endDate)
+        return try await getRetro2025TopSoundsForDateRange(req: req, startDate: startDate, endDate: endDate)
     }
     
-    func getRetro2025TopAuthorsRangeHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025AuthorStat]> {
+    func getRetro2025TopAuthorsRangeHandlerV4(req: Request) async throws -> [Retro2025AuthorStat] {
         guard let startDate = req.parameters.get("startDate"),
               let endDate = req.parameters.get("endDate") else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
         
-        return try getRetro2025TopAuthorsForDateRange(req: req, startDate: startDate, endDate: endDate)
+        return try await getRetro2025TopAuthorsForDateRange(req: req, startDate: startDate, endDate: endDate)
     }
     
-    func getRetro2025DayPatternsRangeHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025DayOfWeekStat]> {
+    func getRetro2025DayPatternsRangeHandlerV4(req: Request) async throws -> [Retro2025DayOfWeekStat] {
         guard let startDate = req.parameters.get("startDate"),
               let endDate = req.parameters.get("endDate") else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
         
-        return try getRetro2025DayPatternsForDateRange(req: req, startDate: startDate, endDate: endDate)
+        return try await getRetro2025DayPatternsForDateRange(req: req, startDate: startDate, endDate: endDate)
     }
     
-    func getRetro2025UserStatsRangeHandlerV4(req: Request) throws -> EventLoopFuture<[Retro2025UserStat]> {
+    func getRetro2025UserStatsRangeHandlerV4(req: Request) async throws -> [Retro2025UserStat] {
         guard let startDate = req.parameters.get("startDate"),
               let endDate = req.parameters.get("endDate") else {
             throw Abort(.badRequest, reason: "Missing date parameters.")
         }
         
-        return try getRetro2025UserStatsForDateRange(req: req, startDate: startDate, endDate: endDate)
+        return try await getRetro2025UserStatsForDateRange(req: req, startDate: startDate, endDate: endDate)
     }
     
     // MARK: - Core Implementation Methods
-    
-    private func getRetro2025DashboardForDateRange(req: Request, startDate: String, endDate: String) throws -> EventLoopFuture<Retro2025DashboardResponse> {
+
+    /// A Retro 2025 share: the packed `destinationScreen` and who shared it.
+    private typealias Retro2025Share = (destinationScreen: String, userId: String?)
+
+    /// Every Retro 2025 share from `startDate` to `endDate`, both inclusive, or nil when
+    /// the database isn't SQLite.
+    private func retro2025Shares(req: Request, startDate: String, endDate: String) async throws -> [Retro2025Share]? {
         guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture(
-                Retro2025DashboardResponse(
-                    overallStats: Retro2025OverallStats(totalShares: 0, uniqueUsers: 0, averageSharesPerUser: 0, startDate: startDate, endDate: endDate),
-                    topSounds: [],
-                    topAuthors: [],
-                    dayPatterns: [],
-                    topUsers: [],
-                    date: startDate == endDate ? startDate : nil,
-                    startDate: startDate == endDate ? nil : startDate,
-                    endDate: startDate == endDate ? nil : endDate
-                )
-            )
+            return nil
         }
-        
-        let dateFilter = buildDateFilter(startDate: startDate, endDate: endDate)
-        
-        // Fetch all records for this date range
+
+        let (dateFilter, binds) = buildDateFilter(startDate: startDate, endDate: endDate)
+
         let query = """
             SELECT destinationScreen, customInstallId
             FROM UsageMetric
             WHERE originatingScreen = 'Retro2025'
             AND \(dateFilter)
         """
-        
-        return sqlite.query(query).flatMapThrowing { rows in
-            var soundCounts: [String: Int] = [:] // Key: "number|name"
-            var authorCounts: [String: (count: Int, imageURL: String?)] = [:]
-            var dayCounts: [String: Int] = [:]
-            var userStats: [String: (shares: Int, days: [String: Int])] = [:]
-            var totalShares = 0
-            var uniqueUsers = Set<String>()
-            
-            for row in rows {
-                guard let destinationScreen = row.column("destinationScreen")?.string,
-                      let userId = row.column("customInstallId")?.string else {
-                    continue
-                }
-                
-                uniqueUsers.insert(userId)
-                
-                let parsed = self.parseDestinationScreen(destinationScreen)
-                
-                // Aggregate sounds
-                for (number, name) in parsed.sounds {
-                    let key = "\(number)|\(name)"
-                    soundCounts[key, default: 0] += 1
-                }
-                
-                // Aggregate authors
-                if let author = parsed.authorName {
-                    let current = authorCounts[author] ?? (count: 0, imageURL: nil)
-                    authorCounts[author] = (count: current.count + 1, imageURL: parsed.imageURL ?? current.imageURL)
-                }
-                
-                // Aggregate days
-                if let day = parsed.dayOfWeek {
-                    dayCounts[day, default: 0] += 1
-                }
-                
-                // Aggregate user stats
-                var userStat = userStats[userId] ?? (shares: 0, days: [:])
-                userStat.shares += parsed.shareCount ?? 1
-                if let day = parsed.dayOfWeek {
-                    userStat.days[day, default: 0] += 1
-                }
-                userStats[userId] = userStat
-                
-                totalShares += parsed.shareCount ?? 1
+
+        return try await sqlite.query(query, binds).compactMap { row in
+            guard let destinationScreen = row.column("destinationScreen")?.string else {
+                return nil
             }
-            
-            // Build top sounds
-            let topSounds = soundCounts.map { key, count in
-                let parts = key.split(separator: "|", maxSplits: 1)
-                return Retro2025SoundStat(
-                    soundNumber: Int(parts[0]) ?? 0,
-                    soundName: parts.count > 1 ? String(parts[1]) : "",
-                    shareCount: count
-                )
-            }.sorted { $0.shareCount > $1.shareCount }
-            
-            // Build top authors
-            let topAuthors = authorCounts.map { name, data in
-                Retro2025AuthorStat(authorName: name, shareCount: data.count, imageURL: data.imageURL)
-            }.sorted { $0.shareCount > $1.shareCount }
-            
-            // Build day patterns
-            let dayPatterns = dayCounts.map { day, count in
-                Retro2025DayOfWeekStat(dayName: day, shareCount: count)
-            }.sorted { $0.shareCount > $1.shareCount }
-            
-            // Build top users
-            let topUsers = userStats.map { userId, data in
-                let mostActiveDay = data.days.max(by: { $0.value < $1.value })?.key
-                return Retro2025UserStat(userId: userId, totalShares: data.shares, mostActiveDay: mostActiveDay)
-            }.sorted { $0.totalShares > $1.totalShares }
-            
-            let averageShares = uniqueUsers.isEmpty ? 0.0 : Double(totalShares) / Double(uniqueUsers.count)
-            
+            return (destinationScreen, row.column("customInstallId")?.string)
+        }
+    }
+
+    private func retro2025TopSounds(_ shares: [Retro2025Share]) -> [Retro2025SoundStat] {
+        var soundCounts: [String: Int] = [:] // Key: "number|name"
+
+        for share in shares {
+            for (number, name) in parseDestinationScreen(share.destinationScreen).sounds {
+                soundCounts["\(number)|\(name)", default: 0] += 1
+            }
+        }
+
+        return soundCounts.map { key, count in
+            let parts = key.split(separator: "|", maxSplits: 1)
+            return Retro2025SoundStat(
+                soundNumber: Int(parts[0]) ?? 0,
+                soundName: parts.count > 1 ? String(parts[1]) : "",
+                shareCount: count
+            )
+        }.sorted { $0.shareCount > $1.shareCount }
+    }
+
+    private func retro2025TopAuthors(_ shares: [Retro2025Share]) -> [Retro2025AuthorStat] {
+        var authorCounts: [String: (count: Int, imageURL: String?)] = [:]
+
+        for share in shares {
+            let parsed = parseDestinationScreen(share.destinationScreen)
+            if let author = parsed.authorName {
+                let current = authorCounts[author] ?? (count: 0, imageURL: nil)
+                authorCounts[author] = (count: current.count + 1, imageURL: parsed.imageURL ?? current.imageURL)
+            }
+        }
+
+        return authorCounts.map { name, data in
+            Retro2025AuthorStat(authorName: name, shareCount: data.count, imageURL: data.imageURL)
+        }.sorted { $0.shareCount > $1.shareCount }
+    }
+
+    private func retro2025DayPatterns(_ shares: [Retro2025Share]) -> [Retro2025DayOfWeekStat] {
+        var dayCounts: [String: Int] = [:]
+
+        for share in shares {
+            if let day = parseDestinationScreen(share.destinationScreen).dayOfWeek {
+                dayCounts[day, default: 0] += 1
+            }
+        }
+
+        return dayCounts.map { day, count in
+            Retro2025DayOfWeekStat(dayName: day, shareCount: count)
+        }.sorted { $0.shareCount > $1.shareCount }
+    }
+
+    /// Shares without a user are left out.
+    private func retro2025UserStats(_ shares: [Retro2025Share]) -> [Retro2025UserStat] {
+        var userStats: [String: (shares: Int, days: [String: Int])] = [:]
+
+        for share in shares {
+            guard let userId = share.userId else { continue }
+            let parsed = parseDestinationScreen(share.destinationScreen)
+            var userStat = userStats[userId] ?? (shares: 0, days: [:])
+            userStat.shares += parsed.shareCount ?? 1
+            if let day = parsed.dayOfWeek {
+                userStat.days[day, default: 0] += 1
+            }
+            userStats[userId] = userStat
+        }
+
+        return userStats.map { userId, data in
+            let mostActiveDay = data.days.max(by: { $0.value < $1.value })?.key
+            return Retro2025UserStat(userId: userId, totalShares: data.shares, mostActiveDay: mostActiveDay)
+        }.sorted { $0.totalShares > $1.totalShares }
+    }
+
+    private func getRetro2025DashboardForDateRange(req: Request, startDate: String, endDate: String) async throws -> Retro2025DashboardResponse {
+        guard let allShares = try await retro2025Shares(req: req, startDate: startDate, endDate: endDate) else {
             return Retro2025DashboardResponse(
-                overallStats: Retro2025OverallStats(
-                    totalShares: totalShares,
-                    uniqueUsers: uniqueUsers.count,
-                    averageSharesPerUser: averageShares,
-                    startDate: startDate == endDate ? nil : startDate,
-                    endDate: startDate == endDate ? nil : endDate
-                ),
-                topSounds: Array(topSounds.prefix(10)),
-                topAuthors: Array(topAuthors.prefix(10)),
-                dayPatterns: dayPatterns,
-                topUsers: Array(topUsers.prefix(10)),
+                overallStats: Retro2025OverallStats(totalShares: 0, uniqueUsers: 0, averageSharesPerUser: 0, startDate: startDate, endDate: endDate),
+                topSounds: [],
+                topAuthors: [],
+                dayPatterns: [],
+                topUsers: [],
                 date: startDate == endDate ? startDate : nil,
                 startDate: startDate == endDate ? nil : startDate,
                 endDate: startDate == endDate ? nil : endDate
             )
         }
+
+        // The dashboard only counts shares it can attribute to a user.
+        let shares = allShares.filter { $0.userId != nil }
+        let topUsers = retro2025UserStats(shares)
+        let totalShares = topUsers.reduce(0) { $0 + $1.totalShares }
+        let averageShares = topUsers.isEmpty ? 0.0 : Double(totalShares) / Double(topUsers.count)
+
+        return Retro2025DashboardResponse(
+            overallStats: Retro2025OverallStats(
+                totalShares: totalShares,
+                uniqueUsers: topUsers.count,
+                averageSharesPerUser: averageShares,
+                startDate: startDate == endDate ? nil : startDate,
+                endDate: startDate == endDate ? nil : endDate
+            ),
+            topSounds: Array(retro2025TopSounds(shares).prefix(10)),
+            topAuthors: Array(retro2025TopAuthors(shares).prefix(10)),
+            dayPatterns: retro2025DayPatterns(shares),
+            topUsers: Array(topUsers.prefix(10)),
+            date: startDate == endDate ? startDate : nil,
+            startDate: startDate == endDate ? nil : startDate,
+            endDate: startDate == endDate ? nil : endDate
+        )
     }
-    
-    private func getRetro2025TopSoundsForDateRange(req: Request, startDate: String, endDate: String) throws -> EventLoopFuture<[Retro2025SoundStat]> {
-        guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
-        
-        let dateFilter = buildDateFilter(startDate: startDate, endDate: endDate)
-        
-        let query = """
-            SELECT destinationScreen
-            FROM UsageMetric
-            WHERE originatingScreen = 'Retro2025'
-            AND \(dateFilter)
-        """
-        
-        return sqlite.query(query).flatMapThrowing { rows in
-            var soundCounts: [String: Int] = [:]
-            
-            for row in rows {
-                guard let destinationScreen = row.column("destinationScreen")?.string else {
-                    continue
-                }
-                
-                let parsed = self.parseDestinationScreen(destinationScreen)
-                for (number, name) in parsed.sounds {
-                    let key = "\(number)|\(name)"
-                    soundCounts[key, default: 0] += 1
-                }
-            }
-            
-            return soundCounts.map { key, count in
-                let parts = key.split(separator: "|", maxSplits: 1)
-                return Retro2025SoundStat(
-                    soundNumber: Int(parts[0]) ?? 0,
-                    soundName: parts.count > 1 ? String(parts[1]) : "",
-                    shareCount: count
-                )
-            }.sorted { $0.shareCount > $1.shareCount }
-        }
+
+    private func getRetro2025TopSoundsForDateRange(req: Request, startDate: String, endDate: String) async throws -> [Retro2025SoundStat] {
+        retro2025TopSounds(try await retro2025Shares(req: req, startDate: startDate, endDate: endDate) ?? [])
     }
-    
-    private func getRetro2025TopAuthorsForDateRange(req: Request, startDate: String, endDate: String) throws -> EventLoopFuture<[Retro2025AuthorStat]> {
-        guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
-        
-        let dateFilter = buildDateFilter(startDate: startDate, endDate: endDate)
-        
-        let query = """
-            SELECT destinationScreen
-            FROM UsageMetric
-            WHERE originatingScreen = 'Retro2025'
-            AND \(dateFilter)
-        """
-        
-        return sqlite.query(query).flatMapThrowing { rows in
-            var authorCounts: [String: (count: Int, imageURL: String?)] = [:]
-            
-            for row in rows {
-                guard let destinationScreen = row.column("destinationScreen")?.string else {
-                    continue
-                }
-                
-                let parsed = self.parseDestinationScreen(destinationScreen)
-                if let author = parsed.authorName {
-                    let current = authorCounts[author] ?? (count: 0, imageURL: nil)
-                    authorCounts[author] = (count: current.count + 1, imageURL: parsed.imageURL ?? current.imageURL)
-                }
-            }
-            
-            return authorCounts.map { name, data in
-                Retro2025AuthorStat(authorName: name, shareCount: data.count, imageURL: data.imageURL)
-            }.sorted { $0.shareCount > $1.shareCount }
-        }
+
+    private func getRetro2025TopAuthorsForDateRange(req: Request, startDate: String, endDate: String) async throws -> [Retro2025AuthorStat] {
+        retro2025TopAuthors(try await retro2025Shares(req: req, startDate: startDate, endDate: endDate) ?? [])
     }
-    
-    private func getRetro2025DayPatternsForDateRange(req: Request, startDate: String, endDate: String) throws -> EventLoopFuture<[Retro2025DayOfWeekStat]> {
-        guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
-        
-        let dateFilter = buildDateFilter(startDate: startDate, endDate: endDate)
-        
-        let query = """
-            SELECT destinationScreen
-            FROM UsageMetric
-            WHERE originatingScreen = 'Retro2025'
-            AND \(dateFilter)
-        """
-        
-        return sqlite.query(query).flatMapThrowing { rows in
-            var dayCounts: [String: Int] = [:]
-            
-            for row in rows {
-                guard let destinationScreen = row.column("destinationScreen")?.string else {
-                    continue
-                }
-                
-                let parsed = self.parseDestinationScreen(destinationScreen)
-                if let day = parsed.dayOfWeek {
-                    dayCounts[day, default: 0] += 1
-                }
-            }
-            
-            return dayCounts.map { day, count in
-                Retro2025DayOfWeekStat(dayName: day, shareCount: count)
-            }.sorted { $0.shareCount > $1.shareCount }
-        }
+
+    private func getRetro2025DayPatternsForDateRange(req: Request, startDate: String, endDate: String) async throws -> [Retro2025DayOfWeekStat] {
+        retro2025DayPatterns(try await retro2025Shares(req: req, startDate: startDate, endDate: endDate) ?? [])
     }
-    
-    private func getRetro2025UserStatsForDateRange(req: Request, startDate: String, endDate: String) throws -> EventLoopFuture<[Retro2025UserStat]> {
-        guard let sqlite = req.db as? SQLiteDatabase else {
-            return req.eventLoop.makeSucceededFuture([])
-        }
-        
-        let dateFilter = buildDateFilter(startDate: startDate, endDate: endDate)
-        
-        let query = """
-            SELECT destinationScreen, customInstallId
-            FROM UsageMetric
-            WHERE originatingScreen = 'Retro2025'
-            AND \(dateFilter)
-        """
-        
-        return sqlite.query(query).flatMapThrowing { rows in
-            var userStats: [String: (shares: Int, days: [String: Int])] = [:]
-            
-            for row in rows {
-                guard let destinationScreen = row.column("destinationScreen")?.string,
-                      let userId = row.column("customInstallId")?.string else {
-                    continue
-                }
-                
-                let parsed = self.parseDestinationScreen(destinationScreen)
-                var userStat = userStats[userId] ?? (shares: 0, days: [:])
-                userStat.shares += parsed.shareCount ?? 1
-                if let day = parsed.dayOfWeek {
-                    userStat.days[day, default: 0] += 1
-                }
-                userStats[userId] = userStat
-            }
-            
-            return userStats.map { userId, data in
-                let mostActiveDay = data.days.max(by: { $0.value < $1.value })?.key
-                return Retro2025UserStat(userId: userId, totalShares: data.shares, mostActiveDay: mostActiveDay)
-            }.sorted { $0.totalShares > $1.totalShares }
-        }
+
+    private func getRetro2025UserStatsForDateRange(req: Request, startDate: String, endDate: String) async throws -> [Retro2025UserStat] {
+        retro2025UserStats(try await retro2025Shares(req: req, startDate: startDate, endDate: endDate) ?? [])
     }
 }
 

@@ -216,6 +216,24 @@ final class Retro2025StatsTests: XCTestCase {
         }
     }
 
+    // MARK: - Dates are values, not SQL
+
+    func testADateCantChangeTheQuery() async throws {
+        try await seed()
+        let injected = "2099-01-01')%20OR%201=1%20OR%20date('"
+
+        try await app.test(.GET, "api/v4/retro2025-dashboard/\(injected)") { res async throws in
+            let response = try res.content.decode(Retro2025DashboardResponse.self)
+            XCTAssertEqual(response.overallStats.totalShares, 0)
+        }
+        try await app.test(.GET, "api/v4/retro2025-user-stats-range/\(injected)/2099-01-02") { res async throws in
+            XCTAssertEqual(try res.content.decode([Retro2025UserStat].self).count, 0)
+        }
+        try await app.test(.GET, "api/v4/retro2025-top-sounds-range/2099-01-01/\(injected)") { res async throws in
+            XCTAssertEqual(try res.content.decode([Retro2025SoundStat].self).count, 0)
+        }
+    }
+
     /// A range whose ends are the same day reads like the daily route.
     func testARangeOfOneDayLooksLikeADay() async throws {
         try await seed()
