@@ -1866,8 +1866,8 @@ extension StatisticsController {
         // Chapter ids/titles live packed together in the same action string
         // ("didTapChapter(<id>, <title>)"); split on the first ", " after
         // stripping the "didTapChapter(" prefix (14 chars) and trailing ")".
-        // Ordering the parsed rows by dateTime before GROUP BY makes SQLite's
-        // "bare column" selection return the most recently seen title per id.
+        // With a single max() aggregate, SQLite takes the bare chapterTitle from
+        // the row with the latest dateTime, so each id shows its newest title.
         let topChaptersQuery = """
             WITH taps AS (
               SELECT
@@ -1876,6 +1876,7 @@ extension StatisticsController {
               FROM UsageMetric
               WHERE destinationScreen LIKE 'didTapChapter(%'
                 AND (originatingScreen = 'EpisodeDetail' OR originatingScreen = 'NowPlaying')
+                AND dateTime >= datetime('now', '-30 days')
             ),
             parsed AS (
               SELECT
@@ -1885,8 +1886,8 @@ extension StatisticsController {
               FROM taps
               WHERE instr(payload, ', ') > 0
             )
-            SELECT chapterId as id, chapterTitle as title, COUNT(*) as tapCount
-            FROM (SELECT * FROM parsed ORDER BY dateTime ASC)
+            SELECT chapterId as id, chapterTitle as title, COUNT(*) as tapCount, MAX(dateTime) as lastTap
+            FROM parsed
             GROUP BY chapterId
             ORDER BY tapCount DESC
             LIMIT 15

@@ -193,16 +193,16 @@ final class ContentAnalyticsTests: XCTestCase {
         }
     }
 
-    /// Unlike the rest of the response, the ranking isn't limited to the last 30 days.
-    ///
-    /// The query means to show each chapter's latest title, but the `ORDER BY` in its
-    /// subquery doesn't decide which row a `GROUP BY` takes a bare column from, so the
-    /// title is whichever one SQLite picks (the oldest, in practice). Pinned loosely so
-    /// fixing it is a deliberate decision.
-    func testTopChaptersAreAllTimeWithOneOfTheTitlesSeen() async throws {
-        try await metric("didTapChapter(7, Título antigo)", from: "EpisodeDetail", at: daysAgo(100))
+    /// Like the rest of the response (and MedoHelper's "Últimos 30 dias" header), the
+    /// ranking covers the last 30 days, and each chapter shows its latest title.
+    func testTopChaptersCoverTheLast30DaysWithTheLatestTitle() async throws {
+        try await metric("didTapChapter(7, Título antigo)", from: "EpisodeDetail", at: daysAgo(20))
         try await metric("didTapChapter(7, Título novo)", from: "NowPlaying", at: daysAgo(1))
-        try await metric("didTapChapter(7, Título do meio)", from: "NowPlaying", at: daysAgo(50))
+        try await metric("didTapChapter(7, Título do meio)", from: "NowPlaying", at: daysAgo(10))
+        try await metric("didTapChapter(4, Velho)", from: "NowPlaying", at: daysAgo(40))
+        try await metric("didTapChapter(4, Velho)", from: "NowPlaying", at: daysAgo(41))
+        try await metric("didTapChapter(4, Velho)", from: "NowPlaying", at: daysAgo(42))
+        try await metric("didTapChapter(4, Velho)", from: "NowPlaying", at: daysAgo(43))
         try await metric("didTapChapter(3, Abertura, com vírgula)", from: "NowPlaying", at: daysAgo(1))
         try await metric("didTapChapter(3, Abertura, com vírgula)", from: "NowPlaying", at: daysAgo(2))
         try await metric("didTapChapter(9, Fim)", from: "NowPlaying", at: daysAgo(1))
@@ -211,9 +211,11 @@ final class ContentAnalyticsTests: XCTestCase {
 
         try await app.test(.GET, "api/v4/chapters-usage-analytics/\(TestEnvironment.testPassword)") { res async throws in
             let response = try res.content.decode(ChaptersUsageAnalyticsResponse.self)
-            XCTAssertEqual(response.topChapters.map { "\($0.id) \($0.tapCount)" }, ["7 3", "3 2", "9 1"])
-            XCTAssertTrue(["Título antigo", "Título do meio", "Título novo"].contains(response.topChapters.first?.title ?? ""))
-            XCTAssertEqual(response.topChapters.dropFirst().map(\.title), ["Abertura, com vírgula", "Fim"])
+            XCTAssertEqual(response.topChapters.map { "\($0.id) \($0.title) \($0.tapCount)" }, [
+                "7 Título novo 3",
+                "3 Abertura, com vírgula 2",
+                "9 Fim 1"
+            ])
         }
     }
 
