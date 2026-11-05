@@ -291,6 +291,12 @@ func routes(_ app: Application) throws {
     app.post(api, v4, "episode-highlight", ":password", use: episodeHighlightController.postHandlerV4)
     app.delete(api, v4, "episode-highlight", ":password", use: episodeHighlightController.deleteHandlerV4)
 
+    let retroBannerController = RetroBannerController()
+    app.get(api, v4, "retro-banner", use: retroBannerController.getHandlerV4)
+    app.get(api, v4, "retro-banner", "settings", ":password", use: retroBannerController.getSettingsHandlerV4)
+    app.post(api, v4, "retro-banner", ":password", use: retroBannerController.postHandlerV4)
+    app.delete(api, v4, "retro-banner", ":password", use: retroBannerController.deleteHandlerV4)
+
     let electionController = ElectionController()
     app.get(api, v4, "election", "live", use: electionController.getLiveHandlerV4)
     app.get(api, v4, "election", "status", ":password", use: electionController.getStatusHandlerV4)
