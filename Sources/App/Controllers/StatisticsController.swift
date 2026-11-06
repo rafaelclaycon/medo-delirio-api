@@ -2682,3 +2682,65 @@ extension StatisticsController {
         )
     }
 }
+
+// MARK: - Retrospectiva 2026
+
+extension StatisticsController {
+
+    /// How the Retrospectiva 2026 is doing, from its banner to the share taps, with what the
+    /// 2025 one can be compared on. Covers every event since the feature shipped.
+    func getRetro2026AnalyticsHandlerV4(req: Request) async throws -> Retro2026AnalyticsResponse {
+        guard req.parameters.get("password") == ReleaseConfigs.Passwords.analyticsPassword else {
+            throw Abort(.forbidden)
+        }
+        guard let sqlite = req.db as? SQLiteDatabase else {
+            throw Abort(.internalServerError, reason: "Database is not SQLite")
+        }
+        return try await Self.retro2026Analytics(on: sqlite, now: .now)
+    }
+
+    /// The date bounds only let the `dateTime` index narrow the scan: the 2025 events ran
+    /// from December 2025 to January 2026, and the 2026 ones can't come before mid-2026.
+    static func retro2026Analytics(on sqlite: SQLiteDatabase, now: Date) async throws -> Retro2026AnalyticsResponse {
+        let testIdList = testInstallIds.map { "'\($0)'" }.joined(separator: ",")
+        let boundary = "2026-06-01T00:00:00.000Z"
+
+        func events(screen: String, from start: String, to end: String) async throws -> [RetroUsageEvent] {
+            let rows = try await sqlite.query("""
+                SELECT customInstallId, originatingScreen, destinationScreen, dateTime,
+                       appVersion, systemName, isiOSAppOnMac
+                FROM UsageMetric
+                WHERE dateTime >= ? AND dateTime < ?
+                  AND originatingScreen = ?
+                  AND customInstallId NOT IN (\(testIdList))
+                """, [.text(start), .text(end), .text(screen)]).get()
+            return rows.compactMap { row in
+                guard let installId = row.column("customInstallId")?.string,
+                      let originatingScreen = row.column("originatingScreen")?.string,
+                      let destinationScreen = row.column("destinationScreen")?.string,
+                      let dateTime = row.column("dateTime")?.string else {
+                    return nil
+                }
+                return RetroUsageEvent(
+                    installId: installId,
+                    originatingScreen: originatingScreen,
+                    destinationScreen: destinationScreen,
+                    dateTime: dateTime,
+                    appVersion: row.column("appVersion")?.string ?? "",
+                    systemName: row.column("systemName")?.string ?? "",
+                    isiOSAppOnMac: (row.column("isiOSAppOnMac")?.integer ?? 0) != 0
+                )
+            }
+        }
+
+        let events2026 = try await events(screen: RetroUsageEvent.screen2026, from: boundary, to: "9999")
+        let events2025 = try await events(screen: RetroUsageEvent.screen2025, from: "2025-06-01T00:00:00.000Z", to: boundary)
+
+        return Retro2026AnalyticsResponse(
+            events: events2026,
+            events2025: events2025,
+            today: String(now.iso8601withFractionalSeconds.prefix(10)),
+            generatedAt: now.iso8601withFractionalSeconds
+        )
+    }
+}

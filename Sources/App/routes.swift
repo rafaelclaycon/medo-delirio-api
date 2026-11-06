@@ -136,6 +136,9 @@ func routes(_ app: Application) throws {
     // Games Analytics
     app.get(api, v4, "games-analytics", ":password", use: statisticsController.getGamesAnalyticsHandlerV4)
 
+    // Retrospectiva 2026 Analytics
+    app.get(api, v4, "retro2026-analytics", ":password", use: statisticsController.getRetro2026AnalyticsHandlerV4)
+
     let widgetSummaryController = WidgetSummaryController()
     app.get(api, v4, "widget-summary", ":password", use: widgetSummaryController.getWidgetSummaryHandlerV4)
 
