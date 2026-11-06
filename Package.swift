@@ -6,6 +6,10 @@ let package = Package(
     platforms: [
        .macOS(.v13)
     ],
+    products: [
+        // The server's service runs .build/release/Run, so the binary keeps that name.
+        .executable(name: "Run", targets: ["App"]),
+    ],
     dependencies: [
         .package(url: "https://github.com/vapor/vapor.git", from: "4.122.0"),
         .package(url: "https://github.com/vapor/fluent.git", from: "4.13.0"),
@@ -17,7 +21,7 @@ let package = Package(
         .package(url: "https://github.com/nmdias/FeedKit.git", from: "9.1.0"),
     ],
     targets: [
-        .target(
+        .executableTarget(
             name: "App",
             dependencies: [
                 .product(name: "Fluent", package: "fluent"),
@@ -34,7 +38,6 @@ let package = Package(
                 .unsafeFlags(["-cross-module-optimization"], .when(configuration: .release))
             ]
         ),
-        .executableTarget(name: "Run", dependencies: [.target(name: "App")]),
         .testTarget(
             name: "AppTests",
             dependencies: [
