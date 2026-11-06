@@ -13,7 +13,7 @@ Already modern before this plan started: async `@main` entrypoint using `Applica
 | 1 | Swift 6 language mode and `Sendable` cleanup | ✅ Done, observed in production Oct 12–26 |
 | 2 | Background jobs: async RSS fetch, cancellable `Task` loops | ✅ Done, observed in production Oct 26 – Nov 1 |
 | 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ✅ Done in code Nov 1–2; production check pending for the last batches |
-| 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency | ⏳ |
+| 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency, package layout | ✅ Done in code Nov 2–6 |
 | 5 | Move admin passwords out of URL paths (breaking API change) | 💬 Needs an app-side plan |
 
 ---
@@ -166,7 +166,7 @@ None of these change behaviour. Do them when convenient.
 - ✅ **Declare JWTKit explicitly (Nov 6).** `Package.swift` now lists jwt-kit `from: "4.13.0"`, and the `JWTKit` product is in the `App` target.
   - **Why:** `APNsBroadcastClient` signs the broadcast push JWT with it, and `ReleaseConfigs` uses its `JWKIdentifier`.
   - **No version change:** `Package.resolved` is unchanged, still 4.13.5, the version APNSwift was already pulling in.
-  - **What it protects against:** an APNS upgrade that drops jwt-kit would now be caught as a version conflict, instead of the import silently disappearing.
+  - **What it protects against:** an APNS or APNSwift upgrade that stops depending on jwt-kit. Without the declaration, the build would fail with "no such module JWTKit" in the middle of that upgrade; with it, jwt-kit stays and the upgrade goes through.
   - **`@preconcurrency` stays** on the import in `ReleaseConfigs`, because `JWKIdentifier` isn't `Sendable` in jwt-kit 4.
 - ✅ **`RouteCollection` (Nov 6).** All 23 controllers register their own routes in `boot(routes:)`, in a `// MARK: - Routes` extension at the end of each file, and `routes.swift` is now just the list of `app.register(collection:)` calls.
   - **Inline closures:** the three closures that lived in `routes.swift` became named handlers. The app site association went to `ShareController`; `send-push-notification` and `test-weekly-highlights-push` went to `NotificationsController`.
@@ -175,7 +175,11 @@ None of these change behaviour. Do them when convenient.
   - **App lifecycle:** each test runs inside `withTestApp`, built on Vapor's `withApp`. It shuts the app down even when the test throws.
   - **Parallel by default:** tests now run in parallel, so the suite takes about 5 s instead of 17 s. Each app has its own in-memory database. The password environment variables are set once per process, because `setenv` isn't safe alongside concurrent reads.
   - **Test-only change:** nothing ships to the server.
-- **Package layout.** The current Vapor template uses a single `executableTarget` instead of the `App` + `Run` split, and drops the `-cross-module-optimization` `unsafeFlags`. This is cosmetic; only change it alongside a release-build benchmark.
+- ✅ **Package layout (Nov 6).** `Sources/Run` folded into `App`, which is now the single `executableTarget`, as in the current Vapor template. An explicit `.executable(name: "Run", …)` product keeps the binary at `.build/release/Run`, so the systemd unit doesn't change.
+  - **`-cross-module-optimization` is gone.** It applied only to `App`, and controlled how much of its code other modules could inline. With a single target nothing imports `App` in release, and the dependencies were never built with it, so it was doing almost nothing.
+  - **Measured on a Mac:** incremental release builds stayed at about 15–16 s, and the binary went from 59.95 MB to 59.80 MB.
+  - **Booted:** the release binary boots and lists all 145 routes.
+  - **On the Nanode:** compare the next deploy's `swift build -c release` time with the 138 s from Phase 1.
 
 ---
 
