@@ -118,3 +118,16 @@ struct RetroBannerController {
         }
     }
 }
+
+// MARK: - Routes
+
+extension RetroBannerController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("retro-banner", use: getHandlerV4)
+        v4.get("retro-banner", "settings", ":password", use: getSettingsHandlerV4)
+        v4.post("retro-banner", ":password", use: postHandlerV4)
+        v4.delete("retro-banner", ":password", use: deleteHandlerV4)
+    }
+}

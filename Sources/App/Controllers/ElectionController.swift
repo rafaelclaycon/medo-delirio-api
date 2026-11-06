@@ -187,3 +187,17 @@ struct ElectionController {
         }
     }
 }
+
+// MARK: - Routes
+
+extension ElectionController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("election", "live", use: getLiveHandlerV4)
+        v4.get("election", "status", ":password", use: getStatusHandlerV4)
+        v4.post("election", "settings", ":password", use: postSettingsHandlerV4)
+        v4.get("election", "channels", ":password", use: getChannelsHandlerV4)
+        v4.post("election", "channels", ":password", use: postChannelsHandlerV4)
+    }
+}

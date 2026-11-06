@@ -98,3 +98,20 @@ struct DynamicBannerController {
         return value
     }
 }
+
+// MARK: - Routes
+
+extension DynamicBannerController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("dynamic-banner-dont-show-version", use: getBannerDontShowVersionHandlerV4)
+        v4.get("dynamic-banner", use: getBannerDataHandlerV4)
+        v4.get("anniversary-banner", use: getAnniversaryBannerDataHandlerV4)
+        v4.get("promo-banner", use: getPromoBannerDataHandlerV4)
+        v4.post("set-dynamic-banner-dont-show-version", use: postSetBannerDontShowVersionHandlerV4)
+        v4.post("dynamic-banner", ":password", use: postSetBannerDataHandlerV4)
+        v4.post("anniversary-banner", ":password", use: postSetAnniversaryBannerDataHandlerV4)
+        v4.post("promo-banner", ":password", use: postSetPromoBannerDataHandlerV4)
+    }
+}

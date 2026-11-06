@@ -159,3 +159,20 @@ struct AuthorsController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension AuthorsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v3 = routes.grouped("api", "v3")
+        let v4 = routes.grouped("api", "v4")
+
+        v3.post("import-authors", ":password", use: postImportAuthorsHandlerV3)
+        v3.post("create-author", ":password", use: postCreateAuthorHandlerV3)
+        v3.put("update-author", ":password", use: putUpdateAuthorHandlerV3)
+        v3.get("author", ":id", use: getAuthorHandlerV3) // Links and no links
+        v4.get("author-links-first-open", use: getAuthorLinksHandlerV4)
+        v3.get("all-authors", use: getAllAuthorsHandlerV3)
+        v3.delete("author", ":id", ":password", use: deleteAuthorHandlerV3)
+    }
+}

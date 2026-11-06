@@ -50,3 +50,16 @@ struct DonorsController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension DonorsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v3 = routes.grouped("api", "v3")
+
+        v3.get("donor-names", use: getDonorNamesHandlerV3)
+        v3.get("display-recurring-donation-banner", use: getDisplayRecurringDonationBannerHandlerV3)
+        v3.post("set-donor-names", ":password", use: postSetDonorNamesHandlerV3)
+        v3.post("display-recurring-donation-banner", use: postSetDisplayRecurringDonationBannerHandlerV3)
+    }
+}

@@ -74,3 +74,18 @@ struct ClientLoggingController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension ClientLoggingController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v1 = routes.grouped("api", "v1")
+        let v2 = routes.grouped("api", "v2")
+
+        v1.post("client-device-info", use: postClientDeviceInfoHandlerV1)
+        v1.post("user-folder-logs", use: postUserFolderLogsHandlerV1)
+        v1.post("user-folder-content-logs", use: postUserFolderContentLogsHandlerV1)
+        v1.post("still-alive-signal", use: postStillAliveSignalHandlerV1)
+        v2.post("usage-metric", use: postUsageMetricHandlerV2)
+    }
+}

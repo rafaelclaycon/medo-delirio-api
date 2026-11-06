@@ -96,3 +96,14 @@ struct RSSStatusController {
         return TestPushResponse(sentCount: sentCount, deviceIds: sentDeviceIds, errors: errors)
     }
 }
+
+// MARK: - Routes
+
+extension RSSStatusController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("rss-status", ":password", use: getRSSStatusHandlerV4)
+        v4.post("test-new-episode-push", ":password", use: postTestNewEpisodePushHandlerV4)
+    }
+}

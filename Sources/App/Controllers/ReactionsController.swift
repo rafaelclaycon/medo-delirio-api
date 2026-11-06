@@ -206,3 +206,23 @@ extension ReactionsController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension ReactionsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("reactions", use: getAllReactionsHandlerV4)
+        v4.get("reaction", ":reactionId", use: getReactionHandlerV4)
+        v4.get("reaction-sounds", ":reactionId", use: getReactionSoundsHandlerV4)
+        v4.get("reactions-for-sound", ":soundId", use: getReactionsForSoundHandler)
+        v4.post("create-reaction", ":password", use: postCreateReactionHandlerV4)
+        v4.post("add-sounds-to-reaction", ":password", use: postAddSoundsToReactionHandlerV4)
+        v4.put("reaction", ":password", use: putUpdateReactionHandlerV4)
+        v4.delete("delete-all-reactions", ":password", use: deleteAllReactionsHandlerV4)
+        v4.delete("delete-all-reaction-sounds", ":password", use: deleteAllReactionSoundsHandlerV4)
+        v4.delete("delete-reaction-sounds", ":id", ":password", use: deleteReactionSoundsHandlerV4)
+        v4.delete("delete-reaction", ":id", ":password", use: deleteReactionHandlerV4)
+    }
+}

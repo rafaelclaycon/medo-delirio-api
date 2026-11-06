@@ -63,3 +63,20 @@ struct AskForMoneyController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension AskForMoneyController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v1 = routes.grouped("api", "v1")
+        let v2 = routes.grouped("api", "v2")
+        let v4 = routes.grouped("api", "v4")
+
+        v1.get("display-ask-for-money-view", use: getDisplayAskForMoneyViewHandlerV1)
+        v2.get("current-test-version", use: getCurrentTestVersionHandlerV2)
+        v4.get("money-info", use: getMoneyInfoHandlerV4)
+        v1.post("display-ask-for-money-view", use: postDisplayAskForMoneyViewHandlerV1)
+        v2.post("set-test-version", use: postSetTestVersionHandlerV2)
+        v4.post("money-info", ":password", use: postMoneyInfoHandlerV4)
+    }
+}

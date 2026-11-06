@@ -117,3 +117,17 @@ struct PushBroadcastController {
         }
     }
 }
+
+// MARK: - Routes
+
+extension PushBroadcastController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("push-audience", ":password", use: getAudienceHandlerV4)
+        v4.post("push-broadcasts", ":password", use: postBroadcastHandlerV4)
+        v4.get("push-broadcasts", ":password", use: getBroadcastsHandlerV4)
+        v4.get("push-broadcast", ":id", ":password", use: getBroadcastHandlerV4)
+        v4.post("push-broadcast", ":id", "cancel", ":password", use: postCancelBroadcastHandlerV4)
+    }
+}

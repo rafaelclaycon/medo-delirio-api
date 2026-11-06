@@ -236,3 +236,19 @@ extension PlayLogController {
         }
     }
 }
+
+// MARK: - Routes
+
+extension PlayLogController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.on(.POST, "play-logs", body: .collect(maxSize: PlayLogController.maxBodySize), use: postPlayLogsHandlerV4)
+        v4.get("sound-play-count-stats-all-time", use: getSoundPlayCountStatsAllTimeHandlerV4)
+        v4.get("sound-play-count-stats-from", ":date", use: getSoundPlayCountStatsFromHandlerV4)
+        v4.get("sound-play-count-stats-from-to", ":firstDate", ":secondDate", use: getSoundPlayCountStatsFromToHandlerV4)
+        v4.get("song-play-count-stats-all-time", use: getSongPlayCountStatsAllTimeHandlerV4)
+        v4.get("song-play-count-stats-from", ":date", use: getSongPlayCountStatsFromHandlerV4)
+        v4.get("song-play-count-stats-from-to", ":firstDate", ":secondDate", use: getSongPlayCountStatsFromToHandlerV4)
+    }
+}

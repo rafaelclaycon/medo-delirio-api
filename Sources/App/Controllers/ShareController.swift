@@ -8,6 +8,30 @@ import Fluent
 
 struct ShareController {
 
+    // MARK: - Apple App Site Association (Universal Links)
+
+    /// Must be served with Content-Type: application/json — don't rely on FileMiddleware for this.
+    func getAppleAppSiteAssociationHandler(req: Request) -> Response {
+        let aasa = """
+        {
+          "applinks": {
+            "details": [
+              {
+                "appIDs": ["\(ReleaseConfigs.UniversalLinks.appleAppID)"],
+                "components": [
+                  { "/": "/reacao/*",  "comment": "Reaction share pages" },
+                  { "/": "/episodio/*", "comment": "Episode share pages"  }
+                ]
+              }
+            ]
+          }
+        }
+        """
+        var headers = HTTPHeaders()
+        headers.add(name: .contentType, value: "application/json")
+        return Response(status: .ok, headers: headers, body: .init(string: aasa))
+    }
+
     // MARK: - Reaction
 
     func getReactionPageHandler(req: Request) async throws -> Response {
@@ -349,5 +373,17 @@ struct ShareController {
         </body>
         </html>
         """
+    }
+}
+
+// MARK: - Routes
+
+extension ShareController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        routes.get(".well-known", "apple-app-site-association", use: getAppleAppSiteAssociationHandler)
+
+        // Universal Link fallbacks
+        routes.get("reacao", ":id", use: getReactionPageHandler)
+        routes.get("episodio", ":id", use: getEpisodePageHandler)
     }
 }

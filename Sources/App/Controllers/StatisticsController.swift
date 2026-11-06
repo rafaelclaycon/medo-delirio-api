@@ -2744,3 +2744,100 @@ extension StatisticsController {
         )
     }
 }
+
+// MARK: - Routes
+
+extension StatisticsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v1 = routes.grouped("api", "v1")
+        let v2 = routes.grouped("api", "v2")
+        let v3 = routes.grouped("api", "v3")
+        let v4 = routes.grouped("api", "v4")
+
+        v1.get("all-client-device-info", use: getAllClientDeviceInfoHandlerV1)
+        v1.get("all-sound-share-count-stats", use: getAllSoundShareCountStatsHandlerV1)
+        v2.get("sound-share-count-stats-all-time", use: getSoundShareCountStatsAllTimeHandlerV2)
+        v2.get("sound-share-count-stats-from", ":date", use: getSoundShareCountStatsFromHandlerV2)
+        v3.get("sound-share-count-stats-all-time", use: getSoundShareCountStatsAllTimeHandlerV3)
+        v3.get("sound-share-count-stats-from", ":date", use: getSoundShareCountStatsFromHandlerV3)
+        v3.get("sound-share-count-stats-from-to", ":firstDate", ":secondDate", use: getSoundShareCountStatsFromToHandlerV3)
+        v3.get("sound-share-count-stats-for", ":soundId", use: getSoundShareCountStatsForSoundIdHandler)
+        v3.get("active-users-count-from", ":date", ":password", use: getActiveUsersCountFromHandlerV3)
+        v3.get("active-users-daily-last-30-days", ":password", use: getActiveUsersDailyLast30DaysHandlerV3)
+        v4.get("unique-users", ":password", use: getUniqueUsersHandlerV4)
+        v3.get("device-analytics", ":password", use: getDeviceAnalyticsHandlerV3)
+        v3.get("device-model-history", ":modelName", ":password", use: getDeviceModelHistoryHandlerV3)
+        v3.get("all-device-model-names", ":password", use: getAllDeviceModelNamesHandlerV3)
+        v3.get("ios-version-history", ":majorVersion", ":password", use: getIOSVersionHistoryHandlerV3)
+        v3.get("all-ios-versions", ":password", use: getAllIOSVersionsHandlerV3)
+        v3.get("ios-version-device-breakdown", ":majorVersion", ":password", use: getIOSVersionDeviceBreakdownHandlerV3)
+        v3.get("navigation-analytics", ":password", use: getNavigationAnalyticsHandlerV3)
+        v3.get("sessions-count-from", ":date", ":password", use: getSessionsCountFromHandlerV3)
+
+        // Off until Retro 2026, like the other Retro2025 routes below.
+        // v4.get("retro2025-share-count", ":date", use: getRetro2025ShareCountHandlerV4)
+        v4.get("weekly-highlights-stats", ":password", use: getWeeklyHighlightsStatsHandlerV4)
+        v1.post("share-count-stat", use: postShareCountStatHandlerV1)
+        v1.post("shared-to-bundle-id", use: postSharedToBundleIdHandlerV1)
+
+        // Songs
+        v3.get("song-share-count-stats-all-time", use: getSongShareCountStatsAllTimeHandlerV3)
+        v3.get("song-share-count-stats-from", ":date", use: getSongShareCountStatsFromHandlerV3)
+        v3.get("song-share-count-stats-from-to", ":firstDate", ":secondDate", use: getSongShareCountStatsFromToHandlerV3)
+
+        // Reactions
+        v3.get("reaction-popularity-stats", use: getReactionPopularityStatsHandlerV3)
+        v4.get("top-3-reactions", use: getTop3ReactionsHandlerV4)
+
+        // Retro2025 Statistics: off until Retro 2026. Their dates are bound parameters now, and
+        // Retro2025StatsTests registers these same paths to cover them while they're off.
+
+        // Retro2025 Statistics - Daily
+        // v4.get("retro2025-dashboard", ":date", use: getRetro2025DashboardHandlerV4)
+        // v4.get("retro2025-top-sounds", ":date", use: getRetro2025TopSoundsHandlerV4)
+        // v4.get("retro2025-top-authors", ":date", use: getRetro2025TopAuthorsHandlerV4)
+        // v4.get("retro2025-day-patterns", ":date", use: getRetro2025DayPatternsHandlerV4)
+        // v4.get("retro2025-user-stats", ":date", use: getRetro2025UserStatsHandlerV4)
+
+        // Retro2025 Statistics - Date Range
+        // v4.get("retro2025-dashboard-range", ":startDate", ":endDate", use: getRetro2025DashboardRangeHandlerV4)
+        // v4.get("retro2025-top-sounds-range", ":startDate", ":endDate", use: getRetro2025TopSoundsRangeHandlerV4)
+        // v4.get("retro2025-top-authors-range", ":startDate", ":endDate", use: getRetro2025TopAuthorsRangeHandlerV4)
+        // v4.get("retro2025-day-patterns-range", ":startDate", ":endDate", use: getRetro2025DayPatternsRangeHandlerV4)
+        // v4.get("retro2025-user-stats-range", ":startDate", ":endDate", use: getRetro2025UserStatsRangeHandlerV4)
+
+        // Version Analytics
+        v4.get("version-signals-hourly", ":date", ":password", use: getVersionSignalsHourlyHandlerV4)
+        v4.get("version-adoption-daily", ":days", ":password", use: getVersionAdoptionDailyHandlerV4)
+        v4.get("version-distribution", ":password", use: getVersionDistributionHandlerV4)
+
+        // Episode Analytics
+        v4.get("episode-analytics", ":password", use: getEpisodeAnalyticsHandlerV4)
+        v4.get("episode-play-count-stats-all-time", use: getEpisodePlayCountStatsAllTimeHandlerV4)
+        v4.get("episode-play-count-stats-from", ":date", use: getEpisodePlayCountStatsFromHandlerV4)
+        v4.get("episode-play-count-stats-from-to", ":firstDate", ":secondDate", use: getEpisodePlayCountStatsFromToHandlerV4)
+        v4.get("popular-episodes-this-week", use: getPopularEpisodesThisWeekHandlerV4)
+
+        // Share Clip Analytics
+        v4.get("share-clip-analytics", ":password", use: getShareClipAnalyticsHandlerV4)
+
+        // Chapters Analytics
+        v4.get("chapters-usage-analytics", ":password", use: getChaptersUsageAnalyticsHandlerV4)
+
+        // Folder Research Analytics
+        v4.get("folder-research-analytics", ":password", use: getFolderResearchAnalyticsHandlerV4)
+
+        // Watch Pairing Analytics
+        v4.get("watch-pairing-rate", ":password", use: getWatchPairingRateHandlerV4)
+
+        // Games Analytics
+        v4.get("games-analytics", ":password", use: getGamesAnalyticsHandlerV4)
+
+        // Retrospectiva 2026 Analytics
+        v4.get("retro2026-analytics", ":password", use: getRetro2026AnalyticsHandlerV4)
+
+        // Election Live Activity Analytics
+        v4.get("election-live-analytics", ":password", use: getElectionLiveAnalyticsHandlerV4)
+        v4.get("election-live-analytics", "series", ":password", use: getElectionLiveSeriesHandlerV4)
+    }
+}

@@ -17,3 +17,15 @@ struct StatusCheckController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension StatusCheckController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v1 = routes.grouped("api", "v1")
+        let v2 = routes.grouped("api", "v2")
+
+        v1.get("status-check", use: getStatusCheckHandlerV1)
+        v2.get("status-check", use: getStatusCheckHandlerV2)
+    }
+}

@@ -136,3 +136,17 @@ struct SoundsController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension SoundsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v3 = routes.grouped("api", "v3")
+
+        v3.post("import-sounds", ":password", use: postImportSoundsHandlerV3)
+        v3.post("create-sound", ":password", use: postCreateSoundHandlerV3)
+        v3.get("sound", ":id", use: getSoundHandlerV3)
+        v3.get("all-sounds", use: getAllSoundsHandlerV3)
+        v3.delete("sound", ":id", ":password", use: deleteSoundHandlerV3)
+    }
+}

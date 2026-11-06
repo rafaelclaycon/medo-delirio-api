@@ -25,3 +25,14 @@ struct RetrospectiveController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension RetrospectiveController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("classic-retro-starting-version", use: getRetroStartingVersionHandlerV3)
+        v4.post("set-classic-retro-version", use: postSetRetroStartingVersionHandlerV3)
+    }
+}

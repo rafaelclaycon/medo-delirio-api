@@ -116,3 +116,17 @@ struct MusicGenresController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension MusicGenresController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v3 = routes.grouped("api", "v3")
+
+        v3.post("import-music-genres", ":password", use: postImportMusicGenresHandlerV3)
+        v3.post("create-music-genre", ":password", use: postCreateMusicHandlerHandlerV3)
+        v3.get("music-genre", ":id", use: getMusicGenreHandlerV3)
+        v3.get("all-music-genres", use: getAllMusicGenresHandlerV3)
+        v3.delete("music-genre", ":id", ":password", use: deleteMusicGenreHandlerV3)
+    }
+}

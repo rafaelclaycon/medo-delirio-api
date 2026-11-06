@@ -91,3 +91,15 @@ struct EpisodeHighlightController {
         }
     }
 }
+
+// MARK: - Routes
+
+extension EpisodeHighlightController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("episode-highlight", use: getHandlerV4)
+        v4.post("episode-highlight", ":password", use: postHandlerV4)
+        v4.delete("episode-highlight", ":password", use: deleteHandlerV4)
+    }
+}

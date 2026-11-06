@@ -165,3 +165,13 @@ struct WidgetSummaryController {
         )
     }
 }
+
+// MARK: - Routes
+
+extension WidgetSummaryController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.get("widget-summary", ":password", use: getWidgetSummaryHandlerV4)
+    }
+}

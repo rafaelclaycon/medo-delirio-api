@@ -141,3 +141,16 @@ struct UpdateEventsController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension UpdateEventsController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v3 = routes.grouped("api", "v3")
+
+        v3.get("update-events", ":date", use: getUpdateEventsHandlerV3)
+        v3.put("change-update-visibility", ":updateId", ":newValue", ":password", use: putChangeUpdateVisibilityHandlerV3)
+        v3.put("update-content", ":password", use: putUpdateContentHandlerV3)
+        v3.post("update-content-file", ":type", ":id", ":password", use: postUpdateContentFileHandlerV3)
+    }
+}

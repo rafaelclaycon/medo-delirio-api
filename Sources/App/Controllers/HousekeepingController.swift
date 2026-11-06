@@ -88,3 +88,14 @@ struct HousekeepingController {
         return .ok
     }
 }
+
+// MARK: - Routes
+
+extension HousekeepingController: RouteCollection {
+    func boot(routes: any RoutesBuilder) throws {
+        let v4 = routes.grouped("api", "v4")
+
+        v4.post("replace-device-model-name", ":password", ":oldName", ":newName", use: postReplaceDeviceModelNameHandlerV4)
+        v4.post("repair-share-count-stat-content-types", ":password", use: postRepairShareCountStatContentTypesHandlerV4)
+    }
+}

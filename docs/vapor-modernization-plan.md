@@ -164,7 +164,9 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 None of these change behaviour. Do them when convenient.
 
 - **Declare JWTKit explicitly.** `ReleaseConfigs.swift` imports `JWTKit`, but it is only available through APNS. Add `.package(url: "https://github.com/vapor/jwt-kit.git", from: "4.13.0")` and the `JWTKit` product to the `App` target.
-- **`RouteCollection`.** All 141 routes are registered by hand in `routes.swift`. Make each controller conform to `RouteCollection` and register its own routes under `api/v1`, `api/v2` and `api/v3` groups. Keep every path identical; an existing-routes test helps.
+- ✅ **`RouteCollection` (Nov 6).** All 23 controllers register their own routes in `boot(routes:)`, in a `// MARK: - Routes` extension at the end of each file, and `routes.swift` is now just the list of `app.register(collection:)` calls.
+  - **Inline closures:** the three closures that lived in `routes.swift` became named handlers. The app site association went to `ShareController`; `send-push-notification` and `test-weekly-highlights-push` went to `NotificationsController`.
+  - **Proof nothing moved:** `RoutesTests` pins all 145 routes with their response types, and it passes unchanged before and after.
 - ✅ **Swift Testing (Nov 2).** All 327 tests moved from `XCTVapor` + `XCTestCase` to `VaporTesting` + `@Test`, one to one, and `XCTVapor` is gone from `Package.swift`.
   - **App lifecycle:** each test runs inside `withTestApp`, built on Vapor's `withApp`. It shuts the app down even when the test throws.
   - **Parallel by default:** tests now run in parallel, so the suite takes about 5 s instead of 17 s. Each app has its own in-memory database. The password environment variables are set once per process, because `setenv` isn't safe alongside concurrent reads.
