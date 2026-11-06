@@ -14,7 +14,7 @@ Already modern before this plan started: async `@main` entrypoint using `Applica
 | 2 | Background jobs: async RSS fetch, cancellable `Task` loops | ✅ Done, observed in production Oct 26 – Nov 1 |
 | 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ✅ Done in code Nov 1–2; production check pending for the last batches |
 | 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency, package layout | ✅ Done in code Nov 2–6 |
-| 5 | Move admin passwords out of URL paths (breaking API change) | 💬 Needs an app-side plan |
+| 5 | Move admin passwords out of URL paths (breaking API change) | 📋 Planned Nov 6: callers mapped, MedoHelper only |
 
 ---
 
@@ -185,12 +185,33 @@ None of these change behaviour. Do them when convenient.
 
 ## Phase 5: Passwords in URL paths (needs a decision)
 
-59 lines in `routes.swift` register admin routes with a `:password` path parameter, for example `set-donor-names/:password`. Passwords in URLs end up in access logs, reverse-proxy logs and shell history.
+72 admin routes take their password as a `:password` path segment, for example `POST /api/v3/set-donor-names/:password`. Passwords in URLs end up in nginx access logs, proxy logs and shell history. (The count was 59 when this plan was written; routes added since then, like `retro2026-analytics`, follow the same pattern.)
 
-**Proposal:**
+### Who calls these routes (checked Nov 6)
 
-1. Accept the password from an `Authorization: Bearer …` header **in addition to** the path parameter, through a small middleware on an admin route group.
-2. Update the clients that call these routes: admin tooling, scripts and the app if applicable.
-3. After a transition period, remove the path-parameter variants.
+**The app sends no passwords.** Every match in `MedoDelirioBrasilia` is a public GET on the same path (`v4/dynamic-banner`, `v4/money-info`, `v4/episode-highlight`, …) or a doc comment showing a manual call. Phase 5 does not need an app release.
 
-This is a breaking API change, so it needs coordination with whatever calls these endpoints. It should not ship together with any other phase.
+**MedoHelper calls 52 of them**, all through `Secrets.*Password`:
+
+| Where | Routes |
+|---|---|
+| `AnalyticsRepository` | 22 analytics GETs (`active-users-*`, `device-*`, `ios-version*`, `navigation-analytics`, `version-*`, `episode-analytics`, `share-clip-analytics`, `chapters-usage-analytics`, `folder-research-analytics`, `watch-pairing-rate`, `election-live-analytics` and `/series`, `games-analytics`, `retro2026-analytics`, `unique-users`) |
+| `MedoHelperWidget/WidgetDataFetcher` | `widget-summary`, plus 4 of the analytics GETs above |
+| `ContentRepository` | `create-sound`, `create-song`, `update-content`, `DELETE sound/:id`, `DELETE song/:id` |
+| Sound, author and genre views | `import-sounds`, `import-songs`, `update-content-file`, `change-update-visibility`, `import-authors`, `create-author`, `update-author`, `DELETE author/:id`, `import-music-genres`, `create-music-genre` |
+| `ReactionRepository` | `create-reaction`, `add-sounds-to-reaction`, `PUT reaction`, `delete-all-reactions`, `delete-all-reaction-sounds`, `delete-reaction-sounds/:id`, `delete-reaction/:id` |
+| `PushBroadcastRepository` (one `request` helper) | `push-audience`, `GET`/`POST push-broadcasts`, `push-broadcast/:id`, `push-broadcast/:id/cancel` |
+| `DonorsRepository`, `DynamicBannerRepository` | `set-donor-names`, `dynamic-banner` |
+
+**20 have no caller in either codebase**, so they're manual calls (curl): `DELETE music-genre/:id`, `sessions-count-from`, `weekly-highlights-stats`, the 4 `election/*` admin routes, `retro-banner` (settings, set, delete), `episode-highlight` (set, delete), `money-info`, `anniversary-banner`, `promo-banner`, `rss-status`, `test-new-episode-push`, `test-weekly-highlights-push`, `repair-share-count-stat-content-types` and `replace-device-model-name`.
+
+`POST /api/v1/send-push-notification` already takes its password in the JSON body, so it isn't part of this. Nothing calls it either.
+
+### Plan
+
+1. **Server, non-breaking.** Add `req.adminPassword`, which reads `Authorization: Bearer <password>` and falls back to the `:password` segment. The 62 handler checks use it instead of `req.parameters.get("password")`, and each handler keeps its current status codes. Every admin route is also registered without the `:password` segment, so old and new URLs both work. A route-shape check found no conflicts with existing routes. Tests: for every admin route, no password and a wrong one are rejected, and the right one is accepted from both the header and the path.
+2. **MedoHelper.** Build these URLs without the password and send the header. Most calls go through `APIClient`, `PushBroadcastRepository.request` or `WidgetDataFetcher.get`, so a few helpers cover nearly all 52. Update any curl notes or scripts for the 20 manual routes.
+3. **Watch the logs.** Count the remaining old-style calls in nginx without printing them, until they reach zero for a few days.
+4. **Server, breaking.** Remove the `:password` variants, then rotate all 7 passwords: the old ones are in up to two weeks of rotated nginx logs, and in shell history.
+
+Each server step deploys alone, not together with any other change.
