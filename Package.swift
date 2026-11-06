@@ -11,6 +11,9 @@ let package = Package(
         .package(url: "https://github.com/vapor/fluent.git", from: "4.13.0"),
         .package(url: "https://github.com/vapor/fluent-sqlite-driver.git", from: "4.9.0"),
         .package(url: "https://github.com/vapor/apns", from: "3.0.0"),
+        // Imported directly to sign the broadcast push JWT, so declared rather than
+        // left to arrive through APNS.
+        .package(url: "https://github.com/vapor/jwt-kit.git", from: "4.13.0"),
         .package(url: "https://github.com/nmdias/FeedKit.git", from: "9.1.0"),
     ],
     targets: [
@@ -21,6 +24,7 @@ let package = Package(
                 .product(name: "FluentSQLiteDriver", package: "fluent-sqlite-driver"),
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "APNS", package: "apns"),
+                .product(name: "JWTKit", package: "jwt-kit"),
                 .product(name: "FeedKit", package: "FeedKit")
             ],
             swiftSettings: [

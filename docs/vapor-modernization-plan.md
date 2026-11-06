@@ -163,7 +163,11 @@ About 87 `EventLoopFuture` usages remain in 8 controllers:
 
 None of these change behaviour. Do them when convenient.
 
-- **Declare JWTKit explicitly.** `ReleaseConfigs.swift` imports `JWTKit`, but it is only available through APNS. Add `.package(url: "https://github.com/vapor/jwt-kit.git", from: "4.13.0")` and the `JWTKit` product to the `App` target.
+- ✅ **Declare JWTKit explicitly (Nov 6).** `Package.swift` now lists jwt-kit `from: "4.13.0"`, and the `JWTKit` product is in the `App` target.
+  - **Why:** `APNsBroadcastClient` signs the broadcast push JWT with it, and `ReleaseConfigs` uses its `JWKIdentifier`.
+  - **No version change:** `Package.resolved` is unchanged, still 4.13.5, the version APNSwift was already pulling in.
+  - **What it protects against:** an APNS upgrade that drops jwt-kit would now be caught as a version conflict, instead of the import silently disappearing.
+  - **`@preconcurrency` stays** on the import in `ReleaseConfigs`, because `JWKIdentifier` isn't `Sendable` in jwt-kit 4.
 - ✅ **`RouteCollection` (Nov 6).** All 23 controllers register their own routes in `boot(routes:)`, in a `// MARK: - Routes` extension at the end of each file, and `routes.swift` is now just the list of `app.register(collection:)` calls.
   - **Inline closures:** the three closures that lived in `routes.swift` became named handlers. The app site association went to `ShareController`; `send-push-notification` and `test-weekly-highlights-push` went to `NotificationsController`.
   - **Proof nothing moved:** `RoutesTests` pins all 145 routes with their response types, and it passes unchanged before and after.
