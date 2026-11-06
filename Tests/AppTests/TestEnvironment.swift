@@ -8,6 +8,7 @@ import Foundation
 /// test that exercises a password-protected route must set these itself.
 enum TestEnvironment {
     static let testPassword = "test-password"
+    static let appleAppID = "TEAMID.com.example.medo"
 
     static func configurePasswords() {
         _ = passwordsConfigured
@@ -27,6 +28,7 @@ enum TestEnvironment {
         ] {
             setenv(key, testPassword, 1)
         }
+        setenv("APPLE_APP_ID", appleAppID, 1)
     }()
 }
 
