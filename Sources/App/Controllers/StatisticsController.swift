@@ -291,10 +291,7 @@ struct StatisticsController {
     }
 
     func getActiveUsersCountFromHandlerV3(req: Request) async throws -> ActiveUsersResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let date = req.parameters.get("date") else {
@@ -315,10 +312,7 @@ struct StatisticsController {
     }
 
     func getSessionsCountFromHandlerV3(req: Request) async throws -> SessionsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let date = req.parameters.get("date") else {
@@ -339,10 +333,7 @@ struct StatisticsController {
     }
 
     func getActiveUsersDailyLast30DaysHandlerV3(req: Request) async throws -> [DailyActiveUsersResponse] {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -394,7 +385,7 @@ struct StatisticsController {
     ///
     /// Like `active-users-count-from`: every signal counts.
     func getUniqueUsersHandlerV4(req: Request) async throws -> UniqueUsersResponse {
-        guard req.parameters.get("password") == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let sqlite = req.db as? SQLiteDatabase else {
@@ -425,10 +416,7 @@ struct StatisticsController {
     }
 
     func getDeviceAnalyticsHandlerV3(req: Request) async throws -> DeviceAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -569,10 +557,7 @@ struct StatisticsController {
         guard let modelName = req.parameters.get("modelName") else {
             throw Abort(.internalServerError)
         }
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -605,10 +590,7 @@ struct StatisticsController {
     }
 
     func getAllDeviceModelNamesHandlerV3(req: Request) async throws -> [String] {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -631,10 +613,7 @@ struct StatisticsController {
         guard let majorVersion = req.parameters.get("majorVersion") else {
             throw Abort(.internalServerError)
         }
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -667,10 +646,7 @@ struct StatisticsController {
     }
 
     func getAllIOSVersionsHandlerV3(req: Request) async throws -> [String] {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -693,10 +669,7 @@ struct StatisticsController {
         guard let majorVersion = req.parameters.get("majorVersion") else {
             throw Abort(.internalServerError)
         }
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -768,10 +741,7 @@ struct StatisticsController {
     }
 
     func getNavigationAnalyticsHandlerV3(req: Request) async throws -> NavigationAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -884,10 +854,7 @@ struct StatisticsController {
 extension StatisticsController {
 
     func getWeeklyHighlightsStatsHandlerV4(req: Request) async throws -> WeeklyHighlightsStatsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -1417,10 +1384,7 @@ extension StatisticsController {
     /// Route 1: Hourly Version Data for a Day
     /// GET /api/v4/version-signals-hourly/:date/:password
     func getVersionSignalsHourlyHandlerV4(req: Request) async throws -> VersionSignalsHourlyResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let date = req.parameters.get("date") else {
@@ -1515,10 +1479,7 @@ extension StatisticsController {
     /// Route 2: Daily Version Trend (last N days)
     /// GET /api/v4/version-adoption-daily/:days/:password
     func getVersionAdoptionDailyHandlerV4(req: Request) async throws -> VersionAdoptionDailyResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let daysString = req.parameters.get("days"), let days = Int(daysString) else {
@@ -1566,10 +1527,7 @@ extension StatisticsController {
     /// Route 3: Current Version Distribution
     /// GET /api/v4/version-distribution/:password
     func getVersionDistributionHandlerV4(req: Request) async throws -> VersionDistributionResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -1621,10 +1579,7 @@ extension StatisticsController {
     // MARK: - Episode Analytics
 
     func getEpisodeAnalyticsHandlerV4(req: Request) async throws -> EpisodeAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -1700,10 +1655,7 @@ extension StatisticsController {
     }
 
     func getShareClipAnalyticsHandlerV4(req: Request) async throws -> ShareClipAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -1785,10 +1737,7 @@ extension StatisticsController {
     }
 
     func getChaptersUsageAnalyticsHandlerV4(req: Request) async throws -> ChaptersUsageAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2054,10 +2003,7 @@ extension StatisticsController {
 extension StatisticsController {
 
     func getFolderResearchAnalyticsHandlerV4(req: Request) async throws -> FolderResearchAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2249,10 +2195,7 @@ extension StatisticsController {
     /// that have reported a pairing status count toward the percentage; see
     /// `WatchPairingRateResponse` for the field semantics.
     func getWatchPairingRateHandlerV4(req: Request) async throws -> WatchPairingRateResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2332,10 +2275,7 @@ extension StatisticsController {
     /// Usage of the election Live Activity. `?since=` takes an ISO 8601 date (with or
     /// without fractional seconds) and defaults to 24 hours ago.
     func getElectionLiveAnalyticsHandlerV4(req: Request) async throws -> ElectionLiveAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2488,10 +2428,7 @@ extension StatisticsController {
     /// take ISO 8601 dates (default: the last 24 hours, at most 48), and `?bucketMinutes=`
     /// one of 5, 10, 15, 30 or 60 (default 10).
     func getElectionLiveSeriesHandlerV4(req: Request) async throws -> ElectionLiveSeriesResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2591,10 +2528,7 @@ extension StatisticsController {
     /// features tab in MedoHelper. `?days=N` (default 30, at most 365) sets the window in UTC
     /// days, today included.
     func getGamesAnalyticsHandlerV4(req: Request) async throws -> GamesAnalyticsResponse {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -2690,7 +2624,7 @@ extension StatisticsController {
     /// How the Retrospectiva 2026 is doing, from its banner to the share taps, with what the
     /// 2025 one can be compared on. Covers every event since the feature shipped.
     func getRetro2026AnalyticsHandlerV4(req: Request) async throws -> Retro2026AnalyticsResponse {
-        guard req.parameters.get("password") == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let sqlite = req.db as? SQLiteDatabase else {
@@ -2762,21 +2696,21 @@ extension StatisticsController: RouteCollection {
         v3.get("sound-share-count-stats-from", ":date", use: getSoundShareCountStatsFromHandlerV3)
         v3.get("sound-share-count-stats-from-to", ":firstDate", ":secondDate", use: getSoundShareCountStatsFromToHandlerV3)
         v3.get("sound-share-count-stats-for", ":soundId", use: getSoundShareCountStatsForSoundIdHandler)
-        v3.get("active-users-count-from", ":date", ":password", use: getActiveUsersCountFromHandlerV3)
-        v3.get("active-users-daily-last-30-days", ":password", use: getActiveUsersDailyLast30DaysHandlerV3)
-        v4.get("unique-users", ":password", use: getUniqueUsersHandlerV4)
-        v3.get("device-analytics", ":password", use: getDeviceAnalyticsHandlerV3)
-        v3.get("device-model-history", ":modelName", ":password", use: getDeviceModelHistoryHandlerV3)
-        v3.get("all-device-model-names", ":password", use: getAllDeviceModelNamesHandlerV3)
-        v3.get("ios-version-history", ":majorVersion", ":password", use: getIOSVersionHistoryHandlerV3)
-        v3.get("all-ios-versions", ":password", use: getAllIOSVersionsHandlerV3)
-        v3.get("ios-version-device-breakdown", ":majorVersion", ":password", use: getIOSVersionDeviceBreakdownHandlerV3)
-        v3.get("navigation-analytics", ":password", use: getNavigationAnalyticsHandlerV3)
-        v3.get("sessions-count-from", ":date", ":password", use: getSessionsCountFromHandlerV3)
+        v3.admin(.GET, "active-users-count-from", ":date", ":password", use: getActiveUsersCountFromHandlerV3)
+        v3.admin(.GET, "active-users-daily-last-30-days", ":password", use: getActiveUsersDailyLast30DaysHandlerV3)
+        v4.admin(.GET, "unique-users", ":password", use: getUniqueUsersHandlerV4)
+        v3.admin(.GET, "device-analytics", ":password", use: getDeviceAnalyticsHandlerV3)
+        v3.admin(.GET, "device-model-history", ":modelName", ":password", use: getDeviceModelHistoryHandlerV3)
+        v3.admin(.GET, "all-device-model-names", ":password", use: getAllDeviceModelNamesHandlerV3)
+        v3.admin(.GET, "ios-version-history", ":majorVersion", ":password", use: getIOSVersionHistoryHandlerV3)
+        v3.admin(.GET, "all-ios-versions", ":password", use: getAllIOSVersionsHandlerV3)
+        v3.admin(.GET, "ios-version-device-breakdown", ":majorVersion", ":password", use: getIOSVersionDeviceBreakdownHandlerV3)
+        v3.admin(.GET, "navigation-analytics", ":password", use: getNavigationAnalyticsHandlerV3)
+        v3.admin(.GET, "sessions-count-from", ":date", ":password", use: getSessionsCountFromHandlerV3)
 
         // Off until Retro 2026, like the other Retro2025 routes below.
         // v4.get("retro2025-share-count", ":date", use: getRetro2025ShareCountHandlerV4)
-        v4.get("weekly-highlights-stats", ":password", use: getWeeklyHighlightsStatsHandlerV4)
+        v4.admin(.GET, "weekly-highlights-stats", ":password", use: getWeeklyHighlightsStatsHandlerV4)
         v1.post("share-count-stat", use: postShareCountStatHandlerV1)
         v1.post("shared-to-bundle-id", use: postSharedToBundleIdHandlerV1)
 
@@ -2807,37 +2741,37 @@ extension StatisticsController: RouteCollection {
         // v4.get("retro2025-user-stats-range", ":startDate", ":endDate", use: getRetro2025UserStatsRangeHandlerV4)
 
         // Version Analytics
-        v4.get("version-signals-hourly", ":date", ":password", use: getVersionSignalsHourlyHandlerV4)
-        v4.get("version-adoption-daily", ":days", ":password", use: getVersionAdoptionDailyHandlerV4)
-        v4.get("version-distribution", ":password", use: getVersionDistributionHandlerV4)
+        v4.admin(.GET, "version-signals-hourly", ":date", ":password", use: getVersionSignalsHourlyHandlerV4)
+        v4.admin(.GET, "version-adoption-daily", ":days", ":password", use: getVersionAdoptionDailyHandlerV4)
+        v4.admin(.GET, "version-distribution", ":password", use: getVersionDistributionHandlerV4)
 
         // Episode Analytics
-        v4.get("episode-analytics", ":password", use: getEpisodeAnalyticsHandlerV4)
+        v4.admin(.GET, "episode-analytics", ":password", use: getEpisodeAnalyticsHandlerV4)
         v4.get("episode-play-count-stats-all-time", use: getEpisodePlayCountStatsAllTimeHandlerV4)
         v4.get("episode-play-count-stats-from", ":date", use: getEpisodePlayCountStatsFromHandlerV4)
         v4.get("episode-play-count-stats-from-to", ":firstDate", ":secondDate", use: getEpisodePlayCountStatsFromToHandlerV4)
         v4.get("popular-episodes-this-week", use: getPopularEpisodesThisWeekHandlerV4)
 
         // Share Clip Analytics
-        v4.get("share-clip-analytics", ":password", use: getShareClipAnalyticsHandlerV4)
+        v4.admin(.GET, "share-clip-analytics", ":password", use: getShareClipAnalyticsHandlerV4)
 
         // Chapters Analytics
-        v4.get("chapters-usage-analytics", ":password", use: getChaptersUsageAnalyticsHandlerV4)
+        v4.admin(.GET, "chapters-usage-analytics", ":password", use: getChaptersUsageAnalyticsHandlerV4)
 
         // Folder Research Analytics
-        v4.get("folder-research-analytics", ":password", use: getFolderResearchAnalyticsHandlerV4)
+        v4.admin(.GET, "folder-research-analytics", ":password", use: getFolderResearchAnalyticsHandlerV4)
 
         // Watch Pairing Analytics
-        v4.get("watch-pairing-rate", ":password", use: getWatchPairingRateHandlerV4)
+        v4.admin(.GET, "watch-pairing-rate", ":password", use: getWatchPairingRateHandlerV4)
 
         // Games Analytics
-        v4.get("games-analytics", ":password", use: getGamesAnalyticsHandlerV4)
+        v4.admin(.GET, "games-analytics", ":password", use: getGamesAnalyticsHandlerV4)
 
         // Retrospectiva 2026 Analytics
-        v4.get("retro2026-analytics", ":password", use: getRetro2026AnalyticsHandlerV4)
+        v4.admin(.GET, "retro2026-analytics", ":password", use: getRetro2026AnalyticsHandlerV4)
 
         // Election Live Activity Analytics
-        v4.get("election-live-analytics", ":password", use: getElectionLiveAnalyticsHandlerV4)
-        v4.get("election-live-analytics", "series", ":password", use: getElectionLiveSeriesHandlerV4)
+        v4.admin(.GET, "election-live-analytics", ":password", use: getElectionLiveAnalyticsHandlerV4)
+        v4.admin(.GET, "election-live-analytics", "series", ":password", use: getElectionLiveSeriesHandlerV4)
     }
 }

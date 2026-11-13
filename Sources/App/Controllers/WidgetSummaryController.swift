@@ -62,7 +62,7 @@ struct WidgetSummaryController {
     }
 
     func getWidgetSummaryHandlerV4(req: Request) async throws -> WidgetSummaryResponse {
-        guard req.parameters.get("password") == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         guard let sqlite = req.db as? SQLiteDatabase else {
@@ -172,6 +172,6 @@ extension WidgetSummaryController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v4 = routes.grouped("api", "v4")
 
-        v4.get("widget-summary", ":password", use: getWidgetSummaryHandlerV4)
+        v4.admin(.GET, "widget-summary", ":password", use: getWidgetSummaryHandlerV4)
     }
 }

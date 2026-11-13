@@ -11,10 +11,7 @@ import Fluent
 struct SoundsController {
 
     func postImportSoundsHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -31,10 +28,7 @@ struct SoundsController {
     }
     
     func postCreateSoundHandlerV3(req: Request) async throws -> Response {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -103,10 +97,7 @@ struct SoundsController {
     }
     
     func deleteSoundHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -143,10 +134,10 @@ extension SoundsController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v3 = routes.grouped("api", "v3")
 
-        v3.post("import-sounds", ":password", use: postImportSoundsHandlerV3)
-        v3.post("create-sound", ":password", use: postCreateSoundHandlerV3)
+        v3.admin(.POST, "import-sounds", ":password", use: postImportSoundsHandlerV3)
+        v3.admin(.POST, "create-sound", ":password", use: postCreateSoundHandlerV3)
         v3.get("sound", ":id", use: getSoundHandlerV3)
         v3.get("all-sounds", use: getAllSoundsHandlerV3)
-        v3.delete("sound", ":id", ":password", use: deleteSoundHandlerV3)
+        v3.admin(.DELETE, "sound", ":id", ":password", use: deleteSoundHandlerV3)
     }
 }

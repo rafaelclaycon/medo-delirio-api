@@ -179,10 +179,7 @@ struct ElectionController {
     }
 
     private func checkPassword(_ req: Request) throws {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.electionPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.electionPassword else {
             throw Abort(.forbidden)
         }
     }
@@ -195,9 +192,9 @@ extension ElectionController: RouteCollection {
         let v4 = routes.grouped("api", "v4")
 
         v4.get("election", "live", use: getLiveHandlerV4)
-        v4.get("election", "status", ":password", use: getStatusHandlerV4)
-        v4.post("election", "settings", ":password", use: postSettingsHandlerV4)
-        v4.get("election", "channels", ":password", use: getChannelsHandlerV4)
-        v4.post("election", "channels", ":password", use: postChannelsHandlerV4)
+        v4.admin(.GET, "election", "status", ":password", use: getStatusHandlerV4)
+        v4.admin(.POST, "election", "settings", ":password", use: postSettingsHandlerV4)
+        v4.admin(.GET, "election", "channels", ":password", use: getChannelsHandlerV4)
+        v4.admin(.POST, "election", "channels", ":password", use: postChannelsHandlerV4)
     }
 }

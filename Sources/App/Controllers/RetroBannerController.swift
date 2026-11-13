@@ -110,10 +110,7 @@ struct RetroBannerController {
     }
 
     private func checkPassword(_ req: Request) throws {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.dynamicBannerPassword else {
             throw Abort(.forbidden)
         }
     }
@@ -126,8 +123,8 @@ extension RetroBannerController: RouteCollection {
         let v4 = routes.grouped("api", "v4")
 
         v4.get("retro-banner", use: getHandlerV4)
-        v4.get("retro-banner", "settings", ":password", use: getSettingsHandlerV4)
-        v4.post("retro-banner", ":password", use: postHandlerV4)
-        v4.delete("retro-banner", ":password", use: deleteHandlerV4)
+        v4.admin(.GET, "retro-banner", "settings", ":password", use: getSettingsHandlerV4)
+        v4.admin(.POST, "retro-banner", ":password", use: postHandlerV4)
+        v4.admin(.DELETE, "retro-banner", ":password", use: deleteHandlerV4)
     }
 }

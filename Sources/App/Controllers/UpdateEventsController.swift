@@ -55,10 +55,7 @@ struct UpdateEventsController {
             throw Abort(.badRequest, reason: "Invalid UUID format")
         }
 
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.badRequest)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -79,10 +76,7 @@ struct UpdateEventsController {
     }
     
     func putUpdateContentHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.badRequest)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -114,10 +108,7 @@ struct UpdateEventsController {
     }
     
     func postUpdateContentFileHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.badRequest)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -149,8 +140,8 @@ extension UpdateEventsController: RouteCollection {
         let v3 = routes.grouped("api", "v3")
 
         v3.get("update-events", ":date", use: getUpdateEventsHandlerV3)
-        v3.put("change-update-visibility", ":updateId", ":newValue", ":password", use: putChangeUpdateVisibilityHandlerV3)
-        v3.put("update-content", ":password", use: putUpdateContentHandlerV3)
-        v3.post("update-content-file", ":type", ":id", ":password", use: postUpdateContentFileHandlerV3)
+        v3.admin(.PUT, "change-update-visibility", ":updateId", ":newValue", ":password", use: putChangeUpdateVisibilityHandlerV3)
+        v3.admin(.PUT, "update-content", ":password", use: putUpdateContentHandlerV3)
+        v3.admin(.POST, "update-content-file", ":type", ":id", ":password", use: postUpdateContentFileHandlerV3)
     }
 }

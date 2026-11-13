@@ -83,10 +83,7 @@ struct EpisodeHighlightController {
     }
 
     private func checkPassword(_ req: Request) throws {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.dynamicBannerPassword else {
             throw Abort(.forbidden)
         }
     }
@@ -99,7 +96,7 @@ extension EpisodeHighlightController: RouteCollection {
         let v4 = routes.grouped("api", "v4")
 
         v4.get("episode-highlight", use: getHandlerV4)
-        v4.post("episode-highlight", ":password", use: postHandlerV4)
-        v4.delete("episode-highlight", ":password", use: deleteHandlerV4)
+        v4.admin(.POST, "episode-highlight", ":password", use: postHandlerV4)
+        v4.admin(.DELETE, "episode-highlight", ":password", use: deleteHandlerV4)
     }
 }

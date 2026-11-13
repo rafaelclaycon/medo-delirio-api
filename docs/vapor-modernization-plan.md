@@ -14,7 +14,7 @@ Already modern before this plan started: async `@main` entrypoint using `Applica
 | 2 | Background jobs: async RSS fetch, cancellable `Task` loops | ✅ Done, observed in production Oct 26 – Nov 1 |
 | 3 | Convert the remaining `EventLoopFuture` handlers to `async`/`await` | ✅ Done in code Nov 1–2; production check pending for the last batches |
 | 4 | Optional cleanups: `RouteCollection`, Swift Testing, explicit JWTKit dependency, package layout | ✅ Done in code Nov 2–6 |
-| 5 | Move admin passwords out of URL paths (breaking API change) | 📋 Planned Nov 6: callers mapped, MedoHelper only |
+| 5 | Move admin passwords out of URL paths (breaking API change) | 🚧 Step 1 (header accepted, non-breaking) done in code Nov 13; MedoHelper next |
 
 ---
 
@@ -209,7 +209,12 @@ None of these change behaviour. Do them when convenient.
 
 ### Plan
 
-1. **Server, non-breaking.** Add `req.adminPassword`, which reads `Authorization: Bearer <password>` and falls back to the `:password` segment. The 62 handler checks use it instead of `req.parameters.get("password")`, and each handler keeps its current status codes. Every admin route is also registered without the `:password` segment, so old and new URLs both work. A route-shape check found no conflicts with existing routes. Tests: for every admin route, no password and a wrong one are rejected, and the right one is accepted from both the header and the path.
+1. **Server, non-breaking.** ✅ Done in code Nov 13.
+   - `req.adminPassword` (`Sources/App/AdminPassword.swift`) returns the `:password` segment, or else the `Authorization: Bearer` token. An empty token counts as none.
+   - The 62 handler checks became `guard req.adminPassword == … else { throw … }`. On the old URLs the "missing password" branch could never run, because the router doesn't match an empty segment, so dropping it changes nothing there. On the new URLs, a missing password gets the same 401 or 403 that handler gives a wrong one.
+   - `admin(.POST, "x", ":password", use:)` registers each route with and without its trailing `:password`. For step 4, change that helper to register only the second one.
+   - **Exception: `replace-device-model-name`.** Its password sits in the middle (`:password/:oldName/:newName`), and Vapor's router can't hold `:oldName` and `:password` at the same position (a startup crash, which the route snapshot doesn't catch because it never builds the router). Its header route is `POST replace-device-model-name?oldName=…&newName=…`, and its handler now checks the password before the names.
+   - Tests: `AdminPasswordTests` takes the 72 routes from the route snapshot. For each one, a wrong password in the path, no header, `Bearer wrong`, an empty bearer and Basic auth all get the same status, 401 or 403. The right password works in both the header and the path. The snapshot now lists 217 routes.
 2. **MedoHelper.** Build these URLs without the password and send the header. Most calls go through `APIClient`, `PushBroadcastRepository.request` or `WidgetDataFetcher.get`, so a few helpers cover nearly all 52. Update any curl notes or scripts for the 20 manual routes.
 3. **Watch the logs.** Count the remaining old-style calls in nginx without printing them, until they reach zero for a few days.
 4. **Server, breaking.** Remove the `:password` variants, then rotate all 7 passwords: the old ones are in up to two weeks of rotated nginx logs, and in shell history.

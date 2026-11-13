@@ -27,10 +27,7 @@ struct DonorsController {
     }
 
     func postSetDonorNamesHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.setDonorNamesPassword else {
             throw Abort(.forbidden)
         }
         let rawInputString = try req.content.decode(String.self)
@@ -59,7 +56,7 @@ extension DonorsController: RouteCollection {
 
         v3.get("donor-names", use: getDonorNamesHandlerV3)
         v3.get("display-recurring-donation-banner", use: getDisplayRecurringDonationBannerHandlerV3)
-        v3.post("set-donor-names", ":password", use: postSetDonorNamesHandlerV3)
+        v3.admin(.POST, "set-donor-names", ":password", use: postSetDonorNamesHandlerV3)
         v3.post("display-recurring-donation-banner", use: postSetDisplayRecurringDonationBannerHandlerV3)
     }
 }

@@ -11,10 +11,7 @@ import Fluent
 struct AuthorsController {
 
     func postImportAuthorsHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -29,10 +26,7 @@ struct AuthorsController {
     }
     
     func postCreateAuthorHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -59,10 +53,7 @@ struct AuthorsController {
     }
 
     func putUpdateAuthorHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.badRequest)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -127,10 +118,7 @@ struct AuthorsController {
     }
     
     func deleteAuthorHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -167,12 +155,12 @@ extension AuthorsController: RouteCollection {
         let v3 = routes.grouped("api", "v3")
         let v4 = routes.grouped("api", "v4")
 
-        v3.post("import-authors", ":password", use: postImportAuthorsHandlerV3)
-        v3.post("create-author", ":password", use: postCreateAuthorHandlerV3)
-        v3.put("update-author", ":password", use: putUpdateAuthorHandlerV3)
+        v3.admin(.POST, "import-authors", ":password", use: postImportAuthorsHandlerV3)
+        v3.admin(.POST, "create-author", ":password", use: postCreateAuthorHandlerV3)
+        v3.admin(.PUT, "update-author", ":password", use: putUpdateAuthorHandlerV3)
         v3.get("author", ":id", use: getAuthorHandlerV3) // Links and no links
         v4.get("author-links-first-open", use: getAuthorLinksHandlerV4)
         v3.get("all-authors", use: getAllAuthorsHandlerV3)
-        v3.delete("author", ":id", ":password", use: deleteAuthorHandlerV3)
+        v3.admin(.DELETE, "author", ":id", ":password", use: deleteAuthorHandlerV3)
     }
 }

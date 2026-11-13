@@ -97,7 +97,7 @@ struct PushBroadcastController {
     // MARK: - Helpers
 
     private func checkPassword(_ req: Request) throws {
-        guard req.parameters.get("password") == ReleaseConfigs.Passwords.sendNotificationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.sendNotificationPassword else {
             throw Abort(.unauthorized)
         }
     }
@@ -124,10 +124,10 @@ extension PushBroadcastController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v4 = routes.grouped("api", "v4")
 
-        v4.get("push-audience", ":password", use: getAudienceHandlerV4)
-        v4.post("push-broadcasts", ":password", use: postBroadcastHandlerV4)
-        v4.get("push-broadcasts", ":password", use: getBroadcastsHandlerV4)
-        v4.get("push-broadcast", ":id", ":password", use: getBroadcastHandlerV4)
-        v4.post("push-broadcast", ":id", "cancel", ":password", use: postCancelBroadcastHandlerV4)
+        v4.admin(.GET, "push-audience", ":password", use: getAudienceHandlerV4)
+        v4.admin(.POST, "push-broadcasts", ":password", use: postBroadcastHandlerV4)
+        v4.admin(.GET, "push-broadcasts", ":password", use: getBroadcastsHandlerV4)
+        v4.admin(.GET, "push-broadcast", ":id", ":password", use: getBroadcastHandlerV4)
+        v4.admin(.POST, "push-broadcast", ":id", "cancel", ":password", use: postCancelBroadcastHandlerV4)
     }
 }

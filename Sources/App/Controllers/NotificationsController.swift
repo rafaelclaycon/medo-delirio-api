@@ -55,8 +55,7 @@ struct NotificationsController {
 
     /// Sends this week's highlights right away, ignoring the once-a-day guard.
     func postTestWeeklyHighlightsPushHandlerV4(req: Request) async throws -> WeeklyHighlightsSendResult {
-        guard let password = req.parameters.get("password"),
-              password == ReleaseConfigs.Passwords.analyticsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.analyticsPassword else {
             throw Abort(.forbidden)
         }
         let service = WeeklyHighlightsService(app: req.application)
@@ -180,6 +179,6 @@ extension NotificationsController: RouteCollection {
         v4.post("subscribe-channel", use: postSubscribeChannelHandlerV4)
         v4.post("unsubscribe-channel", use: postUnsubscribeChannelHandlerV4)
         v4.get("device-channels", ":installId", use: getDeviceChannelsHandlerV4)
-        v4.post("test-weekly-highlights-push", ":password", use: postTestWeeklyHighlightsPushHandlerV4)
+        v4.admin(.POST, "test-weekly-highlights-push", ":password", use: postTestWeeklyHighlightsPushHandlerV4)
     }
 }

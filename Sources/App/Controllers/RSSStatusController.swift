@@ -15,8 +15,7 @@ struct RSSStatusController {
     }
 
     func getRSSStatusHandlerV4(req: Request) async throws -> RSSStatusResponse {
-        guard let password = req.parameters.get("password"),
-              password == ReleaseConfigs.Passwords.sendNotificationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.sendNotificationPassword else {
             throw Abort(.unauthorized)
         }
 
@@ -47,8 +46,7 @@ struct RSSStatusController {
     }
 
     func postTestNewEpisodePushHandlerV4(req: Request) async throws -> TestPushResponse {
-        guard let password = req.parameters.get("password"),
-              password == ReleaseConfigs.Passwords.sendNotificationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.sendNotificationPassword else {
             throw Abort(.unauthorized)
         }
 
@@ -103,7 +101,7 @@ extension RSSStatusController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v4 = routes.grouped("api", "v4")
 
-        v4.get("rss-status", ":password", use: getRSSStatusHandlerV4)
-        v4.post("test-new-episode-push", ":password", use: postTestNewEpisodePushHandlerV4)
+        v4.admin(.GET, "rss-status", ":password", use: getRSSStatusHandlerV4)
+        v4.admin(.POST, "test-new-episode-push", ":password", use: postTestNewEpisodePushHandlerV4)
     }
 }

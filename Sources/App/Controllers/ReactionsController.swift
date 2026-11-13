@@ -62,10 +62,7 @@ struct ReactionsController {
 extension ReactionsController {
 
     func postCreateReactionHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -79,10 +76,7 @@ extension ReactionsController {
     }
 
     func postAddSoundsToReactionHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -103,10 +97,7 @@ extension ReactionsController {
 extension ReactionsController {
 
     func putUpdateReactionHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.badRequest)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -133,10 +124,7 @@ extension ReactionsController {
 extension ReactionsController {
 
     func deleteAllReactionsHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
         do {
@@ -150,10 +138,7 @@ extension ReactionsController {
 
     /// Deletes all sounds for all Reactions.
     func deleteAllReactionSoundsHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
         do {
@@ -167,10 +152,7 @@ extension ReactionsController {
 
     /// Deletes all sounds for a specific Reaction.
     func deleteReactionSoundsHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
 
@@ -188,10 +170,7 @@ extension ReactionsController {
     }
 
     func deleteReactionHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.reactionsPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.reactionsPassword else {
             throw Abort(.forbidden)
         }
         guard
@@ -217,12 +196,12 @@ extension ReactionsController: RouteCollection {
         v4.get("reaction", ":reactionId", use: getReactionHandlerV4)
         v4.get("reaction-sounds", ":reactionId", use: getReactionSoundsHandlerV4)
         v4.get("reactions-for-sound", ":soundId", use: getReactionsForSoundHandler)
-        v4.post("create-reaction", ":password", use: postCreateReactionHandlerV4)
-        v4.post("add-sounds-to-reaction", ":password", use: postAddSoundsToReactionHandlerV4)
-        v4.put("reaction", ":password", use: putUpdateReactionHandlerV4)
-        v4.delete("delete-all-reactions", ":password", use: deleteAllReactionsHandlerV4)
-        v4.delete("delete-all-reaction-sounds", ":password", use: deleteAllReactionSoundsHandlerV4)
-        v4.delete("delete-reaction-sounds", ":id", ":password", use: deleteReactionSoundsHandlerV4)
-        v4.delete("delete-reaction", ":id", ":password", use: deleteReactionHandlerV4)
+        v4.admin(.POST, "create-reaction", ":password", use: postCreateReactionHandlerV4)
+        v4.admin(.POST, "add-sounds-to-reaction", ":password", use: postAddSoundsToReactionHandlerV4)
+        v4.admin(.PUT, "reaction", ":password", use: putUpdateReactionHandlerV4)
+        v4.admin(.DELETE, "delete-all-reactions", ":password", use: deleteAllReactionsHandlerV4)
+        v4.admin(.DELETE, "delete-all-reaction-sounds", ":password", use: deleteAllReactionSoundsHandlerV4)
+        v4.admin(.DELETE, "delete-reaction-sounds", ":id", ":password", use: deleteReactionSoundsHandlerV4)
+        v4.admin(.DELETE, "delete-reaction", ":id", ":password", use: deleteReactionHandlerV4)
     }
 }

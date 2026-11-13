@@ -11,10 +11,7 @@ import Fluent
 struct SongsController {
     
     func postImportSongsHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -29,10 +26,7 @@ struct SongsController {
     }
 
     func postCreateSongHandlerV3(req: Request) async throws -> Response {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -103,10 +97,7 @@ struct SongsController {
     }
 
     func deleteSongHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -144,10 +135,10 @@ extension SongsController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v3 = routes.grouped("api", "v3")
 
-        v3.post("import-songs", ":password", use: postImportSongsHandlerV3)
-        v3.post("create-song", ":password", use: postCreateSongHandlerV3)
+        v3.admin(.POST, "import-songs", ":password", use: postImportSongsHandlerV3)
+        v3.admin(.POST, "create-song", ":password", use: postCreateSongHandlerV3)
         v3.get("all-songs", use: getAllSongsHandlerV3)
         v3.get("song", ":id", use: getSongHandlerV3)
-        v3.delete("song", ":id", ":password", use: deleteSongHandlerV3)
+        v3.admin(.DELETE, "song", ":id", ":password", use: deleteSongHandlerV3)
     }
 }

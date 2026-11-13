@@ -11,10 +11,7 @@ import Fluent
 struct MusicGenresController {
 
     func postImportMusicGenresHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -29,10 +26,7 @@ struct MusicGenresController {
     }
 
     func postCreateMusicHandlerHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -83,10 +77,7 @@ struct MusicGenresController {
     }
 
     func deleteMusicGenreHandlerV3(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.assetOperationPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.assetOperationPassword else {
             throw Abort(.forbidden)
         }
 
@@ -123,10 +114,10 @@ extension MusicGenresController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let v3 = routes.grouped("api", "v3")
 
-        v3.post("import-music-genres", ":password", use: postImportMusicGenresHandlerV3)
-        v3.post("create-music-genre", ":password", use: postCreateMusicHandlerHandlerV3)
+        v3.admin(.POST, "import-music-genres", ":password", use: postImportMusicGenresHandlerV3)
+        v3.admin(.POST, "create-music-genre", ":password", use: postCreateMusicHandlerHandlerV3)
         v3.get("music-genre", ":id", use: getMusicGenreHandlerV3)
         v3.get("all-music-genres", use: getAllMusicGenresHandlerV3)
-        v3.delete("music-genre", ":id", ":password", use: deleteMusicGenreHandlerV3)
+        v3.admin(.DELETE, "music-genre", ":id", ":password", use: deleteMusicGenreHandlerV3)
     }
 }

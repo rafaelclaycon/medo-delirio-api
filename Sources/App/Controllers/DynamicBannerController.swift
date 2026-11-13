@@ -21,10 +21,7 @@ struct DynamicBannerController {
     }
 
     func postSetBannerDataHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.dynamicBannerPassword else {
             throw Abort(.forbidden)
         }
 
@@ -37,10 +34,7 @@ struct DynamicBannerController {
     }
 
     func postSetAnniversaryBannerDataHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.dynamicBannerPassword else {
             throw Abort(.forbidden)
         }
 
@@ -53,10 +47,7 @@ struct DynamicBannerController {
     }
 
     func postSetPromoBannerDataHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.dynamicBannerPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.dynamicBannerPassword else {
             throw Abort(.forbidden)
         }
 
@@ -110,8 +101,8 @@ extension DynamicBannerController: RouteCollection {
         v4.get("anniversary-banner", use: getAnniversaryBannerDataHandlerV4)
         v4.get("promo-banner", use: getPromoBannerDataHandlerV4)
         v4.post("set-dynamic-banner-dont-show-version", use: postSetBannerDontShowVersionHandlerV4)
-        v4.post("dynamic-banner", ":password", use: postSetBannerDataHandlerV4)
-        v4.post("anniversary-banner", ":password", use: postSetAnniversaryBannerDataHandlerV4)
-        v4.post("promo-banner", ":password", use: postSetPromoBannerDataHandlerV4)
+        v4.admin(.POST, "dynamic-banner", ":password", use: postSetBannerDataHandlerV4)
+        v4.admin(.POST, "anniversary-banner", ":password", use: postSetAnniversaryBannerDataHandlerV4)
+        v4.admin(.POST, "promo-banner", ":password", use: postSetPromoBannerDataHandlerV4)
     }
 }

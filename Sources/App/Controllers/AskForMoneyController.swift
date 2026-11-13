@@ -48,10 +48,7 @@ struct AskForMoneyController {
     }
 
     func postMoneyInfoHandlerV4(req: Request) async throws -> HTTPStatus {
-        guard let password = req.parameters.get("password") else {
-            throw Abort(.internalServerError)
-        }
-        guard password == ReleaseConfigs.Passwords.setDonorNamesPassword else {
+        guard req.adminPassword == ReleaseConfigs.Passwords.setDonorNamesPassword else {
             throw Abort(.forbidden)
         }
 
@@ -77,6 +74,6 @@ extension AskForMoneyController: RouteCollection {
         v4.get("money-info", use: getMoneyInfoHandlerV4)
         v1.post("display-ask-for-money-view", use: postDisplayAskForMoneyViewHandlerV1)
         v2.post("set-test-version", use: postSetTestVersionHandlerV2)
-        v4.post("money-info", ":password", use: postMoneyInfoHandlerV4)
+        v4.admin(.POST, "money-info", ":password", use: postMoneyInfoHandlerV4)
     }
 }
