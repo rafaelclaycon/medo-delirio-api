@@ -221,7 +221,7 @@ None of these change behaviour. Do them when convenient.
    - **Order matters:** MedoHelper and its widget call production, so ship this only after step 1 is live. Against an older API, every admin call gets a 404.
    - MedoHelper's own tests didn't run. They were already broken before this change: the test target's deployment target is macOS 15.0 against the app's 26.6, and `ReactionsCRUDViewModelTests` uses members the view model no longer has.
    - Still to do by hand: update your curl notes for the 20 manual routes (`-H "Authorization: Bearer $PW"`). For `replace-device-model-name`, use `?oldName=…&newName=…`.
-3. **Watch the logs.** Count the remaining old-style calls in nginx without printing them, until they reach zero for a few days.
+3. **Watch the logs.** Run `sudo bash scripts/count-password-path-calls.sh` on the server. For each nginx log (`access.log` is today, `.1` yesterday, then the gzipped older days), it counts the requests that still have a password in the path, then lists them by route. It prints route patterns only, never a password. Go on to step 4 once `access.log` and `access.log.1` show 0 for a few days.
 4. **Server, breaking.** Remove the `:password` variants, then rotate all 7 passwords: the old ones are in up to two weeks of rotated nginx logs, and in shell history.
 
 Each server step deploys alone, not together with any other change.
