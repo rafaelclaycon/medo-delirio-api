@@ -96,38 +96,63 @@ ROUTES
 
 total=0
 all_hits=""
+printf '%8s  %-28s  %s\n' "calls" "latest one" "log file"
 for log in "$@"; do
     [ -f "$log" ] || continue
     case "$log" in
         *.gz) reader=(gzip -dc -- "$log") ;;
         *)    reader=(cat -- "$log") ;;
     esac
-    # Each output line: the route pattern of one old-style call.
+    # Prints the route pattern of each old-style call, then "#latest<TAB>time" if there was one.
     hits=$("${reader[@]}" | awk -F'"' '
+        # "GET /api/v4/unique-users": method plus the first three path segments, which
+        # are constant in every admin route, so each line is checked against its own
+        # route only instead of all 72.
+        function key(method, path,    p) {
+            split(path, p, "/")
+            return method " /" p[2] "/" p[3] "/" p[4]
+        }
         # First file: the route list, one tab-separated route per line.
         NR == FNR {
             split($0, f, "\t")
             n++
-            method[n] = f[1]; re[n] = f[2]; excl[n] = f[3]; name[n] = f[1] " " f[4]
+            re[n] = f[2]; excl[n] = f[3]; name[n] = f[1] " " f[4]
+            k = key(f[1], f[4])
+            bucket[k] = bucket[k] " " n
             next
         }
         {
             split($2, req, " ")
             path = req[2]
             sub(/\?.*/, "", path)
-            for (i = 1; i <= n; i++) {
-                if (req[1] == method[i] && path ~ re[i] && (excl[i] == "-" || path !~ excl[i])) {
+            k = key(req[1], path)
+            if (!(k in bucket)) next
+            m = split(bucket[k], ids, " ")
+            for (j = 1; j <= m; j++) {
+                i = ids[j]
+                if (path ~ re[i] && (excl[i] == "-" || path !~ excl[i])) {
                     print name[i]
+                    latest = $1
                     break
                 }
             }
+        }
+        END {
+            if (latest != "") {
+                sub(/^[^[]*\[/, "", latest)
+                sub(/\].*$/, "", latest)
+                print "#latest\t" latest
+            }
         }' "$routes_file" -)
     count=0
+    latest="-"
     if [ -n "$hits" ]; then
-        count=$(printf '%s\n' "$hits" | wc -l | tr -d ' ')
+        latest=$(printf '%s\n' "$hits" | grep '^#latest' | cut -f2)
+        hits=$(printf '%s\n' "$hits" | grep -v '^#latest' || true)
+        count=$(printf '%s\n' "$hits" | grep -c . || true)
         all_hits+="$hits"$'\n'
     fi
-    printf '%8d  %s\n' "$count" "$log"
+    printf '%8d  %-28s  %s\n' "$count" "$latest" "$log"
     total=$(( total + count ))
 done
 
@@ -135,5 +160,5 @@ echo
 echo "Total: $total"
 if [ "$total" -gt 0 ]; then
     echo
-    printf '%s' "$all_hits" | sort | uniq -c | sort -rn
+    printf '%s' "$all_hits" | grep . | sort | uniq -c | sort -rn
 fi
